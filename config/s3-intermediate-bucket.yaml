@@ -1,0 +1,4 @@
+template_path: s3-bucket.yaml
+stack_name: recover-dev-intermediate-bucket
+parameters:
+  BucketName: recover-dev-intermediate-data
