@@ -1,10 +1,8 @@
 AWSTemplateFormatVersion: 2010-09-09
 
-Transform: S3Objects
-
 Description: >-
-  An S3 bucket for use in development. This bucket will serve as the landing
-  bucket for incoming data, mimicking the Bridge bucket.
+  This S3 bucket will be used for development and production,
+  and for storing partly or fully processed data
 
 Parameters:
 
@@ -35,7 +33,7 @@ Resources:
       AccessControl: Private
       OwnershipControls:
         Rules:
-          - ObjectOwnership: BucketOwnerPreferred
+          - ObjectOwnership: BucketOwnerEnforced
       BucketEncryption:
         ServerSideEncryptionConfiguration:
         - ServerSideEncryptionByDefault:

@@ -1,5 +1,4 @@
 project_code: recover
-latest_version: v0.1
 region: us-east-1
 synapseAuthSsmParameterName: synapse-recover-auth
 default_stack_tags:
