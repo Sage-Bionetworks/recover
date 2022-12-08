@@ -9,4 +9,4 @@ default_stack_tags:
 j2_environment:
   extensions:
     - jinja2.ext.do
-    - jinja2.ext.debug:
+    - jinja2.ext.debug
