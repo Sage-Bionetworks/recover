@@ -1,0 +1,10 @@
+template_path: remote/vpc-mini.yaml
+stack_name: vpc-mini
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
+parameters:
+  VpcName: vpc-mini
+  VpcSubnetPrefix: "10.255.25"
+hooks:
+  before_launch:
+    - !cmd "wget https://{{stack_group_config.admincentral_cf_bucket}}.s3.amazonaws.com/aws-infra/v0.4.0/VPC/vpc-mini.yaml -O templates/remote/vpc-mini.yaml"
