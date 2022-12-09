@@ -1,4 +1,6 @@
-template_path: s3-bucket.yaml
+template:
+  type: file
+  path: s3-bucket.yaml
 stack_name: recover-dev-processed-data-bucket
 parameters:
   BucketName: recover-dev-processed-data
