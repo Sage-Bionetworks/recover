@@ -8,3 +8,11 @@ python_version = "3.10"
 
 [dev-packages]
 pre-commit = "*"
+<<<<<<< Updated upstream
+=======
+sceptre = ">=3.2.0"
+sceptre-sam-handler = "*"
+
+[packages]
+synapseclient = "==2.5.*"
+>>>>>>> Stashed changes
