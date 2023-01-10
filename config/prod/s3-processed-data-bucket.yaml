@@ -1,0 +1,6 @@
+template:
+  type: file
+  path: s3-bucket.yaml
+stack_name: recover-processed-data-bucket
+parameters:
+  BucketName: recover-processed-data
