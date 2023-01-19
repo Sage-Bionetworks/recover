@@ -1,0 +1,9 @@
+template:
+  type: sam
+  path: src/lambda/template.yaml
+  artifact_bucket_name: !stack_attr stack_group_config.artifact_bucket_name
+  artifact_prefix: 'recover/{{ stack_group_config.namespace }}/lambda'
+stack_name: '{{ stack_group_config.namespace }}-lambda-S3ToGlue'
+stack_tags: {{ stack_group_config.default_stack_tags }}
+parameters:
+  Namespace: {{ stack_group_config.namespace }}
