@@ -15,9 +15,13 @@ Parameters:
     Type: String
     Description: The name or ARN of the IAM role that will run this job.
 
-  S3ScriptLocation:
+  S3ScriptBucket:
     Type: String
-    Description: The S3 path to the script that the job runs.
+    Description: The name of the S3 bucket where the script file is located.
+
+  S3ScriptKey:
+    Type: String
+    Description: The bucket key where the script file is located.
 
   MaxCapacity:
     Type: Number
@@ -45,12 +49,7 @@ Parameters:
     Description: The job timeout in minutes (integer).
     Default: 120
 
-  ContinuousLog:
-    Type: String
-    Default: 'true'
-    AllowedValues: ['true', 'false']
-
-  S3BucketName:
+  TempS3Bucket:
     Type: String
     Description: The name of the S3 bucket where temporary files and logs are written.
 
@@ -62,11 +61,11 @@ Resources:
       Command:
         Name: pythonshell
         PythonVersion: !Ref PythonVersion
-        ScriptLocation: !Ref S3ScriptLocation
+        ScriptLocation: !Sub s3://${S3ScriptBucket}/${S3ScriptKey}
       DefaultArguments:
-        --TempDir: !Sub s3://${S3BucketName}/tmp
-        --job-language: "python"
-        --enable-continuous-cloudwatch-log: !Ref ContinuousLog
+        --TempDir: !Sub s3://${TempS3Bucket}/tmp
+        --job-language: python
+        --enable-continuous-cloudwatch-log: true
         --enable-metrics: true
       Description: !Ref JobDescription
       GlueVersion: "3.0"

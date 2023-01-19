@@ -7,7 +7,8 @@ stack_name: glue-job-S3ToJsonS3
 parameters:
   JobDescription: Sort JSON from ZIP archive into datasets
   JobRole: !stack_output_external glue-job-role::RoleArn
-  S3BucketName: !stack_output_external recover-dev-intermediate-bucket::BucketName
-  S3ScriptLocation: s3://{{ stack_group_config.artifact_bucket_name }}/recover/src/glue/jobs/s3_to_json.py
+  TempS3Bucket: !stack_output_external recover-dev-intermediate-bucket::BucketName
+  S3ScriptBucket: !stack_output_external recover-dev-cloudformation-bucket::BucketName
+  S3ScriptKey: recover/src/glue/jobs/s3_to_json.py
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
