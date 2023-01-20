@@ -7,9 +7,9 @@ Description: >
 
 Parameters:
 
-  S3InputDataBucketName:
+  S3SourceBucketName:
     Type: String
-    Description: Name of the S3 bucket containing input data
+    Description: Name of the S3 bucket where source data are stored.
 
   Namespace:
     Type: String
@@ -19,7 +19,7 @@ Parameters:
     Description: >
       Schedule to execute the lambda function
     Type: String
-    Default: cron(5 1 ? * MON-FRI *)
+    Default: cron(59 23 ? * ? *)
 
 Resources:
   S3ToGlueRole:
@@ -56,8 +56,8 @@ Resources:
                - s3:Get*
                - s3:List*
               Resource:
-              - !Sub arn:aws:s3:::${S3InputDataBucketName}
-              - !Sub arn:aws:s3:::${S3InputDataBucketName}/*
+              - !Sub arn:aws:s3:::${S3SourceBucketName}
+              - !Sub arn:aws:s3:::${S3SourceBucketName}/*
 
 
   S3ToGlueFunction:
