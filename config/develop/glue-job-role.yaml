@@ -1,0 +1,10 @@
+template:
+  path: glue-job-role.yaml
+stack_name: glue-job-role
+parameters:
+  S3SourceBucketName: !stack_output_external recover-pilot-data-bucket::BucketName
+  S3IntermediateBucketName: !stack_output_external recover-dev-intermediate-bucket::BucketName
+  S3ParquetBucketName: !stack_output_external recover-dev-processed-data-bucket::BucketName
+  S3ArtifactBucketName: !stack_output_external recover-dev-cloudformation-bucket::BucketName
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}

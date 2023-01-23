@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: An IAM Role for the S3 to JSON Glue job
+
+Parameters:
+
+  S3SourceBucketName:
+    Type: String
+    Description: Name of the S3 bucket where source data are stored.
+
+  S3IntermediateBucketName:
+    Type: String
+    Description: Name of the S3 intermediate (JSON) bucket
+
+  S3ParquetBucketName:
+    Type: String
+    Description: Name of the S3 Parquet bucket
+
+  S3ArtifactBucketName:
+    Type: String
+    Description: Name of the S3 bucket where cloudformation templates and tests are stored.
+
+
+Resources:
+
+  JobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+      - PolicyName: Glue
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - glue:*
+            - cloudwatch:PutMetricData
+            Resource:
+            - "*"
+      - PolicyName: IAM
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - iam:ListRolePolicies
+            - iam:GetRole
+            - iam:GetRolePolicy
+            Resource:
+            - "*"
+      - PolicyName: ReadWriteInternalS3
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:Get*
+            - s3:List*
+            - s3:PutObject
+            - s3:PutObjectTagging
+            - s3:DeleteObject*
+            - s3:*MultipartUpload*
+            Resource:
+            - !Sub arn:aws:s3:::${S3IntermediateBucketName}
+            - !Sub arn:aws:s3:::${S3IntermediateBucketName}/*
+            - !Sub arn:aws:s3:::${S3ParquetBucketName}
+            - !Sub arn:aws:s3:::${S3ParquetBucketName}/*
+            - !Sub arn:aws:s3:::${S3ArtifactBucketName}
+            - !Sub arn:aws:s3:::${S3ArtifactBucketName}/*
+      - PolicyName: ReadExternalS3
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:Get*
+            - s3:List*
+            Resource:
+            - !Sub arn:aws:s3:::${S3SourceBucketName}
+            - !Sub arn:aws:s3:::${S3SourceBucketName}/*
+      - PolicyName: EC2
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - ec2:DescribeVpcEndpoints
+            - ec2:DescribeRouteTables
+            - ec2:CreateNetworkInterface
+            - ec2:DeleteNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DescribeSecurityGroups
+            - ec2:DescribeSubnets
+            - ec2:DescribeVpcAttribute
+            - ec2:CreateTags
+            - ec2:DeleteTags
+            Resource:
+            - "*"
+      - PolicyName: Logs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource:
+              - "arn:aws:logs:*:*:/aws-glue/*"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - glue.amazonaws.com
+          Action:
+          - 'sts:AssumeRole'
+
+Outputs:
+
+  RoleName:
+    Value: !Ref JobRole
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleName'
+
+  RoleArn:
+    Value: !GetAtt JobRole.Arn
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleArn'
