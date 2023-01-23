@@ -8,16 +8,20 @@ files which share a similar schema.
 """
 import datetime
 import io
-import os
 import json
 import logging
+import os
 import sys
 import zipfile
 import boto3
 from awsglue.utils import getResolvedOptions
 
-def write_file_to_json_dataset(z, json_path, dataset_identifier,
-        metadata, workflow_run_properties):
+def write_file_to_json_dataset(
+        z: zipfile.ZipFile,
+        json_path: str,
+        dataset_identifier: str,
+        metadata: dict,
+        workflow_run_properties: dict) -> str:
     """
     Write a JSON from a zipfile to a JSON dataset.
 
@@ -76,7 +80,7 @@ def write_file_to_json_dataset(z, json_path, dataset_identifier,
         workflow_run_properties["json_prefix"],
         f"dataset={dataset_identifier}",
         output_fname)
-    logger.debug(f"Output Key: {s3_output_key}")
+    logger.debug("Output Key: %s", s3_output_key)
     with open(output_path, "w") as f_out:
         for record in data:
             f_out.write("{}\n".format(json.dumps(record)))
@@ -86,10 +90,10 @@ def write_file_to_json_dataset(z, json_path, dataset_identifier,
                 Bucket = workflow_run_properties["json_bucket"],
                 Key = s3_output_key,
                 Metadata = s3_metadata)
-        logger.debug(f"S3 Put object response: {json.dumps(response)}")
+        logger.debug("S3 Put object response: %s", json.dumps(response))
     return output_path
 
-def get_metadata(basename):
+def get_metadata(basename: str) -> dict:
     """
     Get metadata of a file by parsing its basename.
 
@@ -127,10 +131,12 @@ def get_metadata(basename):
             and basename_components[-2] == "Deleted"
         ):
         metadata["type"] = "HealthKitV2Samples_Deleted"
-    logger.debug(f"metadata = {metadata}")
+    logger.debug("metadata = %s", metadata)
     return metadata
 
-def process_record(s3_obj, workflow_run_properties):
+def process_record(
+        s3_obj: dict,
+        workflow_run_properties: dict) -> None:
     """
     Write the contents of a .zip archive stored on S3 to their respective
     JSON dataset.
@@ -153,12 +159,13 @@ def process_record(s3_obj, workflow_run_properties):
                 "Manifest" not in f.filename and
                 f.file_size > 0
         ]
-        logger.debug(f'contents: {z.namelist()}')
-        logger.debug(f'non-empty contents: {non_empty_contents}')
+        logger.debug("contents: %s", z.namelist())
+        logger.debug("non-empty contents: %s", non_empty_contents)
         for json_path in non_empty_contents:
             metadata = get_metadata(os.path.basename(json_path))
             dataset_identifier = metadata["type"]
-            logger.info(f"Writing {json_path} to dataset {dataset_identifier}")
+            logger.info("Writing %s to dataset %s",
+                        json_path, dataset_identifier)
             write_file_to_json_dataset(
                     z=z,
                     json_path=json_path,
@@ -166,7 +173,7 @@ def process_record(s3_obj, workflow_run_properties):
                     metadata=metadata,
                     workflow_run_properties=workflow_run_properties)
 
-def main():
+def main() -> None:
     # Configure logger
     logging.basicConfig()
     logger = logging.getLogger(__name__)
@@ -186,15 +193,15 @@ def main():
     workflow_run_properties = glue_client.get_workflow_run_properties(
             Name=args["WORKFLOW_NAME"],
             RunId=args["WORKFLOW_RUN_ID"])["RunProperties"]
-    logger.debug(f"getResolvedOptions: {json.dumps(args)}")
-    logger.debug(f"get_workflow_run_properties: {json.dumps(workflow_run_properties)}")
+    logger.debug("getResolvedOptions: %s", json.dumps(args))
+    logger.debug("get_workflow_run_properties: %s", json.dumps(workflow_run_properties))
 
     # Load messages to be processed
     logger.info("Loading messages")
     messages = json.loads(workflow_run_properties["messages"])
     for message in messages:
-        logger.info(f"Retrieving S3 object for Bucket {message['source_bucket']} "
-                    f"and Key {message['source_key']}'")
+        logger.info("Retrieving S3 object for Bucket %s and Key %s",
+                    message["source_bucket"], message["source_key"])
         s3_obj = s3_client.get_object(
                 Bucket = message["source_bucket"],
                 Key = message["source_key"]
