@@ -18,6 +18,9 @@ To use the SAM CLI, you need the following tools.
 You may need the following for local testing.
 * [Python 3 installed](https://www.python.org/downloads/)
 
+You will also need to configure your AWS credentials,
+if you have not already done so.
+
 ## Creating a local build
 
 Use the SAM CLI to build and test your lambda locally.
@@ -49,8 +52,6 @@ the namespace environment variable that is expected by the lambda script.
 Don't forget to update the value of this variable
 if you are testing a stack deployed as part of a feature branch.
 
-First, configure your AWS credentials, if you have not already done so.
-
 To invoke the lambda with the test event:
 
 ```bash
@@ -70,7 +71,7 @@ sam local invoke -e events/test-trigger-event.json --env-vars test-env-vars.json
 2. Create/update the following [sceptre](https://github.com/Sceptre/sceptre) template file:
 `src/lambda_function/template.yaml`
 
-Run the following command to create the lambda stack in your AWS account:
+3. Run the following command to create the lambda stack in your AWS account:
 
 ```shell script
 sceptre --var namespace='test-namespace' launch develop/namespace/s3-to-glue-lambda.yaml
