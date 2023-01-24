@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: The primary workflow for processing RECOVER data
+
+Parameters:
+
+  JsonBucketName:
+    Type: String
+    Description: >-
+      The name of the bucket where JSON datasets are stored.
+
+  JsonKeyPrefix:
+    Type: String
+    Description: S3 key prefix where JSON datasets are stored.
+    Default: json
+
+  S3ToJsonJobName:
+    Type: String
+    Description: The name of the S3 To JSON Job
+
+Resources:
+
+  PrimaryWorkflow:
+    Type: AWS::Glue::Workflow
+    Properties:
+      DefaultRunProperties:
+        json_bucket: !Ref JsonBucketName
+        json_prefix: !Ref JsonKeyPrefix
+      Description: >-
+        Glue workflow for exporting RECOVER data to Parquet datasets
+      MaxConcurrentRuns: 1
+      Name: PrimaryWorkflow
+
+  InitialTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Actions:
+        - JobName: !Ref S3ToJsonJobName
+      Description: This is the first trigger in the primary workflow.
+      Type: ON_DEMAND
+      WorkflowName: !Ref PrimaryWorkflow
+
+Outputs:
+
+  WorkflowName:
+    Value: !Ref PrimaryWorkflow
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-WorkflowName'
