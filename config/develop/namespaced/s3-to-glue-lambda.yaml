@@ -7,4 +7,4 @@ stack_name: '{{ stack_group_config.namespace }}-lambda-S3ToGlue'
 stack_tags: {{ stack_group_config.default_stack_tags }}
 parameters:
   Namespace: {{ stack_group_config.namespace }}
-  S3SourceBucketName: recover-pilot-data
+  S3SourceBucketName: !stack_output_external recover-pilot-data-bucket::BucketName
