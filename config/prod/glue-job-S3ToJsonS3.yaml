@@ -2,6 +2,7 @@ template:
   path: glue-job-S3ToJsonS3.yaml
 dependencies:
   - prod/s3-intermediate-bucket.yaml
+  - prod/s3-cloudformation-bucket.yaml
   - prod/glue-job-role.yaml
 stack_name: glue-job-S3ToJsonS3
 parameters:
