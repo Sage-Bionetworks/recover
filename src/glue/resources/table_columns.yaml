@@ -1,0 +1,427 @@
+tables:
+  HealthKitV2Statistics:
+    columns:
+      - Name: HealthKitStatisticKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: StartDate
+        Type: string
+      - Name: Date
+        Type: string
+      - Name: Value
+        Type: string
+      - Name: Units
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: boolean
+      - Name: export_end_date
+        Type: boolean
+  HealthKitV2Samples:
+    columns:
+      - Name: HealthKitSampleKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: Type
+        Type: string
+      - Name: StartDate
+        Type: string
+      - Name: Date
+        Type: string
+      - Name: Value
+        Type: string
+      - Name: Units
+        Type: string
+      - Name: Source
+        Type: struct<Identifier:string,Name:string,Version:string,OperatingSystemVersion:string,ProductType:string>
+      - Name: Device
+        Type: struct<Name:string,Model:string,Manufacturer:string,HardwareVersion:string,SoftwareVersion:string,FirmwareVersion:string,LocalIdentifier:string,FDAIdentifier:string>
+      - Name: Metadata
+        Type: struct<HKMetadataKeySyncVersion:string,HKVO2MaxTestType:string,HKMetadataKeySyncIdentifier:string>
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: boolean
+      - Name: export_end_date
+        Type: boolean
+  HealthKitV2Samples_Deleted:
+    columns:
+      - Name: HealthKitSampleKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: DeletedDate
+        Type: string
+  HealthKitV2ActivitySummaries:
+    columns:
+      - Name: HealthKitActivitySummaryKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: StartDate
+        Type: string
+      - Name: EndDate
+        Type: string
+      - Name: ActiveEnergyBurned
+        Type: double
+      - Name: ActiveEnergyBurnedGoal
+        Type: double
+      - Name: AppleExerciseTime
+        Type: double
+      - Name: AppleExerciseTimeGoal
+        Type: double
+      - Name: AppleStandHours
+        Type: double
+      - Name: AppleStandHoursGoal
+        Type: double
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: boolean
+      - Name: export_end_date
+        Type: boolean
+  HealthKitV2Electrocardiogram_Samples:
+    columns:
+      - Name: HealthKitECGSampleKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: StartDate
+        Type: string
+      - Name: Date
+        Type: string
+      - Name: AverageHeartRate
+        Type: int
+      - Name: Classification
+        Type: string
+      - Name: NumberOfVoltageMeasurements
+        Type: int
+      - Name: SamplingFrequency
+        Type: int
+      - Name: SymptomStatus
+        Type: string
+      - Name: SubSamples
+        Type: array<struct<MicroVolts:double,TimeSinceSampleStart:double>>
+      - Name: Source
+        Type: struct<Identifier:string,Name:string,Version:string,OperatingSystemVersion:string,ProductType:string>
+      - Name: Device
+        Type: struct<Name:string,Model:string,Manufacturer:string,HardwareVersion:string,SoftwareVersion:string,FirmwareVersion:string,LocalIdentifier:string,FDAIdentifier:string>
+      - Name: Metadata
+        Type: struct<HKMetadataKeySyncVersion:string,HKVO2MaxTestType:string,HKMetadataKeySyncIdentifier:string>
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: boolean
+      - Name: export_end_date
+        Type: boolean
+  HealthKitV2Workouts:
+    columns:
+      - Name: HealthKitWorkoutKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ActivityType
+        Type: string
+      - Name: StartDate
+        Type: string
+      - Name: Date
+        Type: string
+      - Name: Events
+        Type: array<struct<Type:string,Date:string,Metadata:struct<_HKPrivateMetadataIsPartialSplit:string,_HKPrivateWorkoutSegmentEventSubtype:string,_HKPrivateMetadataSplitMeasuringSystem:string>,EndDate:string>>
+      - Name: Duration
+        Type: double
+      - Name: TotalDistance
+        Type: double
+      - Name: TotalEnergyBurned
+        Type: double
+      - Name: TotalFlightsClimbed
+        Type: int
+      - Name: TotalSwimmingStrokeCount
+        Type: int
+      - Name: Source
+        Type: struct<Identifier:string,Name:string,Version:string,OperatingSystemVersion:string,ProductType:string>
+      - Name: Device
+        Type: struct<Name:string,Model:string,Manufacturer:string,HardwareVersion:string,SoftwareVersion:string,FirmwareVersion:string,LocalIdentifier:string,FDAIdentifier:string>
+      - Name: Metadata
+        Type: struct<HKIndoorWorkout:string,HKTimeZone:string>
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: boolean
+      - Name: export_end_date
+        Type: boolean
+  FitbitActivityLogs:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: StartDate
+        Type: string
+      - Name: EndDate
+        Type: string
+      - Name: ActiveDuration
+        Type: string
+      - Name: ActivityName
+        Type: string
+      - Name: ActivityTypeId
+        Type: string
+      - Name: AverageHeartRate
+        Type: string
+      - Name: Calories
+        Type: string
+      - Name: Duration
+        Type: string
+      - Name: LastModified
+        Type: string
+      - Name: LogType
+        Type: string
+      - Name: ManualValueSpecifiedCalories
+        Type: string
+      - Name: ManualValueSpecifiedDistance
+        Type: string
+      - Name: ManualValueSpecifiedSteps
+        Type: string
+      - Name: OriginalDuration
+        Type: string
+      - Name: OriginalStartTime
+        Type: string
+      - Name: Steps
+        Type: string
+      - Name: HeartRateZone
+        Type: struct<OutOfRangeMax:string,OutOfRangeMin:string,OutOfRangeMinutes:string,FatBurnMax:string,FatBurnMin:string,FatBurnMinutes:string,CardioMax:string,CardioMin:string,CardioMinutes:string,PeakMax:string,PeakMin:string,PeakMinutes:string>
+      - Name: SedentaryMinutes
+        Type: string
+      - Name: LightlyMinutes
+        Type: string
+      - Name: FairlyMinutes
+        Type: string
+      - Name: VeryMinutes
+        Type: string
+      - Name: LogId
+        Type: string
+      - Name: export_start_date
+        Type: boolean
+      - Name: export_end_date
+        Type: boolean
+  FitbitDevices:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: Date
+        Type: string
+      - Name: Device
+        Type: string
+      - Name: Battery
+        Type: string
+      - Name: Type
+        Type: string
+  FitbitDailyData:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: Date
+        Type: string
+      - Name: ActivityCalories
+        Type: string
+      - Name: BodyBmi
+        Type: string
+      - Name: BodyFat
+        Type: string
+      - Name: BodyFatLog
+        Type: string
+      - Name: BodyFatLogSource
+        Type: string
+      - Name: BodyWeight
+        Type: string
+      - Name: BodyWeightLog
+        Type: struct<BodyWeight,BMI,Fat,Source>
+      - Name: Calories
+        Type: string
+      - Name: CaloriesBMR
+        Type: string
+      - Name: Distance
+        Type: string
+      - Name: Elevation
+        Type: string
+      - Name: Floors
+        Type: string
+      - Name: FoodCaloriesIn
+        Type: string
+      - Name: HeartRateIntradayCount
+        Type: string
+      - Name: HeartRateZone
+        Type: struct<OutOfRangeCaloriesOut:string,OutOfRangeMax:string,OutOfRangeMin:string,OutOfRangeMinutes:string,FatBurnCaloriesOut:string,FatBurnMax:string,FatBurnMin:string,FatBurnMinutes:string,CardioCaloriesOut:string,CardioMax:string,CardioMin:string,CardioMinutes:string,PeakCaloriesOut:string,PeakMax:string,PeakMin:string,PeakMinutes:string>
+      - Name: MinutesFairlyActive
+        Type: string
+      - Name: MinutesLightlyActive
+        Type: string
+      - Name: MinutesSedentary
+        Type: string
+      - Name: MinutesVeryActive
+        Type: string
+      - Name: RestingHeartRate
+        Type: string
+      - Name: Steps
+        Type: string
+      - Name: Tracker
+        Type: struct<ActivityCalories:string,Calories:string,Distance:string,Elevation:string,Floors:string,MinutesFairlyActive:string,MinutesLightlyActive:string,MinutesSedentary:string,MinutesVeryActive:string,TrackerSteps:string>
+      - Name: Water
+        Type: string
+      - Name: ModifiedDate
+        Type: string
+      - Name: HeartRateIntradayMinuteCount
+        Type: string
+      - Name: BreathingRate
+        Type: string
+      - Name: HrvDailyRmssd
+        Type: string
+      - Name: HrvDeepRmssd
+        Type: string
+      - Name: SpO2Avg
+        Type: string
+      - Name: SpO2Min
+        Type: string
+      - Name: SpO2Max
+        Type: string
+      - Name: CardioScore
+        Type: string
+      - Name: TempCore
+        Type: string
+      - Name: TempSkin
+        Type: string
+      - Name: TempSkinLogType
+        Type: string
+  FitbitIntradayCombined:
+    columns:
+      - Name: ParticipantID
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: Type
+        Type: string
+      - Name: DateTime
+        Type: string
+      - Name: Value
+        Type: string
+      - Name: Level
+        Type: string
+      - Name: Mets
+        Type: string
+      - Name: Rmssd
+        Type: string
+      - Name: Coverage
+        Type: string
+      - Name: Hf
+        Type: string
+      - Name: Lf
+        Type: string
+      - Name: DeepSleepSummaryBreathRate
+        Type: string
+      - Name: RemSleepSummaryBreathRate
+        Type: string
+      - Name: FullSleepSummaryBreathRate
+        Type: string
+      - Name: LightSleepSummaryBreathRate
+        Type: string
+      - Name: InsertedDate
+        Type: string
+  FitbitRestingHeartRates:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: Date
+        Type: string
+      - Name: RestingHeartRate
+        Type: string
+  FitbitSleepLogs:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: StartDate
+        Type: string
+      - Name: EndDate
+        Type: string
+      - Name: Duration
+        Type: string
+      - Name: Efficiency
+        Type: string
+      - Name: InfoCode
+        Type: string
+      - Name: MinutesAfterWakeup
+        Type: string
+      - Name: MinutesAsleep
+        Type: string
+      - Name: MinutesAwake
+        Type: string
+      - Name: MinutesToFallAsleep
+        Type: string
+      - Name: TimeInBed
+        Type: string
+      - Name: Type
+        Type: string
+      - Name: SleepLevelAwake
+        Type: string
+      - Name: SleepLevelAsleep
+        Type: string
+      - Name: SleepLevelDeep
+        Type: string
+      - Name: SleepLevelLight
+        Type: string
+      - Name: SleepLevelRem
+        Type: string
+      - Name: SleepLevelRestless
+        Type: string
+      - Name: SleepLevelWake
+        Type: string
+      - Name: SleepLogDetails
+        Type: array<struct<Type:string,StartDate:string,EndDate:string,SleepLogDate:string,Value:string>>
+      - Name: LogId
+        Type: string
+      - Name: export_start_date
+        Type: boolean
+      - Name: export_end_date
+        Type: boolean
+  GoogleFitSamples:
+    columns:
+      - Name: GoogleFitSampleKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: Type
+        Type: string
+      - Name: WindowStart
+        Type: string
+      - Name: WindowEnd
+        Type: string
+      - Name: Value
+        Type: string
+      - Name: Units
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: DataSourceAppPackageName
+        Type: string
+      - Name: DataSourceStreamName
+        Type: string
+      - Name: OriginalDataSourceAppPackageName
+        Type: string
+      - Name: OriginalDataSourceStreamName
+        Type: string
+      - Name: OriginalDataSourceManufacturer
+        Type: string
+      - Name: OriginalDataSourceModel
+        Type: string
+      - Name: OriginalDataSourceType
+        Type: string
+  SymptomLog:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: Date
+        Type: string
+      - Name: Value
+        Type: struct<overallFeeling:int,notes:string,symptoms:array<struct<id:string,severity:int>>,treatments:array<struct<id:string>>,icon:string>
+      - Name: export_start_date
+        Type: boolean

@@ -1,0 +1,15 @@
+standard:
+  - HealthKitV2Statistics
+  - HealthKitV2Samples
+  - HealthKitV2Samples_Deleted
+  - HealthKitV2ActivitySummaries
+  - HealthKitV2Electrocardiogram_Samples
+  - HealthKitV2Workouts
+  - FitbitActivityLogs
+  - FitbitDevices
+  - FitbitDailyData
+  - FitbitIntradayCombined
+  - FitbitRestingHeartRates
+  - FitbitSleepLogs
+  - GoogleFitSamples
+  - SymptomLog

@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: The set of Glue tables created
+
+Parameters:
+  Namespace:
+    Type: String
+    Description: >-
+      The namespace string used to build up the path to the correct object keys
+      in the bucket
+    Default: recover
+
+# buckets
+  S3IntermediateBucketName:
+    Type: String
+    Description: Name of the S3 intermediate (JSON) bucket
+
+Resources:
+  # combine all configuration data into a "datasets" collection
+  {% set datasets = [] %}
+  {% for v in sceptre_user_data.dataset_schemas.tables.keys() %}
+  {% set dataset = {} %}
+  {% do dataset.update({'dataset_name': v}) %}
+  {% do dataset.update({'table_name': 'dataset_' + v.lower()})%}
+  {% set schema = sceptre_user_data.dataset_schemas.tables[v] %}
+  {% do dataset.update({'columns': schema['columns']}) %}
+  {% do dataset.update({'stackname_prefix': '{}'.format(v.replace('_',''))}) %}
+  {% do datasets.append(dataset) %}
+  {% endfor %}
+
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Description: !Sub 'Recover database'
+
+  # Table stacks
+  {% for dataset in datasets %}
+  {{ dataset.stackname_prefix }}Table:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref GlueDatabase
+      TableInput:
+        Name: {{ dataset.table_name }}
+        Parameters:
+          classification: json
+          compressionType: none
+          typeOfData: file
+        Retention: 0
+        StorageDescriptor:
+          Columns: {{ dataset.columns }}
+          Compressed: false
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          Location: !Sub s3://${S3IntermediateBucketName}/${Namespace}/
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          StoredAsSubDirectories: false
+        TableType: EXTERNAL_TABLE
+    {% endfor %}

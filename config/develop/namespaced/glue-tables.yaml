@@ -1,0 +1,15 @@
+#{% set ns = stack_group_config.namespace %}
+template:
+  path: glue-tables.j2
+stack_name: '{{ ns }}-glue-tables'
+dependencies:
+  - develop/s3-intermediate-bucket.yaml
+parameters:
+  Namespace: {{ ns }}
+  S3IntermediateBucketName: !stack_output_external recover-dev-intermediate-bucket::BucketName
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
+sceptre_user_data:
+  dataset_crawler_assignments: !file src/glue/resources/dataset_assignments.yaml
+  # this needs to be replaced with real versioned schemas
+  dataset_schemas: !file src/glue/resources/table_columns.yaml
