@@ -56,6 +56,9 @@ def write_file_to_json_dataset(
             if dataset_identifier == "HealthKitV2Samples":
                 # This puts the `Type` property back where Apple intended it to be
                 j["Type"] = metadata["subtype"]
+            if dataset_identifier == "SymptomLog":
+                # Load JSON string as dict
+                j["Value"] = json.loads(j["Value"])
             data.append(j)
     if dataset_identifier == "HealthKitV2Samples":
         output_fname = "{}_{}_{}-{}.ndjson".format(
