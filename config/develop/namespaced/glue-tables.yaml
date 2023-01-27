@@ -10,6 +10,5 @@ parameters:
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
-  dataset_crawler_assignments: !file src/glue/resources/dataset_assignments.yaml
   # this needs to be replaced with real versioned schemas
   dataset_schemas: !file src/glue/resources/table_columns.yaml
