@@ -33,7 +33,7 @@ Resources:
     Properties:
       CatalogId: !Ref AWS::AccountId
       DatabaseInput:
-        Description: !Sub 'Recover database'
+        Description: !Sub 'Recover database using namespace ${Namespace}'
 
   # Table stacks
   {% for dataset in datasets %}
@@ -57,4 +57,4 @@ Resources:
           OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
           StoredAsSubDirectories: false
         TableType: EXTERNAL_TABLE
-    {% endfor %}
+  {% endfor %}
