@@ -33,6 +33,8 @@ tables:
         Type: string
       - Name: PreferredLanguage
         Type: string
+      - Name: export_end_date
+        Type: string
   HealthKitV2Statistics:
     columns:
       - Name: HealthKitStatisticKey
@@ -50,9 +52,9 @@ tables:
       - Name: InsertedDate
         Type: string
       - Name: export_start_date
-        Type: boolean
+        Type: string
       - Name: export_end_date
-        Type: boolean
+        Type: string
   HealthKitV2Samples:
     columns:
       - Name: HealthKitSampleKey
@@ -74,13 +76,13 @@ tables:
       - Name: Device
         Type: struct<Name:string,Model:string,Manufacturer:string,HardwareVersion:string,SoftwareVersion:string,FirmwareVersion:string,LocalIdentifier:string,FDAIdentifier:string>
       - Name: Metadata
-        Type: struct<HKMetadataKeySyncVersion:string,HKVO2MaxTestType:string,HKMetadataKeySyncIdentifier:string>
+        Type: struct<HKWasUserEntered:string,HKAlgorithmVersion:string,HKMetadataKeyHeartRateMotionContext:string,HKDateOfEarliestDataUsedForEstimate:string,HKMetadataKeyAppleDeviceCalibrated:string,HKTimeZone:string,HKMetadataKeySyncVersion:string,HKVO2MaxTestType:string,HKMetadataKeySyncIdentifier:string,HKMetadataKeyDevicePlacementSide:string>
       - Name: InsertedDate
         Type: string
       - Name: export_start_date
-        Type: boolean
+        Type: string
       - Name: export_end_date
-        Type: boolean
+        Type: string
   HealthKitV2Samples_Deleted:
     columns:
       - Name: HealthKitSampleKey
@@ -88,6 +90,10 @@ tables:
       - Name: ParticipantIdentifier
         Type: string
       - Name: DeletedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
         Type: string
   HealthKitV2ActivitySummaries:
     columns:
@@ -114,9 +120,9 @@ tables:
       - Name: InsertedDate
         Type: string
       - Name: export_start_date
-        Type: boolean
+        Type: string
       - Name: export_end_date
-        Type: boolean
+        Type: string
   HealthKitV2Electrocardiogram_Samples:
     columns:
       - Name: HealthKitECGSampleKey
@@ -144,20 +150,18 @@ tables:
       - Name: Device
         Type: struct<Name:string,Model:string,Manufacturer:string,HardwareVersion:string,SoftwareVersion:string,FirmwareVersion:string,LocalIdentifier:string,FDAIdentifier:string>
       - Name: Metadata
-        Type: struct<HKMetadataKeySyncVersion:string,HKVO2MaxTestType:string,HKMetadataKeySyncIdentifier:string>
+        Type: struct<HKMetadataKeySyncVersion:string,HKMetadataKeyAppleECGAlgorithmVersion:string,HKMetadataKeySyncIdentifier:string>
       - Name: InsertedDate
         Type: string
       - Name: export_start_date
-        Type: boolean
+        Type: string
       - Name: export_end_date
-        Type: boolean
+        Type: string
   HealthKitV2Workouts:
     columns:
       - Name: HealthKitWorkoutKey
         Type: string
       - Name: ParticipantIdentifier
-        Type: string
-      - Name: ActivityType
         Type: string
       - Name: StartDate
         Type: string
@@ -165,28 +169,44 @@ tables:
         Type: string
       - Name: Events
         Type: array<struct<Type:string,Date:string,Metadata:struct<_HKPrivateMetadataIsPartialSplit:string,_HKPrivateWorkoutSegmentEventSubtype:string,_HKPrivateMetadataSplitMeasuringSystem:string>,EndDate:string>>
-      - Name: Duration
-        Type: double
-      - Name: TotalDistance
-        Type: double
-      - Name: TotalEnergyBurned
-        Type: double
-      - Name: TotalFlightsClimbed
-        Type: int
-      - Name: TotalSwimmingStrokeCount
-        Type: int
+      - Name: Summary
+        Type: struct<ActivityType:string,Duration:double,TotalDistance:double,TotalEnergyBurned:double,TotalFlightsClimbed:int,TotalSwimmingStrokeCount:int>
       - Name: Source
         Type: struct<Identifier:string,Name:string,Version:string,OperatingSystemVersion:string,ProductType:string>
       - Name: Device
         Type: struct<Name:string,Model:string,Manufacturer:string,HardwareVersion:string,SoftwareVersion:string,FirmwareVersion:string,LocalIdentifier:string,FDAIdentifier:string>
       - Name: Metadata
-        Type: struct<HKIndoorWorkout:string,HKTimeZone:string>
+        Type: struct<HKWasUserEntered:string,HKGroupFitness:string,HKWorkoutBrandName:string,HKTimeZone:string,WatchData:string,HKIndoorWorkout:string,HKSwimmingLocationType:string>
       - Name: InsertedDate
         Type: string
       - Name: export_start_date
-        Type: boolean
+        Type: string
       - Name: export_end_date
-        Type: boolean
+        Type: string
+  HealthKitV2Heartbeats:
+    columns:
+      - Name: HealthKitHeartbeatSampleKey
+        Type: string
+      - Name: Device
+        Type: struct<FDAIdentifier:string,FirmwareVersion:string,HardwareVersion:string,LocalIdentifier:string,Manufacturer:string,Model:string,Name:string,SoftwareVersion:string>
+      - Name: SubSamples
+        Type: array<struct<PrecededByGap:boolean,TimeSinceSeriesStart:double>>
+      - Name: Source
+        Type: struct<Name:string,Identifier:string,Version:string,OperatingSystemVersion:string,ProductType:string>
+      - Name: Date
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: StartDate
+        Type: string
+      - Name: Metadata
+        Type: struct<HKAlgorithmVersion:string>
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
   FitbitActivityLogs:
     columns:
       - Name: ParticipantIdentifier
@@ -236,9 +256,9 @@ tables:
       - Name: LogId
         Type: string
       - Name: export_start_date
-        Type: boolean
+        Type: string
       - Name: export_end_date
-        Type: boolean
+        Type: string
   FitbitDevices:
     columns:
       - Name: ParticipantIdentifier
@@ -250,6 +270,8 @@ tables:
       - Name: Battery
         Type: string
       - Name: Type
+        Type: string
+      - Name: export_end_date
         Type: string
   FitbitDailyData:
     columns:
@@ -300,7 +322,7 @@ tables:
       - Name: Steps
         Type: string
       - Name: Tracker
-        Type: struct<ActivityCalories:string,Calories:string,Distance:string,Elevation:string,Floors:string,MinutesFairlyActive:string,MinutesLightlyActive:string,MinutesSedentary:string,MinutesVeryActive:string,TrackerSteps:string>
+        Type: struct<ActivityCalories:string,Calories:string,Distance:string,Elevation:string,Floors:string,MinutesFairlyActive:string,MinutesLightlyActive:string,MinutesSedentary:string,MinutesVeryActive:string,Steps:string>
       - Name: Water
         Type: string
       - Name: ModifiedDate
@@ -326,6 +348,10 @@ tables:
       - Name: TempSkin
         Type: string
       - Name: TempSkinLogType
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
         Type: string
   FitbitIntradayCombined:
     columns:
@@ -361,6 +387,10 @@ tables:
         Type: string
       - Name: InsertedDate
         Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
   FitbitRestingHeartRates:
     columns:
       - Name: ParticipantIdentifier
@@ -368,6 +398,10 @@ tables:
       - Name: Date
         Type: string
       - Name: RestingHeartRate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
         Type: string
   FitbitSleepLogs:
     columns:
@@ -414,9 +448,9 @@ tables:
       - Name: LogId
         Type: string
       - Name: export_start_date
-        Type: boolean
+        Type: string
       - Name: export_end_date
-        Type: boolean
+        Type: string
   GoogleFitSamples:
     columns:
       - Name: GoogleFitSampleKey
@@ -437,17 +471,27 @@ tables:
         Type: string
       - Name: DataSourceAppPackageName
         Type: string
+      - Name: DataSourceStreamIdentifier
+        Type: string
       - Name: DataSourceStreamName
         Type: string
       - Name: OriginalDataSourceAppPackageName
         Type: string
+      - Name: OriginalDataSourceStreamIdentifier
+        Type: string
       - Name: OriginalDataSourceStreamName
         Type: string
-      - Name: OriginalDataSourceManufacturer
+      - Name: OriginalDataSourceDeviceManufacturer
         Type: string
-      - Name: OriginalDataSourceModel
+      - Name: OriginalDataSourceDeviceModel
         Type: string
-      - Name: OriginalDataSourceType
+      - Name: OriginalDataSourceDeviceType
+        Type: string
+      - Name: OriginalDataSourceDeviceUid
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
         Type: string
   SymptomLog:
     columns:
@@ -458,4 +502,6 @@ tables:
       - Name: Value
         Type: struct<overallFeeling:int,notes:string,symptoms:array<struct<id:string,severity:int>>,treatments:array<struct<id:string>>,icon:string>
       - Name: export_start_date
-        Type: boolean
+        Type: string
+      - Name: export_end_date
+        Type: string
