@@ -181,7 +181,7 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
-  HealthKitV2Heartbeats:
+  HealthKitV2Heartbeat:
     columns:
       - Name: HealthKitHeartbeatSampleKey
         Type: string
