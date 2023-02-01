@@ -1,8 +1,7 @@
 ### Running tests
-Tests are defined in the `tests` folder in this project. Use pipenv to install the
-[pytest](https://docs.pytest.org/en/latest/) and run tests locally outside of
-a Docker image.
+Tests are defined in the `tests` folder in this project.
 
+#### Running tests using Docker
 Tests are run inside a Docker container which includes all the necessary
 Glue/Spark dependencies and simulates the environment which the Glue jobs
 will be run in. A Dockerfile is included in the tests/ directory
@@ -38,6 +37,11 @@ to execute the tests:
 ```shell script
 python3 -m pytest
 ```
+
+#### Running tests using pipenv
+Use [pipenv](https://pipenv.pypa.io/en/latest/index.html) to install the
+[pytest](https://docs.pytest.org/en/latest/) and run tests locally outside of
+a Docker image.
 
 Run the following command from the repo root to run tests for the lambda function (in develop).
 You can run this locally or inside the docker image.
