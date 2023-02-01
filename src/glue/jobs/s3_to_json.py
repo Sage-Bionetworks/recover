@@ -130,10 +130,16 @@ def get_metadata(basename: str) -> dict:
     if metadata["type"] == "HealthKitV2Samples":
         metadata["subtype"] = basename_components[1]
     if (
-            metadata["type"] == "HealthKitV2Samples"
-            and basename_components[-2] == "Deleted"
-        ):
-        metadata["type"] = "HealthKitV2Samples_Deleted"
+        metadata["type"]
+        in [
+            "HealthKitV2Samples",
+            "HealthKitV2Heartbeat",
+            "HealthKitV2Electrocardiogram",
+            "HealthKitV2Workouts",
+        ]
+        and basename_components[-2] == "Deleted"
+    ):
+        metadata["type"] = "{}_Deleted".format(metadata["type"])
     logger.debug("metadata = %s", metadata)
     return metadata
 
