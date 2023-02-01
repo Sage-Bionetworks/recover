@@ -10,17 +10,21 @@ Parameters:
       in the bucket
     Default: recover
 
-# buckets
   S3IntermediateBucketName:
     Type: String
     Description: Name of the S3 intermediate (JSON) bucket
+
+  S3IntermediateBucketPrefix:
+    Type: String
+    Description: S3 key prefix where JSON datasets are stored.
+    Default: json
 
 Resources:
   # combine all configuration data into a "datasets" collection
   {% set datasets = [] %}
   {% for v in sceptre_user_data.dataset_schemas.tables.keys() %}
   {% set dataset = {} %}
-  {% do dataset.update({'dataset_name': v}) %}
+  {% do dataset.update({'type': v}) %}
   {% do dataset.update({'table_name': 'dataset_' + v.lower()})%}
   {% set schema = sceptre_user_data.dataset_schemas.tables[v] %}
   {% do dataset.update({'columns': schema['columns']}) %}
@@ -53,8 +57,15 @@ Resources:
           Columns: {{ dataset.columns }}
           Compressed: false
           InputFormat: org.apache.hadoop.mapred.TextInputFormat
-          Location: !Sub s3://${S3IntermediateBucketName}/${Namespace}/
+          Location: !Sub s3://${S3IntermediateBucketName}/${Namespace}/${S3IntermediateBucketPrefix}/dataset={{ dataset["type"] }}
           OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
           StoredAsSubDirectories: false
         TableType: EXTERNAL_TABLE
   {% endfor %}
+
+Outputs:
+
+  DatabaseName:
+    Value: !Ref GlueDatabase
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-DatabaseName'
