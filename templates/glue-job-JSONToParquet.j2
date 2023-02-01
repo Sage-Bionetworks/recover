@@ -55,28 +55,27 @@ Resources:
 
   {% for dataset in datasets %}
   {{ dataset["stackname_prefix"] }}ParquetJob:
-      Type: AWS::Glue::Job
-      Properties:
-        Command:
-          Name: glueetl
-          ScriptLocation: !Sub s3://${S3ScriptBucket}/${S3ScriptKey}
-        DefaultArguments:
-          --TempDir: !Sub s3://${TempS3Bucket}/tmp
-          --enable-continuous-cloudwatch-log: true
-          --enable-metrics: true
-          --enable-spark-ui: true
-          --spark-event-logs-path: !Sub s3://${TempS3Bucket}/spark-logs/${AWS::StackName}/
-          --job-bookmark-option: job-bookmark-disable
-          --job-language: python
-          --glue-table: {{ dataset["table_name"] }}
-          # --conf spark.sql.adaptive.enabled
-        Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
-        GlueVersion: "4.0" # Spark 3.3.0, Python 3.10
-        MaxRetries: !Ref MaxRetries
-        Name: {{ dataset["stackname_prefix"] }}-Job
-        NumberOfWorkers: !Ref NumberOfWorkers
-        Role: !Ref JobRole
-        Timeout: !Ref TimeoutInMinutes
-        WorkerType: Standard
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub s3://${S3ScriptBucket}/${S3ScriptKey}
+      DefaultArguments:
+        --TempDir: !Sub s3://${TempS3Bucket}/tmp
+        --enable-continuous-cloudwatch-log: true
+        --enable-metrics: true
+        --enable-spark-ui: true
+        --spark-event-logs-path: !Sub s3://${TempS3Bucket}/spark-logs/${AWS::StackName}/
+        --job-bookmark-option: job-bookmark-disable
+        --job-language: python
+        --glue-table: {{ dataset["table_name"] }}
+        # --conf spark.sql.adaptive.enabled
+      Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
+      GlueVersion: "4.0" # Spark 3.3.0, Python 3.10
+      MaxRetries: !Ref MaxRetries
+      Name: {{ dataset["stackname_prefix"] }}-Job
+      NumberOfWorkers: !Ref NumberOfWorkers
+      Role: !Ref JobRole
+      Timeout: !Ref TimeoutInMinutes
+      WorkerType: Standard
   {% endfor %}
-
