@@ -18,6 +18,7 @@ import boto3
 from awsglue import DynamicFrame
 from awsglue.context import GlueContext
 from awsglue.job import Job
+from awsglue.gluetypes import StructType
 from awsglue.utils import getResolvedOptions
 from pyspark import SparkContext
 
@@ -43,7 +44,13 @@ INDEX_FIELD_MAP = {
     "symptomlog": ["DataPointKey"]
 }
 
-def get_args():
+def get_args() -> tuple[dict, dict]:
+    """
+    Get job and workflow arguments.
+
+    Returns:
+        (tuple) : (job arguments (dict), workflow run properties (dict))
+    """
     glue_client = boto3.client("glue")
     args = getResolvedOptions(
              sys.argv,
@@ -56,7 +63,7 @@ def get_args():
             RunId=args["WORKFLOW_RUN_ID"])["RunProperties"]
     return args, workflow_run_properties
 
-def has_nested_fields(schema):
+def has_nested_fields(schema: StructType) -> bool:
     """
     Determine whether a DynamicFrame schema has struct or array fields.
 
@@ -66,7 +73,7 @@ def has_nested_fields(schema):
     been flattened.
 
     Args:
-        schema (awsglue.StructType): The schema of a DynamicFrame.
+        schema (awsglue.gluetypes.StructType): The schema of a DynamicFrame.
 
     Returns:
         bool: Whether this schema contains struct or array fields.
@@ -76,16 +83,23 @@ def has_nested_fields(schema):
             return True
     return False
 
-def get_table(table_name, database_name, glue_context):
+def get_table(
+        table_name: str,
+        database_name: str,
+        glue_context: GlueContext
+    ) -> DynamicFrame:
     """
     Return a table as a DynamicFrame with an unambiguous schema.
 
     Args:
         table_name (str): The name of the Glue table.
         database_name (str): The name of the Glue database
+        glue_context (GlueContext): The glue context
 
     Returns:
-        awsglue.DynamicFrame
+        awsglue.DynamicFrame: The Glue Table's data as a DynamicFrame
+            after the duplicates have been dropped by descending
+            export date.
     """
     _, table_data_type = table_name.split("_")
     table = (
@@ -114,17 +128,23 @@ def get_table(table_name, database_name, glue_context):
     )
     return table
 
-def write_table_to_s3(dynamic_frame, bucket, key, glue_context,
-                      records_per_partition = 1e6):
+def write_table_to_s3(
+        dynamic_frame: DynamicFrame,
+        bucket: str,
+        key: str,
+        glue_context: GlueContext,
+        records_per_partition: int = 1e6
+    ) -> None:
     """
     Write a DynamicFrame to S3 as a parquet dataset.
 
     Args:
         dynamic_frame (awsglue.DynamicFrame): A DynamicFrame.
         bucket (str): An S3 bucket name.
-        key (str): The key to write this DynamicFrame to.
+        key (str): The key to which we write the `dynamic_frame`.
+        glue_context (GlueContext): The glue context
         records_per_partition (int): The number of records (rows) to include
-            in each partition.
+            in each partition. Defaults to 1e6.
 
     Returns:
         None
@@ -144,8 +164,13 @@ def write_table_to_s3(dynamic_frame, bucket, key, glue_context,
             format = "parquet",
             transformation_ctx="write_dynamic_frame")
 
-def add_index_to_table(table_key, table_name, processed_tables,
-                       unprocessed_tables, glue_context):
+def add_index_to_table(
+        table_key: str,
+        table_name: str,
+        processed_tables: dict[str, DynamicFrame],
+        unprocessed_tables: dict[str, DynamicFrame],
+        glue_context: GlueContext
+    ) -> DynamicFrame:
     """Add partition and index fields to a DynamicFrame.
 
     A DynamicFrame containing the top-level fields already includes the index
@@ -169,11 +194,11 @@ def add_index_to_table(table_key, table_name, processed_tables,
             that a child table may always reference the index of its parent table.
         unprocessed_tables (dict): A mapping from table keys to DynamicFrames which
         don't yet have an index.
+        glue_context (GlueContext): The glue context
 
     Returns:
         awsglue.DynamicFrame with index columns
     """
-    logger = glue_context.get_logger()
     _, table_data_type = table_name.split("_")
     this_table = unprocessed_tables[table_key].toDF()
     if table_key == table_name: # top-level fields already include index
@@ -226,7 +251,7 @@ def add_index_to_table(table_key, table_name, processed_tables,
                         c, succinct_name)
     return df_with_index
 
-def main():
+def main() -> None:
     # Get args and setup environment
     args, workflow_run_properties = get_args()
     glue_context = GlueContext(SparkContext.getOrCreate())
