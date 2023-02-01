@@ -1,0 +1,12 @@
+template:
+  path: glue-tables.j2
+stack_name: 'recover-glue-tables'
+dependencies:
+  - prod/s3-intermediate-bucket.yaml
+parameters:
+  S3IntermediateBucketName: !stack_output_external recover-intermediate-bucket::BucketName
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
+sceptre_user_data:
+  # this needs to be replaced with real versioned schemas
+  dataset_schemas: !file src/glue/resources/table_columns.yaml
