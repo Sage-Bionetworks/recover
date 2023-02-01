@@ -4,6 +4,11 @@ Description: The primary workflow for processing RECOVER data
 
 Parameters:
 
+  Namespace:
+    Type: String
+    Description: The namespace to which we write the datasets.
+    Default: recover
+
   JsonBucketName:
     Type: String
     Description: >-
@@ -33,16 +38,13 @@ Parameters:
     Type: String
     Description: The name of the S3 To JSON Job
 
-  JsonToParquetJobName:
-    Type: String
-    Description: The name of the JSON to Parquet job.
-
 Resources:
 
   {% set datasets = [] %}
-  {% for v in sceptre_user_data.dataset_schemas.tables.keys() %}
+  {% for v in sceptre_user_data.dataset_schemas.tables.keys() if not "Deleted" in v %}
     {% set dataset = {} %}
     {% do dataset.update({'table_name': 'dataset_' + v.lower()})%}
+    {% do dataset.update({'stackname_prefix': '{}'.format(v.replace('_',''))}) %}
     {% do datasets.append(dataset) %}
   {% endfor %}
 
@@ -50,6 +52,7 @@ Resources:
     Type: AWS::Glue::Workflow
     Properties:
       DefaultRunProperties:
+        namespace: !Ref Namespace
         json_bucket: !Ref JsonBucketName
         json_prefix: !Ref JsonKeyPrefix
         parquet_bucket: !Ref ParquetBucketName
@@ -58,7 +61,7 @@ Resources:
       Description: >-
         Glue workflow for exporting RECOVER data to Parquet datasets
       MaxConcurrentRuns: 1
-      Name: PrimaryWorkflow
+      Name: !Sub ${Namespace}-PrimaryWorkflow
 
   InitialTrigger:
     Type: AWS::Glue::Trigger
@@ -74,7 +77,7 @@ Resources:
     Properties:
       Actions:
         {% for dataset in datasets %}
-        - JobName: !Ref JsonToParquetJobName
+        - JobName: {{ dataset["stackname_prefix"]}}-Job
           Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
         #{% endfor %}
       Description: This trigger runs after completion of the S3 to JSON job.
