@@ -1,8 +1,15 @@
 template:
-  path: glue-workflow.yaml
-stack_name: glue-workflow
+  path: glue-workflow.j2
+stack_name: "{{ stack_group_config.namespace }}-glue-workflow"
+dependencies:
+  - prod/glue-tables.yaml
 parameters:
+  Namespace: {{ stack_group_config.namespace }}
   JsonBucketName: !stack_output_external recover-intermediate-bucket::BucketName
+  ParquetBucketName: !stack_output_external recover-processed-data-bucket::BucketName
+  GlueDatabase: !stack_output_external "{{ stack_group_config.namespace }}-glue-tables::DatabaseName"
   S3ToJsonJobName: !stack_output_external glue-job-S3ToJsonS3::JobName
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
+sceptre_user_data:
+  dataset_schemas: !file src/glue/resources/table_columns.yaml
