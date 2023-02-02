@@ -1,0 +1,9 @@
+template:
+  path: s3-to-glue-lambda-role.yaml
+stack_name: s3-to-glue-lambda-role
+dependencies:
+  - prod/s3-to-glue-lambda-role.yaml
+parameters:
+  S3SourceBucketName: {{ stack_group_config.source_bucket }}
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
