@@ -7,9 +7,9 @@ Description: >
 
 Parameters:
 
-  S3SourceBucketName:
+  S3ToGlueRoleArn:
     Type: String
-    Description: Name of the S3 bucket where source data are stored.
+    Description: Arn for the S3 to Glue Lambda Role
 
   Namespace:
     Type: String
@@ -22,44 +22,6 @@ Parameters:
     Default: cron(59 23 * * ? *)
 
 Resources:
-  S3ToGlueRole:
-      Type: AWS::IAM::Role
-      Properties:
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-              - lambda.amazonaws.com
-            Action:
-            - sts:AssumeRole
-        ManagedPolicyArns:
-          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        Policies:
-        - PolicyName: StartGlueWorkflow
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-            - Effect: Allow
-              Action:
-              - glue:StartWorkflowRun
-              - glue:PutWorkflowRunProperties
-              Resource:
-              - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/*
-        - PolicyName: AccessS3BucketInputData
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-            - Effect: Allow
-              Action:
-               - s3:Get*
-               - s3:List*
-              Resource:
-              - !Sub arn:aws:s3:::${S3SourceBucketName}
-              - !Sub arn:aws:s3:::${S3SourceBucketName}/*
-
-
   S3ToGlueFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -67,7 +29,7 @@ Resources:
       CodeUri: ./s3_to_glue
       Handler: app.lambda_handler
       Runtime: python3.9
-      Role: !GetAtt S3ToGlueRole.Arn
+      Role: !Ref S3ToGlueRoleArn
       Timeout: 30
       Environment:
         Variables:

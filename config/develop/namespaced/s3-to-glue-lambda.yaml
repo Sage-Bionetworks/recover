@@ -2,9 +2,11 @@ template:
   type: sam
   path: src/lambda_function/template.yaml
   artifact_bucket_name: !stack_output_external recover-dev-cloudformation-bucket::BucketName
-  artifact_prefix: 'recover/{{ stack_group_config.namespace }}/lambda'
+  artifact_prefix: 'recover/{{ stack_group_config.namespace }}/src/lambda'
+dependencies:
+  - develop/s3-to-glue-lambda-role.yaml
 stack_name: '{{ stack_group_config.namespace }}-lambda-S3ToGlue'
 stack_tags: {{ stack_group_config.default_stack_tags }}
 parameters:
   Namespace: {{ stack_group_config.namespace }}
-  S3SourceBucketName: !stack_output_external recover-pilot-data-bucket::BucketName
+  S3ToGlueRoleArn: !stack_output_external s3-to-glue-lambda-role::RoleArn

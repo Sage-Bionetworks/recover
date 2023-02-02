@@ -61,17 +61,27 @@ sam local invoke -e events/test-trigger-event.json --env-vars test-env-vars.json
 
 ## Launching Lambda stack in AWS
 
+There are two main stacks involved in the s3 to glue lambda. They are the
+`s3 to glue lambda role` stack and the `s3 to glue lambda` stack.
+
 ### Sceptre
 
 #### Launching in development
 
-1. Create/update the following [sceptre](https://github.com/Sceptre/sceptre) config file:
+1. Create/update the following s3 to glue lambda role [sceptre](https://github.com/Sceptre/sceptre) config file:
+`config/develop/s3-to-glue-lambda-role.yaml`
+
+2. Create/update the following s3 to glue lambda role [sceptre](https://github.com/Sceptre/sceptre) template file:
+`templates/s3-to-glue-lambda-role.yaml`
+
+3. Create/update the following s3 to glue lambda [sceptre](https://github.com/Sceptre/sceptre) config file:
 `config/develop/namespaced/s3-to-glue-lambda.yaml`
 
-2. Create/update the following [sceptre](https://github.com/Sceptre/sceptre) template file:
+4. Create/update the following s3 to glue lambda [sceptre](https://github.com/Sceptre/sceptre) template file:
 `src/lambda_function/template.yaml`
 
-3. Run the following command to create the lambda stack in your AWS account:
+5. Run the following command to create the lambda stack in your AWS account. Note this will
+also create the lambda s3 to glue IAM role stack as well:
 
 ```shell script
 sceptre --var namespace='test-namespace' launch develop/namespace/s3-to-glue-lambda.yaml
