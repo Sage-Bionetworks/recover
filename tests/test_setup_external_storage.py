@@ -42,5 +42,10 @@ def test_setup_external_storage_success(test_parquet_folder, test_synapse_client
         region="us-east-1",
     )
 
+    # get file info
     base_s3_uri = "{}/{}".format(token["bucket"], token["baseKey"])
     parquet_datasets = s3.get_file_info(fs.FileSelector(base_s3_uri, recursive=False))
+
+    # list objects in bucket, if permissions exist, would work
+    conn = boto3.client('s3')  # again assumes boto.cfg setup, assume AWS S3
+    conn.list_objects(Bucket=token["bucket"])['Contents']
