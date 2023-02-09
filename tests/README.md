@@ -50,13 +50,10 @@ Use [pipenv](https://pipenv.pypa.io/en/latest/index.html) to install the
 [pytest](https://docs.pytest.org/en/latest/) and run tests locally outside of
 a Docker image.
 
-Here are the tests you can run locally using a pipenv. You'll run into an error with
-pytest with other tests because they have to be run in a Dockerfile:
+Note that you can only run the lambda function tests using a pipenv locally because
+you'll run into an error with pytest with other tests since `test_s3_to_json.py`
+has to be run in a Dockerfile.
 
-- test_s3_to_glue_lambda.py
-- test_setup_external_storage.py
-
-Example)
 Run the following command from the repo root to run tests for the lambda function (in develop).
 You can run this locally or inside the docker image.
 
