@@ -1,8 +1,0 @@
-template:
-  path: glue-workflow.yaml
-stack_name: glue-workflow
-parameters:
-  JsonBucketName: !stack_output_external recover-dev-intermediate-bucket::BucketName
-  S3ToJsonJobName: !stack_output_external glue-job-S3ToJsonS3::JobName
-stack_tags:
-  {{ stack_group_config.default_stack_tags }}

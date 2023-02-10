@@ -80,6 +80,7 @@ def write_file_to_json_dataset(
         )
     output_path = os.path.join(dataset_identifier, output_fname)
     s3_output_key = os.path.join(
+        workflow_run_properties["namespace"],
         workflow_run_properties["json_prefix"],
         f"dataset={dataset_identifier}",
         output_fname)

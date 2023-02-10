@@ -2,11 +2,11 @@ template:
   path: glue-workflow.j2
 stack_name: "{{ stack_group_config.namespace }}-glue-workflow"
 dependencies:
-  - prod/glue-tables.yaml
+  - develop/namespaced/glue-tables.yaml
 parameters:
   Namespace: {{ stack_group_config.namespace }}
-  JsonBucketName: !stack_output_external recover-intermediate-bucket::BucketName
-  ParquetBucketName: !stack_output_external recover-processed-data-bucket::BucketName
+  JsonBucketName: !stack_output_external recover-dev-intermediate-bucket::BucketName
+  ParquetBucketName: !stack_output_external recover-dev-processed-data-bucket::BucketName
   GlueDatabase: !stack_output_external "{{ stack_group_config.namespace }}-glue-tables::DatabaseName"
   S3ToJsonJobName: !stack_output_external glue-job-S3ToJsonS3::JobName
 stack_tags:

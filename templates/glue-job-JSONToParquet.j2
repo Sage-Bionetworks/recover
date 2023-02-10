@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  An AWS Glue job in the data catalog. An AWS Glue job encapsulates a script
+  that connects to your source data, processes it, and then writes it out
+  to your data target.
+
+Parameters:
+
+  JobDescription:
+    Type: String
+    Description: A fuller description of what the job does.
+    Default: ''
+
+  JobRole:
+    Type: String
+    Description: The name or ARN of the IAM role that will run this job.
+
+  S3ScriptBucket:
+    Type: String
+    Description: The name of the S3 bucket where the script file is located.
+
+  S3ScriptKey:
+    Type: String
+    Description: The bucket key where the script file is located.
+
+  NumberOfWorkers:
+    Type: Number
+    Description: How many DPUs to allot to this job.
+    Default: 1
+
+  MaxRetries:
+    Type: Number
+    Description: How many times to retry the job if it fails (integer).
+    Default: 0 # TODO change this to 1 after initial development
+
+  TimeoutInMinutes:
+    Type: Number
+    Description: The job timeout in minutes (integer).
+    Default: 120
+
+  TempS3Bucket:
+    Type: String
+    Description: The name of the S3 bucket where temporary files and logs are written.
+
+Resources:
+
+  {% set datasets = [] %}
+  {% for v in sceptre_user_data.dataset_schemas.tables.keys() if not "Deleted" in v %}
+    {% set dataset = {} %}
+    {% do dataset.update({"type": v}) %}
+    {% do dataset.update({"table_name": "dataset_" + v.lower()})%}
+    {% do dataset.update({"stackname_prefix": "{}".format(v.replace("_",""))}) %}
+    {% do datasets.append(dataset) %}
+  {% endfor %}
+
+  {% for dataset in datasets %}
+  {{ dataset["stackname_prefix"] }}ParquetJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub s3://${S3ScriptBucket}/${S3ScriptKey}
+      DefaultArguments:
+        --TempDir: !Sub s3://${TempS3Bucket}/tmp
+        --enable-continuous-cloudwatch-log: true
+        --enable-metrics: true
+        --enable-spark-ui: true
+        --spark-event-logs-path: !Sub s3://${TempS3Bucket}/spark-logs/${AWS::StackName}/
+        --job-bookmark-option: job-bookmark-disable
+        --job-language: python
+        --glue-table: {{ dataset["table_name"] }}
+        # --conf spark.sql.adaptive.enabled
+      Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
+      GlueVersion: "4.0" # Spark 3.3.0, Python 3.10
+      MaxRetries: !Ref MaxRetries
+      Name: {{ dataset["stackname_prefix"] }}-Job
+      NumberOfWorkers: !Ref NumberOfWorkers
+      Role: !Ref JobRole
+      Timeout: !Ref TimeoutInMinutes
+      WorkerType: Standard
+  {% endfor %}

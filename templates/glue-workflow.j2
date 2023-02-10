@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: The primary workflow for processing RECOVER data
+
+Parameters:
+
+  Namespace:
+    Type: String
+    Description: The namespace to which we write the datasets.
+    Default: recover
+
+  JsonBucketName:
+    Type: String
+    Description: >-
+      The name of the bucket where JSON datasets are stored.
+
+  JsonKeyPrefix:
+    Type: String
+    Description: S3 key prefix where JSON datasets are stored.
+    Default: json
+
+  ParquetBucketName:
+    Type: String
+    Description: >-
+      The name of the bucket where Parquet datasets are stored.
+
+  ParquetKeyPrefix:
+    Type: String
+    Description: S3 key prefix where JSON datasets are stored.
+    Default: parquet
+
+  GlueDatabase:
+    Type: String
+    Description: >-
+        Glue database containing Glue tables for use in JSON to Parquet job.
+
+  S3ToJsonJobName:
+    Type: String
+    Description: The name of the S3 To JSON Job
+
+Resources:
+
+  {% set datasets = [] %}
+  {% for v in sceptre_user_data.dataset_schemas.tables.keys() if not "Deleted" in v %}
+    {% set dataset = {} %}
+    {% do dataset.update({'table_name': 'dataset_' + v.lower()})%}
+    {% do dataset.update({'stackname_prefix': '{}'.format(v.replace('_',''))}) %}
+    {% do datasets.append(dataset) %}
+  {% endfor %}
+
+  PrimaryWorkflow:
+    Type: AWS::Glue::Workflow
+    Properties:
+      DefaultRunProperties:
+        namespace: !Ref Namespace
+        json_bucket: !Ref JsonBucketName
+        json_prefix: !Ref JsonKeyPrefix
+        parquet_bucket: !Ref ParquetBucketName
+        parquet_prefix: !Ref ParquetKeyPrefix
+        glue_database: !Ref GlueDatabase
+      Description: >-
+        Glue workflow for exporting RECOVER data to Parquet datasets
+      MaxConcurrentRuns: 1
+      Name: !Sub ${Namespace}-PrimaryWorkflow
+
+  InitialTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Actions:
+        - JobName: !Ref S3ToJsonJobName
+      Description: This is the first trigger in the primary workflow.
+      Type: ON_DEMAND
+      WorkflowName: !Ref PrimaryWorkflow
+
+  S3ToJsonCompleteTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Actions:
+        {% for dataset in datasets %}
+        - JobName: {{ dataset["stackname_prefix"]}}-Job
+          Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
+        {% endfor %}
+      Description: This trigger runs after completion of the S3 to JSON job.
+      Type: CONDITIONAL
+      Predicate:
+        Conditions:
+        - JobName: !Ref S3ToJsonJobName
+          State: SUCCEEDED
+          LogicalOperator: EQUALS
+      StartOnCreation: true
+      WorkflowName: !Ref PrimaryWorkflow
+
+Outputs:
+
+  WorkflowName:
+    Value: !Ref PrimaryWorkflow
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-WorkflowName'
