@@ -6,29 +6,30 @@ from pyarrow import fs, parquet
 
 @pytest.fixture
 def test_parquet_folder():
+    """TODO: Replace with production parquet folder synapse ID
+    or save as external environment variable"""
     parquet_folder = "syn51079888"
     return parquet_folder
 
 
 @pytest.fixture
 def test_synapse_client():
-    '''Returns a synapse client from credentials stored in SSM'''
-    aws_session = boto3.session.Session(profile_name="default",
-                                        region_name="us-east-1")
+    """Returns a synapse client from credentials stored in SSM"""
+    aws_session = boto3.session.Session(profile_name="default", region_name="us-east-1")
     ssm_parameter = "synapse-recover-auth"
     if ssm_parameter is not None:
         ssm_client = aws_session.client("ssm")
-        token = ssm_client.get_parameter(
-            Name=ssm_parameter,
-            WithDecryption=True)
+        token = ssm_client.get_parameter(Name=ssm_parameter, WithDecryption=True)
         test_synapse_client = synapseclient.Synapse()
         test_synapse_client.login(authToken=token["Parameter"]["Value"])
-    else: # try cached credentials
+    else:  # try cached credentials
         test_synapse_client = synapseclient.login()
     return test_synapse_client
 
 
 def test_setup_external_storage_success(test_parquet_folder, test_synapse_client):
+    """This test tests that it can get the STS token credentials and view and list the
+    parquet files in the S3 bucket location to verify that it has access"""
     # Get STS credentials
     token = test_synapse_client.get_sts_storage_token(
         entity=test_parquet_folder, permission="read_only", output_format="json"
@@ -47,5 +48,5 @@ def test_setup_external_storage_success(test_parquet_folder, test_synapse_client
     parquet_datasets = s3.get_file_info(fs.FileSelector(base_s3_uri, recursive=False))
 
     # list objects in bucket, if permissions exist, would work
-    conn = boto3.client('s3')  # again assumes boto.cfg setup, assume AWS S3
-    conn.list_objects(Bucket=token["bucket"])['Contents']
+    conn = boto3.client("s3")  # again assumes boto.cfg setup, assume AWS S3
+    conn.list_objects(Bucket=token["bucket"])["Contents"]
