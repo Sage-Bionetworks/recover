@@ -18,15 +18,17 @@ def read_args():
     )
     parser.add_argument(
         "--synapse-folder-name",
+        default="parquet",
         help=(
-            "Name of the Synapse folder to use with the external " "storage location."
+            "Name of the Synapse folder to use with the external "
+            "storage location. Default is parquet"
         ),
     )
     parser.add_argument("--s3-bucket", help="S3 bucket name")
     parser.add_argument(
         "--s3-key",
-        default=None,
-        help="S3 key to serve as the root. `/` (root) by default.",
+        default="recover/parquet",
+        help="S3 key to serve as the root. Default is recover/parquet.",
     )
     parser.add_argument(
         "--sts-enabled",
@@ -40,18 +42,18 @@ def read_args():
 def main():
     args = read_args()
     syn = synapseclient.login()
-    storage_location = syn.create_s3_storage_location(
+    synapse_folder, storage_location, synapse_project = syn.create_s3_storage_location(
         parent=args.synapse_parent,
         folder_name=args.synapse_folder_name,
         bucket_name=args.s3_bucket,
         base_key=args.s3_key,
         sts_enabled=args.sts_enabled,
     )
+
     storage_location_info = {
-        k: v
-        for k, v in zip(
-            ["synapse_folder", "storage_location", "synapse_project"], storage_location
-        )
+        "synapse_folder": synapse_folder,
+        "storage_location": storage_location,
+        "synapse_project": synapse_project,
     }
     print(storage_location_info)
     return storage_location_info
