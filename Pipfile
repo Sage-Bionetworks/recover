@@ -8,6 +8,8 @@ python_version = "3.10"
 
 [dev-packages]
 pytest = "*"
+pyarrow = "~=11.0"
 pre-commit = "*"
 sceptre = ">=3.2.0"
 sceptre-sam-handler = "*"
+synapseclient = "~=2.7"
