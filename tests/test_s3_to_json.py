@@ -82,7 +82,7 @@ class TestS3ToJsonS3:
         }
         return json_file_basenames
 
-    def test_write_metadata_file_to_json_dataset(self, s3_obj, namespace, monkeypatch):
+    def test_write_healthkitv2samples_file_to_json_dataset(self, s3_obj, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
         sample_metadata = {
             "Metadata": {
@@ -156,6 +156,47 @@ class TestS3ToJsonS3:
                     )
                     assert isinstance(metadata['Value'], dict)
                     break
+
+
+    def test_write_file_to_json_dataset_record_consistency(self, s3_obj, namespace, monkeypatch):
+        monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
+        sample_metadata = {
+            "Metadata": {
+                "type": "FitbitDevices",
+                "start_date": None,
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
+            }
+        }
+        workflow_run_properties = {
+            "namespace": namespace,
+            "json_prefix": "raw-json",
+            "json_bucket": "json-bucket",
+        }
+        with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
+            with z.open("FitbitDevices_20230114.json", "r") as fitbit_data:
+                input_line_cnt = len(fitbit_data.readlines())
+
+            output_file = s3_to_json.write_file_to_json_dataset(
+                z=z,
+                json_path="FitbitDevices_20230114.json",
+                dataset_identifier="FitbitDevices",
+                metadata=sample_metadata["Metadata"],
+                workflow_run_properties=workflow_run_properties,
+            )
+
+            with open(output_file, "r") as f_out:
+                output_line_cnt = 0
+                for json_line in f_out:
+                    metadata = json.loads(json_line)
+                    assert metadata["export_start_date"] is None
+                    assert (
+                        sample_metadata["Metadata"]["end_date"].isoformat()
+                        == metadata["export_end_date"]
+                    )
+                    output_line_cnt += 1
+            # gets line count of input json and exported json and checks the two
+            assert input_line_cnt == output_line_cnt
+
 
     def test_get_metadata_startdate_enddate(self, json_file_basenames_dict):
         basename = json_file_basenames_dict["HealthKitV2Samples_Deleted"]
