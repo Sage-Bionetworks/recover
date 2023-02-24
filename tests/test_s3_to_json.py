@@ -52,7 +52,7 @@ class TestS3ToJsonS3:
         }
         with open(
             shared_datadir
-            / "2023-01-12T22--02--17Z_77TESTING",
+            / "2023-01-13T21--08--51Z_TESTDATA",
             "rb",
         ) as z:
             s3_obj["Body"] = z.read()
@@ -87,9 +87,9 @@ class TestS3ToJsonS3:
         sample_metadata = {
             "Metadata": {
                 "type": "HealthKitV2Samples",
-                "start_date": datetime.datetime(2022, 4, 1, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 12, 0, 0),
-                "subtype": "HeartRate",
+                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
+                "subtype": "Weight",
             }
         }
         workflow_run_properties = {
@@ -100,7 +100,7 @@ class TestS3ToJsonS3:
         with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
             output_file = s3_to_json.write_file_to_json_dataset(
                 z=z,
-                json_path="HealthKitV2Samples_HeartRate_20220401-20230112.json",
+                json_path="HealthKitV2Samples_Weight_20230112-20230114.json",
                 dataset_identifier="HealthKitV2Samples",
                 metadata=sample_metadata["Metadata"],
                 workflow_run_properties=workflow_run_properties,
@@ -125,8 +125,8 @@ class TestS3ToJsonS3:
         sample_metadata = {
             "Metadata": {
                 "type": "SymptomLog",
-                "start_date": datetime.datetime(2022, 4, 1, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 12, 0, 0)
+                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
             }
         }
         workflow_run_properties = {
@@ -137,7 +137,7 @@ class TestS3ToJsonS3:
         with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
             output_file = s3_to_json.write_file_to_json_dataset(
                 z=z,
-                json_path="SymptomLog_20220401-20230112.json",
+                json_path="SymptomLog_20230112-20230114.json",
                 dataset_identifier="SymptomLog",
                 metadata=sample_metadata["Metadata"],
                 workflow_run_properties=workflow_run_properties,
