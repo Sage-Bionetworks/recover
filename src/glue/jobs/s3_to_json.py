@@ -59,6 +59,31 @@ def write_file_to_json_dataset(
             if dataset_identifier == "SymptomLog":
                 # Load JSON string as dict
                 j["Value"] = json.loads(j["Value"])
+            if dataset_identifier == "EnrolledParticipants":
+                for field_name in ["Symptoms", "Treatments"]:
+                    if (
+                            field_name in j["CustomFields"]
+                            and isinstance(j["CustomFields"][field_name], str)
+                       ):
+                        if len(j["CustomFields"][field_name]) > 0:
+                            # This JSON string was written in a couple different ways
+                            # in the testing data: "[{\\\"id\\\": ..." and "[{\"id\": ..."
+                            # or just an empty string. It's not really clear which format
+                            # is intended, (The example they provided has it written as
+                            # an object rather than a string, so...).
+                            try:
+                                j["CustomFields"][field_name] = json.loads(
+                                        j["CustomFields"][field_name]
+                                )
+                            except json.JSONDecodeError as e:
+                                # If it's not propertly formatted JSON, then we
+                                # can't read it, and instead store an empty list
+                                logger.warning(f"Problem CustomFields.{field_name}: "
+                                               f"{j['CustomFields'][field_name]}")
+                                logger.warning(str(e))
+                                j["CustomFields"][field_name] = []
+                        else:
+                            j["CustomFields"][field_name] = []
             data.append(j)
     if dataset_identifier == "HealthKitV2Samples":
         output_fname = "{}_{}_{}-{}.ndjson".format(

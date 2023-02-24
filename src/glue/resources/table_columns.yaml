@@ -22,7 +22,7 @@ tables:
       - Name: EnrollmentDate
         Type: string
       - Name: CustomFields
-        Type: struct<AppleHealthEnabled:string,AppleHealthRecordsEnabled:string,GoogleFitEnabled:string,Reminder1Enabled:string,Reminder2Enabled:string,ReminderTime1:string,ReminderTime2:string,SkipConsent:string,Symptoms:string,Treatments:string>
+        Type: struct<AppleHealthEnabled:string,AppleHealthRecordsEnabled:string,GoogleFitEnabled:string,Reminder1Enabled:string,Reminder2Enabled:string,ReminderTime1:string,ReminderTime2:string,SkipConsent:string,Symptoms:array<struct<id:string,name:string,color:string,severityTracking:string,ParticipantIdentifier:string>>,Treatments:string>
       - Name: EventDates
         Type: string
       - Name: UtcOffset
