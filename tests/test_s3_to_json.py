@@ -50,6 +50,7 @@ class TestS3ToJsonS3:
             "ContentType": "application/x-www-form-urlencoded; charset=utf-8",
             "ServerSideEncryption": "AES256",
         }
+        # sample test data
         with open(
             shared_datadir
             / "2023-01-13T21--08--51Z_TESTDATA",
@@ -60,7 +61,7 @@ class TestS3ToJsonS3:
 
     @pytest.fixture
     def json_file_basenames_dict(self):
-        # keep examples of all possible filetypes
+        # keep examples of all possible data types and valid filename
         json_file_basenames = {
             "EnrolledParticipants": "EnrolledParticipants_20230103.json",
             "FitbitActivityLogs": "FitbitActivityLogs_20220111-20230103.json",
@@ -235,7 +236,8 @@ class TestS3ToJsonS3:
             if record["type"]
             not in ["HealthKitV2Samples", "HealthKitV2Samples_Deleted"]
         ]
-        assert not any(subtypes)
+        assert not any(subtypes),\
+            "Some data types that are not HealthKitV2Samples have the metadata subtype key"
 
     def test_get_metadata_type(self, json_file_basenames_dict):
         # check that all file basenames match their type
@@ -244,4 +246,5 @@ class TestS3ToJsonS3:
             == basename
             for basename in json_file_basenames_dict.keys()
         ]
-        assert all(metadata_check)
+        assert all(metadata_check),\
+            "Some data types' metadata type key are incorrect"
