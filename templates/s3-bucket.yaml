@@ -23,6 +23,7 @@ Parameters:
 
   Namespace:
     Type: String
+    Default: ""
     Description: >-
       The namespace string used to build up the path to the correct object keys
       in the bucket

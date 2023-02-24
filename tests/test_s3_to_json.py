@@ -158,6 +158,41 @@ class TestS3ToJsonS3:
                     assert isinstance(metadata['Value'], dict)
                     break
 
+    def test_write_enrolled_participants_file_to_json_dataset(self, s3_obj, namespace, monkeypatch):
+        monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
+        sample_metadata = {
+            "Metadata": {
+                "type": "EnrolledParticipants",
+                "start_date": None,
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
+            }
+        }
+        workflow_run_properties = {
+            "namespace": namespace,
+            "json_prefix": "raw-json",
+            "json_bucket": "json-bucket",
+        }
+        with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
+            output_file = s3_to_json.write_file_to_json_dataset(
+                z=z,
+                json_path="EnrolledParticipants_20230114.json",
+                dataset_identifier="EnrolledParticipants",
+                metadata=sample_metadata["Metadata"],
+                workflow_run_properties=workflow_run_properties,
+            )
+
+            with open(output_file, "r") as f_out:
+                for json_line in f_out:
+                    metadata = json.loads(json_line)
+                    assert (
+                        sample_metadata["Metadata"]["end_date"].isoformat()
+                        == metadata["export_end_date"]
+                    )
+                    if "Symptoms" in metadata['CustomFields']:
+                        assert isinstance(metadata['CustomFields']['Symptoms'], list)
+                    if "Treatments" in metadata['CustomFields']:
+                        assert isinstance(metadata['CustomFields']['Treatments'], list)
+                    break
 
     def test_write_file_to_json_dataset_record_consistency(self, s3_obj, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
