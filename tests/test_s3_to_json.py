@@ -77,7 +77,7 @@ class TestS3ToJsonS3:
             "HealthKitV2Heartbeat_Deleted": "HealthKitV2Heartbeat_Samples_Deleted_20220401-20230112.json",
             "HealthKitV2Samples": "HealthKitV2Samples_AbdominalCramps_20220111-20230103.json",
             "HealthKitV2Samples_Deleted": "HealthKitV2Samples_AbdominalCramps_Deleted_20220111-20230103.json",
-            "HealthKitV2Statistics": "HealthKitV2Statistics_20201022-20211022.json",
+            "HealthKitV2Statistics": "HealthKitV2Statistics_HourlySteps_20201022-20211022.json",
             "HealthKitV2Workouts": "HealthKitV2Workouts_20220111-20230103.json",
             "SymptomLog": "SymptomLog_20220401-20230112.json",
         }
@@ -256,11 +256,15 @@ class TestS3ToJsonS3:
         basename = json_file_basenames_dict["HealthKitV2Samples"]
         assert s3_to_json.get_metadata(basename)["subtype"] == "AbdominalCramps"
 
+        basename = json_file_basenames_dict["HealthKitV2Statistics"]
+        assert s3_to_json.get_metadata(basename)["subtype"] == "HourlySteps"
+
         basename_delete = json_file_basenames_dict["HealthKitV2Samples_Deleted"]
         assert s3_to_json.get_metadata(basename_delete)["subtype"] == "AbdominalCramps"
 
     def test_get_metadata_no_subtype(self, json_file_basenames_dict):
-        # test that these have no subtype keys in metadata minus HealthKitV2Samples
+        # test that these have no subtype keys in metadata minus
+        # HealthKitV2Samples, HealthKitV2Samples_Deleted and HealthKitV2Statistics
         metadata = [
             s3_to_json.get_metadata(basename)
             for basename in list(json_file_basenames_dict.values())
@@ -269,10 +273,10 @@ class TestS3ToJsonS3:
             "subtype" in record.keys()
             for record in metadata
             if record["type"]
-            not in ["HealthKitV2Samples", "HealthKitV2Samples_Deleted"]
+            not in ["HealthKitV2Samples", "HealthKitV2Samples_Deleted", "HealthKitV2Statistics"]
         ]
         assert not any(subtypes),\
-            "Some data types that are not HealthKitV2Samples have the metadata subtype key"
+            "Some data types that are not HealthKitV2Samples or HealthKitV2Statistics have the metadata subtype key"
 
     def test_get_metadata_type(self, json_file_basenames_dict):
         # check that all file basenames match their type
