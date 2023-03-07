@@ -47,13 +47,14 @@ def write_file_to_json_dataset(
     else:
         s3_metadata["start_date"] = metadata["start_date"].isoformat()
     s3_metadata["end_date"] = metadata["end_date"].isoformat()
+    data_types_with_subtype = ["HealthKitV2Samples", "HealthKitV2Statistics"]
     data = []
     with z.open(json_path, "r") as p:
         for json_line in p:
             j = json.loads(json_line)
             j["export_start_date"] = s3_metadata.get("start_date")
             j["export_end_date"] = s3_metadata.get("end_date")
-            if dataset_identifier == "HealthKitV2Samples":
+            if dataset_identifier in data_types_with_subtype:
                 # This puts the `Type` property back where Apple intended it to be
                 j["Type"] = metadata["subtype"]
             if dataset_identifier == "SymptomLog":
@@ -85,7 +86,7 @@ def write_file_to_json_dataset(
                         else:
                             j["CustomFields"][field_name] = []
             data.append(j)
-    if dataset_identifier == "HealthKitV2Samples":
+    if dataset_identifier in data_types_with_subtype:
         output_fname = "{}_{}_{}-{}.ndjson".format(
                 metadata["type"],
                 metadata["subtype"],
@@ -135,11 +136,13 @@ def get_metadata(basename: str) -> dict:
             start_date (datetime.datetime): The date of the oldest data collected.
                 May be None if filename only contains the `end_date`.
             end_date (datetime.datetime): The date of the most recent data collected.
-            subtype (str): If this is HealthKitV2Samples, the type of the
-                sample data. (Not to be confused with the data type, which in
-                this case is HealthKitV2Samples or HealthKitV2Samples_Deleted)
+            subtype (str): If this is HealthKitV2Samples or HealthKitV2Statistics,
+                the type of the sample data. (Not to be confused with the data type,
+                which in this case is HealthKitV2Samples or HealthKitV2Samples_Deleted
+                or HealthKitV2Statistics).
     """
     logger = logging.getLogger(__name__)
+    data_types_with_subtype = ["HealthKitV2Samples", "HealthKitV2Statistics"]
     metadata = {}
     basename_components = os.path.splitext(basename)[0].split("_")
     metadata["type"] = basename_components[0]
@@ -153,7 +156,7 @@ def get_metadata(basename: str) -> dict:
         metadata["start_date"] = None
         metadata["end_date"] = \
                 datetime.datetime.strptime(basename_components[-1], "%Y%m%d")
-    if metadata["type"] == "HealthKitV2Samples":
+    if metadata["type"] in data_types_with_subtype:
         metadata["subtype"] = basename_components[1]
     if (
         metadata["type"]
