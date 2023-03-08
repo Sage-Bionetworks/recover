@@ -5,8 +5,10 @@ template:
   artifact_prefix: 'recover/{{ stack_group_config.namespace }}/src/lambda'
 dependencies:
   - develop/s3-to-glue-lambda-role.yaml
+  - develop/namespaced/glue-workflow.yaml
 stack_name: '{{ stack_group_config.namespace }}-lambda-S3ToGlue'
 stack_tags: {{ stack_group_config.default_stack_tags }}
 parameters:
-  Namespace: {{ stack_group_config.namespace }}
   S3ToGlueRoleArn: !stack_output_external s3-to-glue-lambda-role::RoleArn
+  S3SourceBucketName: !stack_output_external recover-pilot-data-bucket::BucketName
+  PrimaryWorkflowName: !stack_output_external "{{ stack_group_config.namespace }}-glue-workflow::WorkflowName"

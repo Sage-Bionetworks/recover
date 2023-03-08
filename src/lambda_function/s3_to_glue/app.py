@@ -9,9 +9,6 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-BUCKET_NAME = "recover-pilot-data"
-WORKFLOW_NAME = "S3_to_JSON"
-
 
 def query_files_to_submit(
     objects: dict, files_to_submit: list, trigger_event_date: datetime
@@ -50,7 +47,7 @@ def query_files_to_submit(
     return files_to_submit
 
 
-def submit_s3_to_json_workflow(workflow_name: str, files_to_submit: list):
+def submit_s3_to_json_workflow(files_to_submit: list):
     """Submits list of dicts with keys source_bucket and source_key
     for the new files added to the S3 to Json glue workflow
 
@@ -62,6 +59,7 @@ def submit_s3_to_json_workflow(workflow_name: str, files_to_submit: list):
     Returns:
         (None)
     """
+    workflow_name = os.environ["PRIMARY_WORKFLOW_NAME"]
     glue_client = boto3.client("glue")
     logger.info(f"Starting workflow run for workflow {workflow_name}")
     workflow_run = glue_client.start_workflow_run(Name=workflow_name)
@@ -89,18 +87,19 @@ def lambda_handler(event, context):
         (None) Submits new file records to a Glue workflow.
     """
     s3 = boto3.client("s3")
+    source_bucket_name = os.environ["S3_SOURCE_BUCKET_NAME"]
     trigger_event_date = parser.isoparse(event["time"]).date()
-    objects = s3.list_objects_v2(Bucket=BUCKET_NAME)
+    objects = s3.list_objects_v2(Bucket=source_bucket_name)
     files_to_submit = []
     if "Contents" in objects:
         files_to_submit = query_files_to_submit(
             objects, files_to_submit, trigger_event_date
         )
     else:
-        logger.info(f"No files found in {BUCKET_NAME} bucket")
+        logger.info(f"No files found in {source_bucket_name} bucket")
 
     # submit new files to new glue workflow
     if len(files_to_submit) > 0:
-        submit_s3_to_json_workflow(WORKFLOW_NAME, files_to_submit)
+        submit_s3_to_json_workflow(files_to_submit)
     else:
-        logger.info(f"No new files to be submitted in {BUCKET_NAME} bucket")
+        logger.info(f"No new files to be submitted in {source_bucket_name} bucket")
