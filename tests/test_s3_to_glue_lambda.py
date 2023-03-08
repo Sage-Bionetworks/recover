@@ -76,25 +76,6 @@ def test_trigger_event():
     return test_trigger_event
 
 
-@pytest.fixture
-def test_s3_client():
-    test_s3_client = boto3.resource("s3")
-    return test_s3_client
-
-
-@pytest.fixture
-def test_bucket_list():
-    s3 = boto3.resource("s3")
-    test_bucket_list = [bucket.name for bucket in s3.buckets.all()]
-    return test_bucket_list
-
-
-@pytest.fixture
-def test_glue_client():
-    test_glue_client = boto3.client("glue", region_name = "us-east-1")
-    return test_glue_client
-
-
 def test_query_files_to_submit_success(test_s3_bucket_objects, test_trigger_event):
     test_submit_files = app.query_files_to_submit(
         objects=test_s3_bucket_objects,
