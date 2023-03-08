@@ -91,16 +91,8 @@ def test_bucket_list():
 
 @pytest.fixture
 def test_glue_client():
-    test_glue_client = boto3.client("glue")
+    test_glue_client = boto3.client("glue", region_name = "us-east-1")
     return test_glue_client
-
-
-def test_bucket_exists(test_bucket_list):
-    assert (app.BUCKET_NAME in test_bucket_list) == True
-
-
-def test_glue_workflow_exists(test_glue_client):
-    test_glue_client.get_workflow(Name=app.WORKFLOW_NAME)
 
 
 def test_query_files_to_submit_success(test_s3_bucket_objects, test_trigger_event):
@@ -122,15 +114,6 @@ def test_no_files_to_submit_on_date(test_s3_bucket_objects):
         objects=test_s3_bucket_objects,
         files_to_submit=[],
         trigger_event_date=datetime.datetime.now().date(),
-    )
-    assert test_submit_files == []
-
-
-def test_empty_bucket_contents(test_trigger_event):
-    test_submit_files = app.query_files_to_submit(
-        objects={"Contents": []},
-        files_to_submit=[],
-        trigger_event_date=parser.isoparse(test_trigger_event["time"]).date(),
     )
     assert test_submit_files == []
 

@@ -11,15 +11,21 @@ Parameters:
     Type: String
     Description: Arn for the S3 to Glue Lambda Role
 
-  Namespace:
-    Type: String
-    Description: Namespace of the stack so that it may be unique
-
   Schedule:
     Description: >
       Schedule to execute the lambda function
     Type: String
     Default: cron(59 23 * * ? *)
+
+  S3SourceBucketName:
+    Type: String
+    Description: Name of the S3 bucket where source data are stored.
+
+  PrimaryWorkflowName:
+    Type: String
+    Description: >
+      Name of the main glue workflow that runs glue jobs from S3 to JSON and JSON to Parquet
+
 
 Resources:
   S3ToGlueFunction:
@@ -33,7 +39,8 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          NAMESPACE: !Ref Namespace
+          S3_SOURCE_BUCKET_NAME: !Ref S3SourceBucketName
+          PRIMARY_WORKFLOW_NAME: !Ref PrimaryWorkflowName
       Events:
         DailyTrigger:
           Type: Schedule
