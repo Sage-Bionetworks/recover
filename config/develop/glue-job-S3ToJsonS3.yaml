@@ -10,6 +10,6 @@ parameters:
   JobRole: !stack_output_external glue-job-role::RoleArn
   TempS3Bucket: !stack_output_external recover-dev-intermediate-bucket::BucketName
   S3ScriptBucket: !stack_output_external recover-dev-cloudformation-bucket::BucketName
-  S3ScriptKey: recover/src/glue/jobs/s3_to_json.py
+  S3ScriptKey: '{{ stack_group_config.namespace }}/recover/src/glue/jobs/s3_to_json.py'
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
