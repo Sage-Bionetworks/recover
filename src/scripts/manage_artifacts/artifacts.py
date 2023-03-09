@@ -1,3 +1,4 @@
+import os
 import argparse
 import subprocess
 
@@ -26,34 +27,35 @@ def execute_command(cmd : str):
 
 def upload(namespace : str, cfn_bucket : str):
     """Copy Glue scripts to the artifacts bucket"""
+
     scripts_local_path = "src/glue/"
-    scripts_s3_path = f"s3://{cfn_bucket}/{namespace}/{REPO_NAME}/src/glue/"
+    scripts_s3_path = os.path.join("s3://", cfn_bucket, namespace, REPO_NAME, "src/glue/")
     cmd = ["aws", "s3", "sync", scripts_local_path, scripts_s3_path]
     execute_command(cmd)
 
     """Copies Lambda code and template to the artifacts bucket"""
     lambda_local_path = "src/lambda_function/"
-    lambda_s3_path = f"s3://{cfn_bucket}/{namespace}/{REPO_NAME}/src/lambda_function/"
+    lambda_s3_path = os.path.join("s3://", cfn_bucket, namespace, REPO_NAME, "src/lambda_function/")
     cmd = ["aws", "s3", "sync", lambda_local_path, lambda_s3_path]
     execute_command(cmd)
 
     """Copy CFN templates to the artifacts bucket"""
     templates_local_path = "templates/"
-    templates_s3_path = f"s3://{cfn_bucket}/{namespace}/{REPO_NAME}/templates/"
+    templates_s3_path = os.path.join("s3://", cfn_bucket, namespace, REPO_NAME, "templates/")
     cmd = ["aws", "s3", "sync", templates_local_path, templates_s3_path]
     execute_command(cmd)
 
 
 def delete(namespace : str, cfn_bucket : str):
     """Removes all files recursively for namespace"""
-    s3_path = f"s3://{cfn_bucket}/{namespace}/{REPO_NAME}/"
+    s3_path = os.path.join("s3://", cfn_bucket, namespace, REPO_NAME)
     cmd = ["aws", "s3", "rm", "--recursive", s3_path]
     execute_command(cmd)
 
 
 def list_namespaces(cfn_bucket : str):
     """List all namespaces"""
-    s3_path = f"s3://{cfn_bucket}/"
+    s3_path = os.path.join("s3://", cfn_bucket)
     cmd = ["aws", "s3", "ls", s3_path]
     execute_command(cmd)
 
