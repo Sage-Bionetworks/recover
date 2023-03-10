@@ -63,6 +63,6 @@ jobs:
         if: github.ref_name != 'main'
         run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace $NAMESPACE --cfn_bucket recover-dev-cloudformation
 
-      - name: Copy files to templates bucket, use prod cloudformation bucket if main branch
+      - name: Copy files to templates bucket, use prod cloudformation bucket if main branch, don't add namespace
         if: github.ref_name == 'main'
         run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace '' --cfn_bucket recover-cloudformation
