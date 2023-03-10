@@ -1,0 +1,55 @@
+name: Common aws setup workflow
+
+description: >
+  Common infrastructure setup which checks out code, sets up python and pipenv,
+  and assumes AWS IAM role with OIDC integration. This requires that the following environment variables are set up
+  in your Github repository: for an IAM user, the role to assume as well as the artifact bucket name
+
+inputs:
+
+  python_version:
+    description: version of python to use
+    required: false
+    default: 3.10
+
+  role_to_assume:
+    description: iam role assumed for deployments
+    required: true
+
+permissions:
+# These permissions are needed to interact with GitHub's OIDC Token endpoint.
+      id-token: write
+      contents: read
+
+runs:
+
+  using: composite
+
+  steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install pipenv
+        shell: bash
+        run: python -m pip install pipenv
+
+      - name: Install dependencies
+        env:
+          PIPENV_NOSPIN: 'true'
+        shell: bash
+        run: |
+          pipenv install --dev
+
+      - name: Assume AWS role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ inputs.role_to_assume }}
+          role-session-name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
+          role-duration-seconds: 1200
