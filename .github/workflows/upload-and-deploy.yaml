@@ -19,39 +19,31 @@ jobs:
     runs-on: ubuntu-latest
     needs: pre-commit
     if: github.ref_name != 'main'
+    permissions:
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+      id-token: write
+      contents: read
     environment: develop
-    steps:
-      - name: Setup code, pipenv, aws
-        uses: ./.github/workflows/action-pipenv-aws-setup.yaml
-        with:
-          python_version: '3.10'
-          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
-
-      - name: Setup sam
-        uses: aws-actions/setup-sam@v2
-
-      - name: Set namespace for non-default branch or for tag
-        run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
-
-      - name: Copy files to templates bucket, use dev cloudformation bucket
-        run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace $NAMESPACE --cfn_bucket ${{ vars.CFN_BUCKET }}
+    uses: ./.github/workflows/action-pipenv-aws-setup.yaml
+    with:
+      python_version: '3.10'
+      role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+      cfn_bucket: ${{ vars.CFN_BUCKET }}
 
 
   upload-files-main:
+
     name: Upload files to S3 bucket in production
     runs-on: ubuntu-latest
     needs: pre-commit
     if: github.ref_name == 'main'
+    permissions:
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+      id-token: write
+      contents: read
     environment: develop
-    steps:
-      - name: Setup code, pipenv, aws
-        uses: ./.github/workflows/action-pipenv-aws-setup.yaml
-        with:
-          python_version: '3.10'
-          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
-
-      - name: Setup sam
-        uses: aws-actions/setup-sam@v2
-
-      - name: Copy files to templates dev bucket if main branch but don't add namespace
-        run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace '' --cfn_bucket ${{ vars.CFN_BUCKET }}
+    uses: ./.github/workflows/action-pipenv-aws-setup.yaml
+    with:
+      python_version: '3.10'
+      role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+      cfn_bucket: ${{ vars.CFN_BUCKET }}
