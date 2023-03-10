@@ -10,7 +10,7 @@ parameters:
   JobRole: !stack_output_external glue-job-role::RoleArn
   TempS3Bucket: !stack_output_external recover-dev-processed-data-bucket::BucketName
   S3ScriptBucket: !stack_output_external recover-dev-cloudformation-bucket::BucketName
-  S3ScriptKey: recover/src/glue/jobs/json_to_parquet.py
+  S3ScriptKey: '{{ stack_group_config.namespace }}/recover/src/glue/jobs/json_to_parquet.py'
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
