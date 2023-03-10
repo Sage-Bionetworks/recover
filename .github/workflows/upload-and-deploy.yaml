@@ -56,7 +56,7 @@ jobs:
         uses: aws-actions/setup-sam@v2
 
       - name: Set namespace for non-default branch or for tag
-        if: github.ref_name == 'main'
+        if: github.ref_name != 'main'
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
       - name: Copy files to templates bucket, use dev cloudformation bucket if not main branch
