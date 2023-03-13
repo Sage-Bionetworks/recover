@@ -15,7 +15,7 @@ jobs:
 
   upload-files:
 
-    name: Upload files to S3 bucket
+    name: Upload files to S3 bucket in development
     runs-on: ubuntu-latest
     needs: pre-commit
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
@@ -24,7 +24,6 @@ jobs:
       contents: read
     environment: develop
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -48,21 +47,21 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-region: us-east-1
-          role-to-assume: arn:aws:iam::914833433684:role/sagebase-github-oidc-sage-bion-ProviderRolerecover-VTOKECAKJUBV
+          role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           role-session-name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
           role-duration-seconds: 1200
 
       - name: Setup sam
         uses: aws-actions/setup-sam@v2
 
-      - name: Set namespace for non-default branch or for tag
+      - name: Set namespace for non-default branch
         if: github.ref_name != 'main'
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
-      - name: Copy files to templates bucket, use dev cloudformation bucket if not main branch
+      - name: Copy files to namespaced templates bucket, use dev cloudformation bucket
         if: github.ref_name != 'main'
-        run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace $NAMESPACE --cfn_bucket recover-dev-cloudformation
+        run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace $NAMESPACE --cfn_bucket ${{ vars.CFN_BUCKET }}
 
-      - name: Copy files to templates bucket, use prod cloudformation bucket if main branch, don't add namespace
+      - name: Copy files to non-namespaced templates bucket, use dev cloudformation bucket
         if: github.ref_name == 'main'
-        run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace '' --cfn_bucket recover-cloudformation
+        run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace '' --cfn_bucket ${{ vars.CFN_BUCKET }}
