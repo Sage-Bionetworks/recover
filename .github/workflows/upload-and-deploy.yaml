@@ -31,8 +31,8 @@ jobs:
       - name: Setup code, pipenv, aws
         uses: Sage-Bionetworks/action-pipenv-aws-setup@ibcdpe-516
         with:
-          role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
-          role-session-name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
 
       - name: Setup sam
         uses: aws-actions/setup-sam@v2
