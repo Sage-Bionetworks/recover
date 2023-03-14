@@ -29,7 +29,7 @@ jobs:
     steps:
 
       - name: Setup code, pipenv, aws
-        uses: Sage-Bionetworks/action-pipenv-aws-setup@ibcdpe-516
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
         with:
           role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           role_session_name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
