@@ -85,8 +85,8 @@ jobs:
       - name: Setup code, pipenv, aws
         uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
         with:
-          role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
-          role-session-name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
 
       - name: Create directory for remote sceptre templates
         run: mkdir -p templates/remote/
