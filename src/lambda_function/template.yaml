@@ -34,7 +34,7 @@ Resources:
       PackageType: Zip
       CodeUri: ./s3_to_glue
       Handler: app.lambda_handler
-      Runtime: python3.9
+      Runtime: python3.10
       Role: !Ref S3ToGlueRoleArn
       Timeout: 30
       Environment:

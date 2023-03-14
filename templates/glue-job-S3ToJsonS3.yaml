@@ -42,7 +42,7 @@ Parameters:
   PythonVersion:
     Type: String
     Description: The version of Python to use
-    Default: 3.9
+    Default: "3.10"
 
   TimeoutInMinutes:
     Type: Number
@@ -68,7 +68,7 @@ Resources:
         --enable-continuous-cloudwatch-log: true
         --enable-metrics: true
       Description: !Ref JobDescription
-      GlueVersion: "3.0"
+      GlueVersion: "4.0"
       ExecutionProperty:
         MaxConcurrentRuns: !Ref MaxConcurrentRuns
       MaxCapacity: !Ref MaxCapacity
