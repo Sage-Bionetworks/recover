@@ -2,6 +2,9 @@ name: upload-and-deploy
 
 on: [push]
 
+env:
+  NAMESPACE: ${{ github.event.repository.name }}
+
 jobs:
 
   pre-commit:
@@ -65,3 +68,33 @@ jobs:
       - name: Copy files to non-namespaced templates bucket, use dev cloudformation bucket
         if: github.ref_name == 'main'
         run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace '' --cfn_bucket ${{ vars.CFN_BUCKET }}
+
+
+  sceptre-deploy-branch:
+
+    name: Deploy branch using sceptre
+    runs-on: ubuntu-latest
+    needs: [pre-commit, upload-files]
+    environment: develop
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Setup code, pipenv, aws
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
+        with:
+          role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role-session-name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
+
+      - name: Create directory for remote sceptre templates
+        run: mkdir -p templates/remote/
+
+      - name: Deploy namespaced sceptre stacks to dev
+        if: github.ref_name != 'main'
+        run: pipenv run sceptre --var "namespace=$GITHUB_REF_NAME" launch develop --yes
+
+      - name: Deploy non-namespaced sceptre stacks to dev
+        if: github.ref_name == 'main'
+        run: pipenv run sceptre --var "namespace=$NAMESPACE" launch develop --yes
