@@ -34,7 +34,7 @@ jobs:
         with:
           role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           role_session_name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
-          python_version: $PYTHON_VERSION
+          python_version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup sam
         uses: aws-actions/setup-sam@v2
