@@ -27,6 +27,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: develop
     steps:
 
       - name: Setup code, pipenv, aws
@@ -45,6 +46,7 @@ jobs:
 
       - name: Copy files to templates bucket, use dev cloudformation bucket
         run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace $NAMESPACE --cfn_bucket ${{ vars.CFN_BUCKET }}
+
 
   sceptre-deploy-branch:
 
@@ -68,10 +70,9 @@ jobs:
       - name: Create directory for remote sceptre templates
         run: mkdir -p templates/remote/
 
-      - name: Deploy namespaced sceptre stacks to dev
+      - name: Set namespace for non-default branch
         if: github.ref_name != 'main'
-        run: pipenv run sceptre --var "namespace=$GITHUB_REF_NAME" launch develop --yes
+        run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
-      - name: Deploy non-namespaced sceptre stacks to dev
-        if: github.ref_name == 'main'
+      - name: Deploy sceptre stacks to dev
         run: pipenv run sceptre --var "namespace=$NAMESPACE" launch develop --yes
