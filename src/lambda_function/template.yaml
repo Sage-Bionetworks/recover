@@ -26,6 +26,11 @@ Parameters:
     Description: >
       Name of the main glue workflow that runs glue jobs from S3 to JSON and JSON to Parquet
 
+  LambdaPythonVersion:
+    Type: String
+    Description: Python version to use for this lambda function
+    Default: "3.9"
+
 
 Resources:
   S3ToGlueFunction:
@@ -34,7 +39,7 @@ Resources:
       PackageType: Zip
       CodeUri: ./s3_to_glue
       Handler: app.lambda_handler
-      Runtime: python3.10
+      Runtime: !Sub "python${LambdaPythonVersion}"
       Role: !Ref S3ToGlueRoleArn
       Timeout: 30
       Environment:
