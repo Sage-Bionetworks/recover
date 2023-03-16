@@ -42,6 +42,10 @@ Parameters:
     Type: String
     Description: The name of the S3 bucket where temporary files and logs are written.
 
+  GlueVersion:
+    Type: String
+    Description: The version of glue to use for this job
+
 Resources:
 
   {% set datasets = [] %}
@@ -71,7 +75,7 @@ Resources:
         --glue-table: {{ dataset["table_name"] }}
         # --conf spark.sql.adaptive.enabled
       Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
-      GlueVersion: "4.0" # Spark 3.3.0, Python 3.10
+      GlueVersion: !Ref GlueVersion
       MaxRetries: !Ref MaxRetries
       Name: {{ dataset["stackname_prefix"] }}-Job
       NumberOfWorkers: !Ref NumberOfWorkers
