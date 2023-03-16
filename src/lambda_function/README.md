@@ -27,7 +27,7 @@ Use the SAM CLI to build and test your lambda locally.
 Build your application with the `sam build` command.
 
 ```bash
-cd src/lambda
+cd src/lambda_function
 sam build
 ```
 
@@ -55,7 +55,7 @@ if you are testing a stack deployed as part of a feature branch.
 To invoke the lambda with the test event:
 
 ```bash
-cd src/lambda
+cd src/lambda_function
 sam local invoke -e events/test-trigger-event.json --env-vars test-env-vars.json
 ```
 
@@ -84,7 +84,7 @@ There are two main stacks involved in the s3 to glue lambda. They are the
 also create the lambda s3 to glue IAM role stack as well:
 
 ```shell script
-sceptre --var namespace='test-namespace' launch develop/namespace/s3-to-glue-lambda.yaml
+sceptre --var namespace='test-namespace' launch develop/namespaced/s3-to-glue-lambda.yaml
 ```
 
 #### Launching in production

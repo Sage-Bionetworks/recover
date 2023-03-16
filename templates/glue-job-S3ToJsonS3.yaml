@@ -39,10 +39,13 @@ Parameters:
     Description: How many times to retry the job if it fails (integer).
     Default: 0 # TODO change this to 1 after initial development
 
-  PythonVersion:
+  GluePythonShellVersion:
     Type: String
-    Description: The version of Python to use
-    Default: 3.9
+    Description: The version of Python to use for the Glue Python Shell job
+
+  GlueVersion:
+    Type: String
+    Description: The version of glue to use for this job
 
   TimeoutInMinutes:
     Type: Number
@@ -60,7 +63,7 @@ Resources:
     Properties:
       Command:
         Name: pythonshell
-        PythonVersion: !Ref PythonVersion
+        PythonVersion: !Ref GluePythonShellVersion
         ScriptLocation: !Sub s3://${S3ScriptBucket}/${S3ScriptKey}
       DefaultArguments:
         --TempDir: !Sub s3://${TempS3Bucket}/tmp
@@ -68,7 +71,7 @@ Resources:
         --enable-continuous-cloudwatch-log: true
         --enable-metrics: true
       Description: !Ref JobDescription
-      GlueVersion: "3.0"
+      GlueVersion: !Ref GlueVersion
       ExecutionProperty:
         MaxConcurrentRuns: !Ref MaxConcurrentRuns
       MaxCapacity: !Ref MaxCapacity
