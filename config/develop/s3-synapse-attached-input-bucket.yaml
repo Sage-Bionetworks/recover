@@ -1,0 +1,31 @@
+# Provision a general S3 bucket or a Synapse External Bucket
+# http://docs.synapse.org/articles/custom_storage_location.html
+
+# For use in RECOVER Synapse project (syn51105296)
+
+#### 
+# NOTE:
+# This is the second bucket in the ingress pipeline for RECOVER project. We will create a copy of the first bucket (recover_input_shared_bucket).
+# This bucket is to make sure we have a data source that is constant and cannot be edited by externals 
+# Only Sage has access to this bucket, and this will be linked to the RECOVER Synapse project (syn51105296).
+# The file list will be replicated in Synapse via STS token 
+#(https://help.synapse.org/docs/Compute-Directly-on-Data-in-Synapse-or-S3.2048426057.html#ComputeDirectlyonDatainSynapseorS3-Synapse-ManagedSTSStorageLocations)
+####
+template:
+  type: "http"
+  url: "https://{{stack_group_config.admincentral_cf_bucket}}.s3.amazonaws.com/aws-infra/v0.2.7/s3-bucket.yaml"
+stack_name: "recover-synapse-attached-input-bucket"
+stack_tags:
+  OwnerEmail: 'synapse-service-sysbio-recover-data-storage-01@sagebase.org'
+  # This is the shared account (credentials shared on Last Pass) for RECOVER
+  CostCenter: "MGH RECOVER / 122500"
+parameters:
+  # (Optional) true for read-write bucket, false (default) for read-only bucket
+  AllowWriteBucket: 'true'
+  # (Optional) Allow accounts, groups, and users to access bucket (default is no access).
+  GrantAccess:
+    - 'arn:aws:iam::325565585839:root'   # Required ARN for a synapse bucket
+    - 'arn:aws:sts::526515999252:assumed-role/AWSReservedSSO_S3ExternalCollab_40c062f682e7f3f5/meghasyam@sagebase.org'
+sceptre_user_data:
+  SynapseIDs:
+    - "3357179" # Megha's synapse profileID
