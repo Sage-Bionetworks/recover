@@ -6,10 +6,11 @@ template:
   url: "https://raw.githubusercontent.com/Sage-Bionetworks/aws-infra/v0.5.0/templates/S3/synapse-external-bucket.j2"
 stack_name: "dev-recover-ingestion"
 stack_tags:
-  OwnerEmail: 'synapse-service-sysbio-recover-data-storage-01@sagebase.org'
   # This is the shared account (credentials shared on Last Pass) for RECOVER
   CostCenter: "MGH RECOVER / 122500"
 parameters:
+  # (Optional) Name of the created bucket.
+  BucketName: "dev-ingestion-prod"
   # (Optional) true for read-write bucket, false (default) for read-only bucket
   AllowWriteBucket: 'true'
   # (Optional) Allow accounts, groups, and users to access bucket (default is no access).
