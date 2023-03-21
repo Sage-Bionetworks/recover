@@ -13,7 +13,7 @@
 ####
 template:
   type: "http"
-  url: "https://{{stack_group_config.admincentral_cf_bucket}}.s3.amazonaws.com/aws-infra/v0.2.7/s3-bucket.yaml"
+  url: "https://raw.githubusercontent.com/Sage-Bionetworks/aws-infra/v0.5.0/templates/S3/synapse-external-bucket.j2"
 stack_name: "recover-synapse-attached-input-bucket"
 stack_tags:
   OwnerEmail: 'synapse-service-sysbio-recover-data-storage-01@sagebase.org'
