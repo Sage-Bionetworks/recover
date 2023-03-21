@@ -3,12 +3,12 @@
 
 # For use in RECOVER Synapse project (syn51105296)
 
-#### 
+####
 # NOTE:
 # This is the second bucket in the ingress pipeline for RECOVER project. We will create a copy of the first bucket (recover_input_shared_bucket).
-# This bucket is to make sure we have a data source that is constant and cannot be edited by externals 
+# This bucket is to make sure we have a data source that is constant and cannot be edited by externals
 # Only Sage has access to this bucket, and this will be linked to the RECOVER Synapse project (syn51105296).
-# The file list will be replicated in Synapse via STS token 
+# The file list will be replicated in Synapse via STS token
 #(https://help.synapse.org/docs/Compute-Directly-on-Data-in-Synapse-or-S3.2048426057.html#ComputeDirectlyonDatainSynapseorS3-Synapse-ManagedSTSStorageLocations)
 ####
 template:
