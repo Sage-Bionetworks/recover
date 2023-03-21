@@ -1,0 +1,13 @@
+# This is the pre-ETL bucket (SYNAPSE_ATTACHED_BUCKET)
+template:
+  type: file
+  path: s3-bucket.yaml
+stack_name: recover-processed-data-bucket
+dependencies:
+  - prod/cfn-s3objects-macro.yaml
+parameters:
+  BucketName: recover-production-input-data
+  SynapseIds: "3461799"
+  Namespace: {{ stack_group_config.namespace }}
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
