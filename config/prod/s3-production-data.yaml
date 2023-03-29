@@ -6,7 +6,7 @@ stack_name: recover-input-bucket
 dependencies:
   - prod/cfn-s3objects-macro.yaml
 parameters:
-  BucketName: recover-production-input-data
+  BucketName: recover-input-data
   SynapseIds: "3461799"
   Namespace: {{ stack_group_config.namespace }}
 stack_tags:
