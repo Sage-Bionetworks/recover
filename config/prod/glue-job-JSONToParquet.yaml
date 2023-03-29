@@ -11,6 +11,7 @@ parameters:
   TempS3Bucket: !stack_output_external recover-processed-data-bucket::BucketName
   S3ScriptBucket: !stack_output_external recover-cloudformation-bucket::BucketName
   S3ScriptKey: recover/src/glue/jobs/json_to_parquet.py
+  GlueVersion: "{{ stack_group_config.json_to_parquet_glue_version }}"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
