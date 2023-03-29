@@ -1,0 +1,19 @@
+# NOTE:
+# This is the first bucket in the ingress pipeline for RECOVER project.
+# Ingestion bucket or SYNAPSE_INPUT_SHARED_BUCKET
+template:
+  type: "http"
+  url: "https://raw.githubusercontent.com/Sage-Bionetworks/aws-infra/v0.5.0/templates/S3/synapse-external-bucket.j2"
+stack_name: "recover-dev-ingestion-bucket"
+stack_tags:
+  # This is the shared account (credentials shared on Last Pass) for RECOVER
+  CostCenter: "MGH RECOVER / 122500"
+parameters:
+  # (Optional) Name of the created bucket.
+  BucketName: "recover-dev-ingestion"
+  # (Optional) true for read-write bucket, false (default) for read-only bucket
+  AllowWriteBucket: 'true'
+  # (Optional) Allow accounts, groups, and users to access bucket (default is no access).
+  GrantAccess:
+    - 'arn:aws:iam::325565585839:root'   # Required ARN for a synapse bucket
+    - 'arn:aws:sts::526515999252:assumed-role/AWSReservedSSO_S3ExternalCollab_40c062f682e7f3f5/meghasyam@sagebase.org'
