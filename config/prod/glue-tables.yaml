@@ -1,6 +1,6 @@
 template:
   path: glue-tables.j2
-stack_name: 'recover-glue-tables'
+stack_name: '{{ stack_group_config.namespace }}-glue-tables'
 dependencies:
   - prod/s3-intermediate-bucket.yaml
 parameters:

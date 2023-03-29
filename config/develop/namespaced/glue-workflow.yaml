@@ -8,7 +8,7 @@ parameters:
   JsonBucketName: !stack_output_external recover-dev-intermediate-bucket::BucketName
   ParquetBucketName: !stack_output_external recover-dev-processed-data-bucket::BucketName
   GlueDatabase: !stack_output_external "{{ stack_group_config.namespace }}-glue-tables::DatabaseName"
-  S3ToJsonJobName: !stack_output_external glue-job-S3ToJsonS3::JobName
+  S3ToJsonJobName: !stack_output_external "{{ stack_group_config.namespace }}-glue-job-S3ToJsonS3::JobName"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
