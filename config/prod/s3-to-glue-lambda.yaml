@@ -2,7 +2,7 @@ template:
   type: sam
   path: src/lambda_function/template.yaml
   artifact_bucket_name: !stack_output_external recover-cloudformation-bucket::BucketName
-  artifact_prefix: '{{ stack_group_config.namespace }}/src/lambda'
+  artifact_prefix: 'recover/src/lambda'
 dependencies:
   - prod/s3-to-glue-lambda-role.yaml
   - prod/glue-workflow.yaml
