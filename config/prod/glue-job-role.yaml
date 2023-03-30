@@ -2,7 +2,7 @@ template:
   path: glue-job-role.yaml
 stack_name: glue-job-role
 parameters:
-  S3SourceBucketName: {{ stack_group_config.source_bucket }}
+  S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
   S3IntermediateBucketName: !stack_output_external recover-intermediate-bucket::BucketName
   S3ParquetBucketName: !stack_output_external recover-processed-data-bucket::BucketName
   S3ArtifactBucketName: !stack_output_external recover-cloudformation-bucket::BucketName
