@@ -4,7 +4,7 @@ dependencies:
   - develop/s3-intermediate-bucket.yaml
   - develop/s3-cloudformation-bucket.yaml
   - develop/glue-job-role.yaml
-stack_name: glue-job-S3ToJsonS3
+stack_name: "{{ stack_group_config.namespace }}-glue-job-S3ToJsonS3"
 parameters:
   JobDescription: Sort JSON from ZIP archive into datasets
   JobRole: !stack_output_external glue-job-role::RoleArn

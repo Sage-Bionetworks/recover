@@ -5,7 +5,7 @@ template:
   artifact_prefix: '{{ stack_group_config.namespace }}/src/lambda'
 dependencies:
   - prod/s3-to-glue-lambda-role.yaml
-  - prod/glue-workflow.yaml
+  - prod/namespaced/glue-workflow.yaml
 stack_name: '{{ stack_group_config.namespace }}-lambda-S3ToGlue'
 stack_tags: {{ stack_group_config.default_stack_tags }}
 parameters:
