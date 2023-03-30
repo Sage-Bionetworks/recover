@@ -8,6 +8,9 @@ jobs:
     name: Delete CloudFormation stacks using sceptre
     runs-on: ubuntu-latest
     environment: develop
+    permissions:
+      id-token: write
+      contents: read
     steps:
 
       - name: Setup code, pipenv, aws
