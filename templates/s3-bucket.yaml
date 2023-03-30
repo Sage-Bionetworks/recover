@@ -14,7 +14,7 @@ Parameters:
     Default: ''
 
   SynapseIds:
-    Type: List<String>
+    Type: CommaDelimitedList
     Default: ''
     Description: Synapse ids to set as owners of this bucket
     ConstraintDescription: >-
@@ -79,7 +79,6 @@ Resources:
               Action:
                 - 's3:ListBucket*'
                 - 's3:GetBucketLocation'
-
               Resource: !Sub ${Bucket.Arn}
             - !Ref AWS::NoValue
           - !If

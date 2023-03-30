@@ -1,6 +1,0 @@
-template:
-  type: file
-  path: s3-bucket.yaml
-stack_name: recover-pilot-data-bucket
-parameters:
-  BucketName: recover-pilot-data
