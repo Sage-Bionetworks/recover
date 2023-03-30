@@ -1,11 +1,10 @@
-#{% set ns = stack_group_config.namespace %}
 template:
   path: glue-tables.j2
-stack_name: '{{ ns }}-glue-tables'
+stack_name: '{{ stack_group_config.namespace }}-glue-tables'
 dependencies:
   - develop/s3-intermediate-bucket.yaml
 parameters:
-  Namespace: {{ ns }}
+  Namespace: {{ stack_group_config.namespace }}
   S3IntermediateBucketName: !stack_output_external recover-dev-intermediate-bucket::BucketName
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
