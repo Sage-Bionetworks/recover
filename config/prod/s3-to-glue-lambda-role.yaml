@@ -2,6 +2,6 @@ template:
   path: s3-to-glue-lambda-role.yaml
 stack_name: s3-to-glue-lambda-role
 parameters:
-  S3SourceBucketName: !stack_output_external recover-input-bucket::BucketName
+  S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
