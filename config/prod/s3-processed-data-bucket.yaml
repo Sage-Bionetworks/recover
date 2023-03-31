@@ -7,6 +7,6 @@ dependencies:
 parameters:
   BucketName: {{ stack_group_config.processed_data_bucket_name }}
   SynapseIds: "3461799"
-  Namespace: {{ stack_group_config.namespace }}
+  OwnerTxtKeyPrefix: "{{ stack_group_config.namespace }}/parquet"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}

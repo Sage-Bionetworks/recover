@@ -8,6 +8,6 @@ dependencies:
 parameters:
   BucketName: {{ stack_group_config.input_bucket_name }}
   SynapseIds: "3461799"
-  Namespace: {{ stack_group_config.namespace }}
+  OwnerTxtKeyPrefix: {{ stack_group_config.namespace }}
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
