@@ -3,4 +3,4 @@ template:
   path: s3-bucket.yaml
 stack_name: recover-intermediate-bucket
 parameters:
-  BucketName: recover-intermediate-data
+  BucketName: {{ stack_group_config.intermediate_bucket_name }}

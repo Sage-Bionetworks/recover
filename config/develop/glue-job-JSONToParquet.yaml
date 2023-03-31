@@ -1,15 +1,13 @@
 template:
   path: glue-job-JSONToParquet.j2
 dependencies:
-  - develop/s3-processed-data-bucket.yaml
-  - develop/s3-cloudformation-bucket.yaml
   - develop/glue-job-role.yaml
 stack_name: glue-job-JSONToParquet
 parameters:
   JobDescription: Export JSON datasets to Parquet
   JobRole: !stack_output_external glue-job-role::RoleArn
-  TempS3Bucket: !stack_output_external recover-dev-processed-data-bucket::BucketName
-  S3ScriptBucket: !stack_output_external recover-dev-cloudformation-bucket::BucketName
+  TempS3Bucket: {{ stack_group_config.processed_data_bucket_name }}
+  S3ScriptBucket: {{ stack_group_config.cloudformation_artifact_bucket_name }}
   S3ScriptKey: '{{ stack_group_config.namespace }}/src/glue/jobs/json_to_parquet.py'
   GlueVersion: "{{ stack_group_config.json_to_parquet_glue_version }}"
 stack_tags:
