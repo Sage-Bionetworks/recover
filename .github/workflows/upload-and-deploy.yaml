@@ -75,4 +75,4 @@ jobs:
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
       - name: Deploy sceptre stacks to dev
-        run: pipenv run sceptre --var "namespace=$NAMESPACE" launch develop --yes
+        run: pipenv run sceptre --var "namespace=${{ env.NAMESPACE }}" launch develop --yes
