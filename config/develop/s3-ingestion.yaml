@@ -10,7 +10,7 @@ stack_tags:
   CostCenter: "MGH RECOVER / 122500"
 parameters:
   # (Optional) Name of the created bucket.
-  BucketName: "recover-dev-ingestion"
+  BucketName: {{ stack_group_config.ingestion_bucket_name }}
   # (Optional) true for read-write bucket, false (default) for read-only bucket
   AllowWriteBucket: 'true'
   # (Optional) Allow accounts, groups, and users to access bucket (default is no access).

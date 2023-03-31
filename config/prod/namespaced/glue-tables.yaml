@@ -1,11 +1,9 @@
 template:
   path: glue-tables.j2
 stack_name: '{{ stack_group_config.namespace }}-glue-tables'
-dependencies:
-  - prod/s3-intermediate-bucket.yaml
 parameters:
   Namespace: {{ stack_group_config.namespace }}
-  S3IntermediateBucketName: !stack_output_external recover-intermediate-bucket::BucketName
+  S3IntermediateBucketName: {{ stack_group_config.intermediate_bucket_name }}
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
