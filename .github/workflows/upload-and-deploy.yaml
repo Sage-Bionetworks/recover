@@ -3,7 +3,7 @@ name: upload-and-deploy
 on: [push]
 
 env:
-  NAMESPACE: recover
+  NAMESPACE: main
   PYTHON_VERSION: 3.9
 
 jobs:
