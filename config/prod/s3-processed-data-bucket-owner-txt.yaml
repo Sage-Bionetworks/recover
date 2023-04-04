@@ -9,3 +9,5 @@ parameters:
   BucketName: !stack_output_external recover-processed-data-bucket::BucketName
   SynapseIds: "3461799" # recoverETL
   OwnerTxtKeyPrefix: "{{ stack_group_config.namespace }}/parquet"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
