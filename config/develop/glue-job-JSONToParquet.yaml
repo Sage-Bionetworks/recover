@@ -2,8 +2,9 @@ template:
   path: glue-job-JSONToParquet.j2
 dependencies:
   - develop/glue-job-role.yaml
-stack_name: glue-job-JSONToParquet
+stack_name: '{{ stack_group_config.namespace }}-glue-job-JSONToParquet'
 parameters:
+  Namespace: {{ stack_group_config.namespace }}
   JobDescription: Export JSON datasets to Parquet
   JobRole: !stack_output_external glue-job-role::RoleArn
   TempS3Bucket: {{ stack_group_config.processed_data_bucket_name }}

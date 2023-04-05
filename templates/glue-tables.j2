@@ -44,7 +44,7 @@ Resources:
     Type: AWS::Glue::Table
     Properties:
       CatalogId: !Ref AWS::AccountId
-      DatabaseName: !Ref GlueDatabase
+      DatabaseName: !Sub '${Namespace}-gluedatabase'
       TableInput:
         Name: {{ dataset.table_name }}
         Parameters:

@@ -5,6 +5,10 @@ Description: >-
   to your data target.
 
 Parameters:
+  Namespace:
+    Type: String
+    Description: >-
+      The namespace string used to for the individual glue job names
 
   JobDescription:
     Type: String
@@ -77,7 +81,7 @@ Resources:
       Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
       GlueVersion: !Ref GlueVersion
       MaxRetries: !Ref MaxRetries
-      Name: {{ dataset["stackname_prefix"] }}-Job
+      Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
       NumberOfWorkers: !Ref NumberOfWorkers
       Role: !Ref JobRole
       Timeout: !Ref TimeoutInMinutes
