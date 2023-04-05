@@ -65,6 +65,6 @@ Resources:
 Outputs:
 
   DatabaseName:
-    Value: !Ref GlueDatabase
+    Value: !Sub '${Namespace}-gluedatabase'
     Export:
       Name: !Sub '${AWS::Region}-${AWS::StackName}-DatabaseName'
