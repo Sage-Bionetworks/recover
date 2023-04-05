@@ -3,11 +3,7 @@ template:
   type: file
   path: s3-bucket.yaml
 stack_name: recover-input-bucket
-dependencies:
-  - prod/cfn-s3objects-macro.yaml
 parameters:
   BucketName: {{ stack_group_config.input_bucket_name }}
-  SynapseIds: "3461799"
-  Namespace: {{ stack_group_config.namespace }}
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
