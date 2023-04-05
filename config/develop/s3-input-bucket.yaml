@@ -5,3 +5,5 @@ stack_name: recover-dev-input-bucket
 parameters:
   BucketName: {{ stack_group_config.input_bucket_name }}
   ConnectToSynapse: "true"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
