@@ -36,6 +36,7 @@ Resources:
     Properties:
       CatalogId: !Ref AWS::AccountId
       DatabaseInput:
+        Name: !Sub '${Namespace}-gluedatabase'
         Description: !Sub 'Recover database using namespace ${Namespace}'
 
   # Table stacks
@@ -44,7 +45,7 @@ Resources:
     Type: AWS::Glue::Table
     Properties:
       CatalogId: !Ref AWS::AccountId
-      DatabaseName: !Sub '${Namespace}-gluedatabase'
+      DatabaseName: !Ref GlueDatabase
       TableInput:
         Name: {{ dataset.table_name }}
         Parameters:
@@ -65,6 +66,6 @@ Resources:
 Outputs:
 
   DatabaseName:
-    Value: !Sub '${Namespace}-gluedatabase'
+    Value: !Ref GlueDatabase
     Export:
       Name: !Sub '${AWS::Region}-${AWS::StackName}-DatabaseName'
