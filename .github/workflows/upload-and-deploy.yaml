@@ -48,7 +48,6 @@ jobs:
 
   sceptre-deploy-develop:
     name: Deploys branch using sceptre
-    run-name: Deploy sceptre stacks to ${{ env.NAMESPACE }} on dev
     runs-on: ubuntu-latest
     needs: [pre-commit, upload-files]
     environment: develop
