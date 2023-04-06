@@ -36,6 +36,7 @@ Resources:
     Properties:
       CatalogId: !Ref AWS::AccountId
       DatabaseInput:
+        Name: !Sub '${Namespace}-gluedatabase'
         Description: !Sub 'Recover database using namespace ${Namespace}'
 
   # Table stacks
