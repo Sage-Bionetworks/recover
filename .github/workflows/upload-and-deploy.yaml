@@ -75,7 +75,7 @@ jobs:
         run: pipenv run sceptre --var "namespace=${{ env.NAMESPACE }}" launch develop --yes
 
 
-sceptre-deploy-staging:
+  sceptre-deploy-staging:
     name: Deploys to staging of prod using sceptre
     runs-on: ubuntu-latest
     needs: [pre-commit, upload-files, sceptre-deploy-develop]
