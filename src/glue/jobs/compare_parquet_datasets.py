@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import argparse
 
@@ -8,6 +9,7 @@ import synapseclient
 from pyarrow import fs
 import pyarrow.parquet as pq
 
+# from json_to_parquet import INDEX_FIELD_MAP
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -61,20 +63,29 @@ def read_args():
 
 
 def get_duplicated_index_fields(data_type: str, dataset: pd.DataFrame) -> pd.DataFrame:
+    """Gets the rows of data that are duplicated based on the index columns by data type
+    and returns them
+    """
     index_cols = INDEX_FIELD_MAP[data_type]
     return dataset[dataset.duplicated(subset=index_cols)]
 
 
 def get_duplicated_columns(dataset: pd.DataFrame) -> list:
+    """ Gets a list of duplicated columns in a dataframe
+    """
     return dataset.columns[dataset.columns.duplicated()].tolist()
 
 
 def get_common_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
+    """ Gets the list of common columns between two dataframes
+    """
     common_cols = staging_dataset.columns.intersection(main_dataset.columns).tolist()
     return common_cols
 
 
 def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
+    """ Gets the list of missing columns present in main but not in staging
+    """
     missing_cols = main_dataset.columns.difference(staging_dataset.columns).tolist()
     return missing_cols
 
@@ -82,6 +93,8 @@ def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) 
 def get_additional_cols(
     staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
+    """ Gets the list of additional columns present in staging but not in main
+    """
     add_cols = staging_dataset.columns.difference(main_dataset.columns).tolist()
     return add_cols
 
@@ -89,6 +102,15 @@ def get_additional_cols(
 def get_S3FileSystem_from_session(
     aws_session: boto3.session.Session,
 ) -> fs.S3FileSystem:
+    """Gets a pyarrow S3 filesystem object given an
+    authenticated aws session with credentials
+
+    Args:
+        aws_session (boto3.session.Session): authenticated aws session
+
+    Returns:
+        fs.S3FileSystem: S3 filesystem object initiated from AWS credentials
+    """
     session_credentials = aws_session.get_credentials()
     s3_fs = fs.S3FileSystem(
         access_key=session_credentials.access_key,
@@ -119,6 +141,16 @@ def get_parquet_dataset(
 def get_folders_in_s3_bucket(
     s3: boto3.client, bucket_name: str, namespace: str
 ) -> list:
+    """Gets the folders in the S3 bucket under the specific namespace
+
+    Args:
+        s3 (boto3.client): authenticated s3 client
+        bucket_name (str): name of the S3 bucket to look into
+        namespace (str): namespace of the path to look for folders in
+
+    Returns:
+        list: folder names inside S3 bucket
+    """
     response = s3.list_objects_v2(Bucket=bucket_name, Prefix=f"{namespace}/parquet/")
     if "Contents" in response.keys():
         contents = response["Contents"]
@@ -135,6 +167,19 @@ def get_folders_in_s3_bucket(
 def keep_common_rows_cols(
     data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> dict:
+    """This function keeps the common columns between the two
+        given datasets. This function also merges on the index fields in
+        common between the two datasets so that the dataset can be
+        reduced to the same dimensions and be comparable
+
+    Args:
+        data_type (str): current data type
+        staging_dataset (pd.DataFrame): "new" data that is to go through processing
+        main_dataset (pd.DataFrame): "established" dataset
+
+    Returns:
+        dict of staging dataset and main datasets
+    """
     index_cols = INDEX_FIELD_MAP[data_type]
     common_cols = get_common_cols(staging_dataset, main_dataset)
     # convert to having same columns
@@ -161,6 +206,9 @@ def keep_common_rows_cols(
 def compare_column_data_types(
     data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
+    """ This compares the column data types of the common columns between
+        two datasets and creates a message if there are differences
+    """
     compare_msg = []
     common_cols = get_common_cols(staging_dataset, main_dataset)
     for common_col in common_cols:
@@ -177,6 +225,8 @@ def compare_column_data_types(
 def compare_column_names(
     data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
+    """This compares the column names between two datasets and outputs a
+    message if there are any differences"""
     compare_msg = []
     missing_cols = get_missing_cols(staging_dataset, main_dataset)
     add_cols = get_additional_cols(staging_dataset, main_dataset)
@@ -194,6 +244,9 @@ def compare_column_names(
 def compare_column_vals(
     data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
+    """This compares the column values between the common columns of two
+    datasets after the datasets have been reduced to the same dimensions
+    and outputs a message if any columns have all of their values as different"""
     compare_msg = []
     dataset_dict = keep_common_rows_cols(data_type, staging_dataset, main_dataset)
     dataset_diff = dataset_dict["staging"].compare(
@@ -212,6 +265,9 @@ def compare_column_vals(
 def compare_dataset_data_types(
     s3: boto3.client, bucket_name: str, staging_namespace: str, main_namespace: str
 ) -> list:
+    """This looks at the current datatype folders in the S3 bucket between the
+    two namespaced paths and outputs a message if there are any differences
+    in the datatype folders"""
     compare_msg = []
     staging_datatype_folders = get_folders_in_s3_bucket(
         s3, bucket_name, namespace=staging_namespace
@@ -237,6 +293,8 @@ def compare_dataset_data_types(
 def compare_num_of_rows(
     data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
+    """This compares the number of rows between two datasets and outputs a message
+    if there are any row count differences"""
     compare_msg = []
     if staging_dataset.shape[0] != main_dataset.shape[0]:
         compare_msg.append(
@@ -249,6 +307,9 @@ def compare_num_of_rows(
 def compare_dataset_row_vals(
     data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
+    """This compares the row values between the two
+    datasets after the datasets have been reduced to the same dimensions
+    and outputs a message if any rows have differences"""
     compare_msg = []
     dataset_dict = keep_common_rows_cols(data_type, staging_dataset, main_dataset)
     dataset_diff = dataset_dict["staging"].compare(
@@ -265,6 +326,8 @@ def compare_dataset_row_vals(
 def get_data_types_to_compare(
     s3: boto3.client, bucket_name: str, staging_namespace: str, main_namespace: str
 ) -> list:
+    """This gets the common data types to run the comparison of the parquet datasets from
+    the two namespaced paths on based on the folders in the s3 bucket"""
     staging_datatype_folders = get_folders_in_s3_bucket(
         s3, bucket_name, namespace=staging_namespace
     )
@@ -275,8 +338,8 @@ def get_data_types_to_compare(
 
 
 def print_comparison_result(comparison_result: dict) -> None:
-    for msg in comparison_result:
-        logger.info(comparison_result[msg])
+    """"This prints the comparison result dictionary into a nice format"""
+    logger.info(logger.warning(f"Comparison results: {json.dumps(comparison_result)}"))
     logger.info("Comparison results complete!")
 
 
@@ -286,7 +349,7 @@ def compare_datasets_by_data_type(
     data_type: str,
     comparison_result: dict,
 ) -> dict:
-    data_type = "dataset_fitbitactivitylogs"
+    """This runs the bulk of the comparison functions from beginning to end by data type"""
     staging_dataset = get_parquet_dataset(
         dataset_key=f"s3://{args.parquet_bucket}/{args.staging_namespace}/parquet/{data_type}/",
         s3_filesystem=s3_filesystem,
@@ -296,7 +359,7 @@ def compare_datasets_by_data_type(
         dataset_key=f"s3://{args.parquet_bucket}/{args.main_namespace}/parquet/{data_type}/",
         s3_filesystem=s3_filesystem,
     )
-
+    # check if one or both of the datasets have no data
     if staging_dataset.empty or main_dataset.empty:
         comparison_result[
             data_type
@@ -335,7 +398,6 @@ def main():
     aws_session = boto3.session.Session(profile_name="default", region_name="us-east-1")
     fs = get_S3FileSystem_from_session(aws_session)
 
-    # check if one or both of the datasets have no data
     comparison_result["missing_data_types"] = compare_dataset_data_types(
         s3,
         args.parquet_bucket,
