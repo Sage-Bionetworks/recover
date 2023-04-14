@@ -4,6 +4,7 @@ import logging
 import argparse
 
 import boto3
+import datacompy
 import pandas as pd
 import synapseclient
 from pyarrow import fs
@@ -62,6 +63,10 @@ def read_args():
     return args
 
 
+def dataset_is_empty(dataset) -> bool:
+    return len(dataset.columns) == 0
+
+
 def get_duplicated_index_fields(data_type: str, dataset: pd.DataFrame) -> pd.DataFrame:
     """Gets the rows of data that are duplicated based on the index columns by data type
     and returns them
@@ -71,21 +76,18 @@ def get_duplicated_index_fields(data_type: str, dataset: pd.DataFrame) -> pd.Dat
 
 
 def get_duplicated_columns(dataset: pd.DataFrame) -> list:
-    """ Gets a list of duplicated columns in a dataframe
-    """
+    """Gets a list of duplicated columns in a dataframe"""
     return dataset.columns[dataset.columns.duplicated()].tolist()
 
 
 def get_common_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
-    """ Gets the list of common columns between two dataframes
-    """
+    """Gets the list of common columns between two dataframes"""
     common_cols = staging_dataset.columns.intersection(main_dataset.columns).tolist()
     return common_cols
 
 
 def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
-    """ Gets the list of missing columns present in main but not in staging
-    """
+    """Gets the list of missing columns present in main but not in staging"""
     missing_cols = main_dataset.columns.difference(staging_dataset.columns).tolist()
     return missing_cols
 
@@ -93,8 +95,7 @@ def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) 
 def get_additional_cols(
     staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
-    """ Gets the list of additional columns present in staging but not in main
-    """
+    """Gets the list of additional columns present in staging but not in main"""
     add_cols = staging_dataset.columns.difference(main_dataset.columns).tolist()
     return add_cols
 
@@ -206,8 +207,8 @@ def keep_common_rows_cols(
 def compare_column_data_types(
     data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
-    """ This compares the column data types of the common columns between
-        two datasets and creates a message if there are differences
+    """This compares the column data types of the common columns between
+    two datasets and creates a message if there are differences
     """
     compare_msg = []
     common_cols = get_common_cols(staging_dataset, main_dataset)
@@ -337,58 +338,142 @@ def get_data_types_to_compare(
     return list(set(staging_datatype_folders + main_datatype_folders))
 
 
-def print_comparison_result(comparison_result: dict) -> None:
-    """"This prints the comparison result dictionary into a nice format"""
-    logger.info(logger.warning(f"Comparison results: {json.dumps(comparison_result)}"))
-    logger.info("Comparison results complete!")
+def compare_datasets_and_export_report(
+    data_type: str,
+    staging_dataset: pd.DataFrame,
+    main_dataset: pd.DataFrame,
+    staging_namespace: str,
+    main_namespace: str,
+) -> str:
+    """This method prints out a human-readable report summarizing and
+    sampling differences between datasets for the given data type.
+    A full list of comparisons can be found in the datacompy package site.
+
+    Returns:
+        str: large string block of the report
+    """
+    compare = datacompy.Compare(
+        df1=staging_dataset,
+        df2=main_dataset,
+        join_columns=INDEX_FIELD_MAP[data_type],
+        abs_tol=0,  # Optional, defaults to 0
+        rel_tol=0,  # Optional, defaults to 0
+        df1_name=staging_namespace,  # Optional, defaults to 'df1'
+        df2_name=main_namespace,  # Optional, defaults to 'df2'
+    )
+    compare.matches(ignore_extra_columns=False)
+    return compare.report()
+
+
+def add_additional_msg_to_comparison_report(
+    comparison_report: str, add_msgs: list
+) -> str:
+    """This adds additional messages to the comparison report. Currently, this adds
+        messages that specify the names of columns that are different between the
+        two datasets
+
+    Args:
+        comparison_report (str): report generated using datacompy
+        add_msgs (list): list of additional messages to include at the bottom of the report
+
+    Returns:
+        str: updated comparison report with more specific messages
+    """
+    # does some formatting.
+    joined_add_msgs = "\n".join(add_msgs)
+    updated_comparison_report = (
+        f"{comparison_report}"
+        f"Column Name Differences\n"
+        f"-----------------------\n\n{joined_add_msgs}"
+    )
+    return updated_comparison_report
+
+
+def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
+    """Checks whether the individual dataset is valid under the following criteria:
+        - no duplicated columns
+        - dataset is not empty (aka has columns)
+        before it can go through the comparison
+
+    Args:
+        dataset (pd.DataFrame): dataset to be validated
+        namespace (str): namespace for the dataset
+
+    Returns:
+        dict: containing boolean of the validation result and string message
+    """
+    # Check that datasets have no emptiness, duplicated columns, or have columns in common
+    if dataset_is_empty(dataset):
+        msg = f"{namespace} dataset has no data. Comparison cannot continue."
+        return {"result": False, "msg": msg}
+    elif get_duplicated_columns(dataset) != []:
+        msg = (
+            f"{namespace} dataset has duplicated columns. Comparison cannot continue.\n"
+            f"Duplicated columns:{str(get_duplicated_columns(dataset))}"
+        )
+        return {"result": False, "msg": msg}
+    else:
+        msg = f"{namespace} dataset has been validated."
+        return {"result": True, "msg": msg}
 
 
 def compare_datasets_by_data_type(
-    args,
-    s3_filesystem: fs.S3FileSystem,
-    data_type: str,
-    comparison_result: dict,
-) -> dict:
-    """This runs the bulk of the comparison functions from beginning to end by data type"""
+    args, s3_filesystem: fs.S3FileSystem, data_type: str
+) -> str:
+    """This runs the bulk of the comparison functions from beginning to end by data type
+
+    Args:
+        args: arguments from command line
+        s3_filesystem (fs.S3FileSystem): filesystem instantiated by aws credentials
+        data_type (str): data type to be compared for the given datasets
+
+    Returns:
+        str: final report on the datasets for the given data type
+    """
+    data_type = "dataset_fitbitactivitylogs"
+    header_msg = (
+        f"\n\nParquet Dataset Comparison running for Data Type: {data_type}"
+        f"\n-------------------------------------------------------------------------------\n\n"
+    )
     staging_dataset = get_parquet_dataset(
         dataset_key=f"s3://{args.parquet_bucket}/{args.staging_namespace}/parquet/{data_type}/",
         s3_filesystem=s3_filesystem,
     )
-
     main_dataset = get_parquet_dataset(
         dataset_key=f"s3://{args.parquet_bucket}/{args.main_namespace}/parquet/{data_type}/",
         s3_filesystem=s3_filesystem,
     )
-    # check if one or both of the datasets have no data
-    if staging_dataset.empty or main_dataset.empty:
-        comparison_result[
-            data_type
-        ] = f"One of {args.staging_namespace} or {args.main_namespace} has no data. Comparison cannot continue."
+    # go through specific validation for each dataset prior to comparison
+    staging_is_valid_result = is_valid_dataset(staging_dataset, args.staging_namespace)
+    main_is_valid_result = is_valid_dataset(main_dataset, args.main_namespace)
+    if (
+        staging_is_valid_result["result"] == False
+        or main_is_valid_result["result"] == False
+    ):
+        comparison_report = f"{header_msg}{staging_is_valid_result['msg']}\n{main_is_valid_result['msg']}"
+        return comparison_report
+
+    # check that they have columns in common to compare
+    elif get_common_cols(staging_dataset, main_dataset) == []:
+        comparison_report = (
+            f"{header_msg}{args.staging_namespace} dataset and {args.main_namespace} has no columns in common."
+            f"Comparison cannot continue."
+        )
+        return comparison_report
     else:
-        # check that the dataset has no dup cols or dup rows and that they have cols in common
-        comparison_result[data_type] = []
-        # check if one or both of the datasets have no data
-        if staging_dataset.empty or main_dataset.empty:
-            comparison_result["empty"][
-                data_type
-            ] = f"One of {args.staging_namespace} or {args.main_namespace} has no data. Comparison cannot continue."
-        else:
-            comparison_result[data_type].append(
-                compare_column_data_types(data_type, staging_dataset, main_dataset)
-            )
-            comparison_result[data_type].append(
-                compare_column_names(data_type, staging_dataset, main_dataset)
-            )
-            comparison_result[data_type].append(
-                compare_column_vals(data_type, staging_dataset, main_dataset)
-            )
-            comparison_result[data_type].append(
-                compare_num_of_rows(data_type, staging_dataset, main_dataset)
-            )
-            comparison_result[data_type].append(
-                compare_dataset_row_vals(data_type, staging_dataset, main_dataset)
-            )
-        return comparison_result
+        add_msgs = compare_column_names(data_type, staging_dataset, main_dataset)
+        comparison_report = compare_datasets_and_export_report(
+            data_type,
+            staging_dataset,
+            main_dataset,
+            args.staging_namespace,
+            args.main_namespace,
+        )
+        comparison_report = f"{header_msg}{comparison_report}"
+        comparison_report = add_additional_msg_to_comparison_report(
+            comparison_report, add_msgs
+        )
+        return comparison_report
 
 
 def main():
@@ -411,10 +496,8 @@ def main():
         staging_namespace=args.staging_namespace,
     )
     for data_type in data_types_to_compare:
-        comparison_result = compare_datasets_by_data_type(
-            args, fs, data_type, comparison_result
-        )
-    print_comparison_result(comparison_result)
+        comparison_report = compare_datasets_by_data_type(args, fs, data_type)
+        print(comparison_report)
     return
 
 

@@ -223,5 +223,15 @@ def staging_dataset_with_all_col_val_diff():
     )
 
 @pytest.fixture()
-def empty_dataset():
-    pass
+def staging_dataset_with_empty_columns():
+    return pd.DataFrame(
+        {
+            "LogId": [],
+            "StartDate": [],
+            "EndDate": [],
+        }
+    )
+
+@pytest.fixture()
+def staging_dataset_empty():
+    return pd.DataFrame()

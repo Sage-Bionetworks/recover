@@ -5,7 +5,7 @@ from pyarrow import fs
 from moto import mock_s3
 from pandas.testing import assert_frame_equal
 
-from glue.jobs import compare_parquet_datasets as compare_parquet
+from src.glue.jobs import compare_parquet_datasets as compare_parquet
 
 
 def test_that_get_duplicated_index_fields_returns_empty_df_if_no_dup_exist(
@@ -353,3 +353,68 @@ def test_that_compare_dataset_row_vals_returns_msg_if_diff(
         valid_main_dataset,
     )
     assert compare_msg != []
+
+
+def test_that_is_valid_dataset_returns_true_if_dataset_is_valid(valid_staging_dataset):
+    is_valid_result = compare_parquet.is_valid_dataset(valid_staging_dataset, "staging")
+    assert (
+        is_valid_result["result"] is True
+        and is_valid_result["msg"] == "staging dataset has been validated."
+    )
+
+
+def test_that_is_valid_dataset_returns_false_if_dataset_is_empty(staging_dataset_empty):
+    is_valid_result = compare_parquet.is_valid_dataset(staging_dataset_empty, "staging")
+    assert (
+        is_valid_result["result"] is False
+        and is_valid_result["msg"]
+        == "staging dataset has no data. Comparison cannot continue."
+    )
+
+
+def test_that_is_valid_dataset_returns_false_if_dataset_has_dup_cols(
+    staging_dataset_with_dup_cols,
+):
+    is_valid_result = compare_parquet.is_valid_dataset(
+        staging_dataset_with_dup_cols, "staging"
+    )
+    assert is_valid_result["result"] is False and is_valid_result["msg"] == (
+        "staging dataset has duplicated columns. Comparison cannot continue.\n"
+        "Duplicated columns:['EndDate']"
+    )
+
+
+def test_that_is_valid_dataset_returns_true_if_dataset_has_empty_cols(
+    staging_dataset_with_empty_columns,
+):
+    is_valid_result = compare_parquet.is_valid_dataset(
+        staging_dataset_with_empty_columns, "staging"
+    )
+    assert (
+        is_valid_result["result"] is True
+        and is_valid_result["msg"] == "staging dataset has been validated."
+    )
+
+
+def test_that_compare_datasets_and_export_report_outputs_something_if_input_is_valid(
+    valid_staging_dataset, valid_main_dataset
+):
+    comparison_report = compare_parquet.compare_datasets_and_export_report(
+        "dataset_fitbitactivitylogs",
+        valid_staging_dataset,
+        valid_main_dataset,
+        "staging",
+        "main",
+    )
+    assert comparison_report is not False
+
+
+def test_that_add_additional_msg_to_comparison_report_outputs_correct_updated_msg():
+    comparison_report = "some string\n\n"
+    add_msgs = ["one message", "two message"]
+    result = compare_parquet.add_additional_msg_to_comparison_report(comparison_report, add_msgs)
+    assert result == (
+        "some string\n\nColumn Name Differences\n"
+        "-----------------------\n\n"
+        "one message\ntwo message"
+    )
