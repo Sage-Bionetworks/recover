@@ -10,8 +10,6 @@ import synapseclient
 from pyarrow import fs
 import pyarrow.parquet as pq
 
-# from json_to_parquet import INDEX_FIELD_MAP
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -63,27 +61,15 @@ def read_args():
     return args
 
 
-def dataset_is_empty(dataset) -> bool:
-    return len(dataset.columns) == 0
-
-
-def get_duplicated_index_fields(data_type: str, dataset: pd.DataFrame) -> pd.DataFrame:
-    """Gets the rows of data that are duplicated based on the index columns by data type
-    and returns them
-    """
-    index_cols = INDEX_FIELD_MAP[data_type]
-    return dataset[dataset.duplicated(subset=index_cols)]
-
-
 def get_duplicated_columns(dataset: pd.DataFrame) -> list:
     """Gets a list of duplicated columns in a dataframe"""
     return dataset.columns[dataset.columns.duplicated()].tolist()
 
 
-def get_common_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
+def has_common_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
     """Gets the list of common columns between two dataframes"""
     common_cols = staging_dataset.columns.intersection(main_dataset.columns).tolist()
-    return common_cols
+    return common_cols != []
 
 
 def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
@@ -152,75 +138,18 @@ def get_folders_in_s3_bucket(
     Returns:
         list: folder names inside S3 bucket
     """
-    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=f"{namespace}/parquet/")
-    if "Contents" in response.keys():
-        contents = response["Contents"]
+    response = s3.list_objects_v2(
+        Bucket=bucket_name, Prefix=f"{namespace}/parquet/", Delimiter="/"
+    )
+    if "CommonPrefixes" in response.keys():
+        contents = response["CommonPrefixes"]
         folders = [
-            content["Key"].split("/")[-1]
+            os.path.normpath(content["Prefix"]).split(os.sep)[-1]
             for content in contents
-            if content["Key"].split("/")[-1] != "owner.txt"
         ]
     else:
         folders = []
     return folders
-
-
-def keep_common_rows_cols(
-    data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
-) -> dict:
-    """This function keeps the common columns between the two
-        given datasets. This function also merges on the index fields in
-        common between the two datasets so that the dataset can be
-        reduced to the same dimensions and be comparable
-
-    Args:
-        data_type (str): current data type
-        staging_dataset (pd.DataFrame): "new" data that is to go through processing
-        main_dataset (pd.DataFrame): "established" dataset
-
-    Returns:
-        dict of staging dataset and main datasets
-    """
-    index_cols = INDEX_FIELD_MAP[data_type]
-    common_cols = get_common_cols(staging_dataset, main_dataset)
-    # convert to having same columns
-    staging_dataset_subset = staging_dataset[common_cols].add_suffix("_staging")
-    main_dataset_subset = main_dataset[common_cols].add_suffix("_main")
-
-    # merging on index to get rid of extra rows
-    merged_dataset = staging_dataset_subset.merge(
-        main_dataset_subset,
-        left_on=[f"{col}_staging" for col in index_cols],
-        right_on=[f"{col}_main" for col in index_cols],
-        how="inner",
-    )
-    staging_dataset_common = merged_dataset[staging_dataset_subset.columns]
-    main_dataset_common = merged_dataset[main_dataset_subset.columns]
-
-    staging_dataset_common.columns = staging_dataset_common.columns.str.removesuffix(
-        "_staging"
-    )
-    main_dataset_common.columns = main_dataset_common.columns.str.removesuffix("_main")
-    return {"staging": staging_dataset_common, "main": main_dataset_common}
-
-
-def compare_column_data_types(
-    data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
-) -> list:
-    """This compares the column data types of the common columns between
-    two datasets and creates a message if there are differences
-    """
-    compare_msg = []
-    common_cols = get_common_cols(staging_dataset, main_dataset)
-    for common_col in common_cols:
-        if staging_dataset[common_col].dtype != main_dataset[common_col].dtype:
-            compare_msg.append(
-                (
-                    f"{data_type}: Staging dataset's {common_col} has data type {staging_dataset[common_col].dtype}.\n"
-                    f"Main dataset's {common_col} has data type {staging_dataset[common_col].dtype}."
-                )
-            )
-    return compare_msg
 
 
 def compare_column_names(
@@ -242,25 +171,18 @@ def compare_column_names(
     return compare_msg
 
 
-def compare_column_vals(
-    data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
+def get_data_types_to_compare(
+    s3: boto3.client, bucket_name: str, staging_namespace: str, main_namespace: str
 ) -> list:
-    """This compares the column values between the common columns of two
-    datasets after the datasets have been reduced to the same dimensions
-    and outputs a message if any columns have all of their values as different"""
-    compare_msg = []
-    dataset_dict = keep_common_rows_cols(data_type, staging_dataset, main_dataset)
-    dataset_diff = dataset_dict["staging"].compare(
-        other=dataset_dict["main"], align_axis="columns", keep_shape=True
+    """This gets the common data types to run the comparison of the parquet datasets from
+    the two namespaced paths on based on the folders in the s3 bucket"""
+    staging_datatype_folders = get_folders_in_s3_bucket(
+        s3, bucket_name, namespace=staging_namespace
     )
-    dataset_diff_cnt = dataset_diff.isna().sum()
-    dataset_diff_cnt = dataset_diff_cnt[dataset_diff_cnt == 0].to_dict()
-    if dataset_diff_cnt:
-        compare_msg.append(
-            f"{data_type}: Staging dataset has column(s) with value differences with the main dataset:\n"
-            f"{str(list(dataset_diff_cnt.keys()))}"
-        )
-    return compare_msg
+    main_datatype_folders = get_folders_in_s3_bucket(
+        s3, bucket_name, namespace=main_namespace
+    )
+    return list(set(staging_datatype_folders + main_datatype_folders))
 
 
 def compare_dataset_data_types(
@@ -291,54 +213,7 @@ def compare_dataset_data_types(
     return compare_msg
 
 
-def compare_num_of_rows(
-    data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
-) -> list:
-    """This compares the number of rows between two datasets and outputs a message
-    if there are any row count differences"""
-    compare_msg = []
-    if staging_dataset.shape[0] != main_dataset.shape[0]:
-        compare_msg.append(
-            f"{data_type}: Staging dataset has {staging_dataset.shape[0]} rows of data.\n"
-            f"Main dataset has {main_dataset.shape[0]} rows of data."
-        )
-    return compare_msg
-
-
-def compare_dataset_row_vals(
-    data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
-) -> list:
-    """This compares the row values between the two
-    datasets after the datasets have been reduced to the same dimensions
-    and outputs a message if any rows have differences"""
-    compare_msg = []
-    dataset_dict = keep_common_rows_cols(data_type, staging_dataset, main_dataset)
-    dataset_diff = dataset_dict["staging"].compare(
-        other=dataset_dict["main"], align_axis="columns", keep_equal=False
-    )
-    if not dataset_diff.empty:
-        compare_msg.append(
-            f"{data_type}: Staging dataset has value difference(s) with the main dataset."
-            f"Here is an example:\n{dataset_diff.head(1)}"
-        )
-    return compare_msg
-
-
-def get_data_types_to_compare(
-    s3: boto3.client, bucket_name: str, staging_namespace: str, main_namespace: str
-) -> list:
-    """This gets the common data types to run the comparison of the parquet datasets from
-    the two namespaced paths on based on the folders in the s3 bucket"""
-    staging_datatype_folders = get_folders_in_s3_bucket(
-        s3, bucket_name, namespace=staging_namespace
-    )
-    main_datatype_folders = get_folders_in_s3_bucket(
-        s3, bucket_name, namespace=main_namespace
-    )
-    return list(set(staging_datatype_folders + main_datatype_folders))
-
-
-def compare_datasets_and_export_report(
+def compare_datasets_and_output_report(
     data_type: str,
     staging_dataset: pd.DataFrame,
     main_dataset: pd.DataFrame,
@@ -403,7 +278,7 @@ def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
         dict: containing boolean of the validation result and string message
     """
     # Check that datasets have no emptiness, duplicated columns, or have columns in common
-    if dataset_is_empty(dataset):
+    if len(dataset.columns) == 0:
         msg = f"{namespace} dataset has no data. Comparison cannot continue."
         return {"result": False, "msg": msg}
     elif get_duplicated_columns(dataset) != []:
@@ -418,22 +293,23 @@ def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
 
 
 def compare_datasets_by_data_type(
-    args, s3_filesystem: fs.S3FileSystem, data_type: str
+    args, s3_filesystem: fs.S3FileSystem, data_type_s3_folder_path: str, data_type: str
 ) -> str:
     """This runs the bulk of the comparison functions from beginning to end by data type
 
     Args:
         args: arguments from command line
         s3_filesystem (fs.S3FileSystem): filesystem instantiated by aws credentials
+        data_type_s3_folder_path (str): path to the dataset's data type folder to read in
+                                    datasets for comparison
         data_type (str): data type to be compared for the given datasets
 
     Returns:
         str: final report on the datasets for the given data type
     """
-    data_type = "dataset_fitbitactivitylogs"
     header_msg = (
         f"\n\nParquet Dataset Comparison running for Data Type: {data_type}"
-        f"\n-------------------------------------------------------------------------------\n\n"
+        f"\n-----------------------------------------------------------------\n\n"
     )
     staging_dataset = get_parquet_dataset(
         dataset_key=f"s3://{args.parquet_bucket}/{args.staging_namespace}/parquet/{data_type}/",
@@ -454,15 +330,14 @@ def compare_datasets_by_data_type(
         return comparison_report
 
     # check that they have columns in common to compare
-    elif get_common_cols(staging_dataset, main_dataset) == []:
+    elif not has_common_cols(staging_dataset, main_dataset):
         comparison_report = (
-            f"{header_msg}{args.staging_namespace} dataset and {args.main_namespace} has no columns in common."
-            f"Comparison cannot continue."
+            f"{header_msg}{args.staging_namespace} dataset and {args.main_namespace} have no columns in common."
+            f" Comparison cannot continue."
         )
         return comparison_report
     else:
-        add_msgs = compare_column_names(data_type, staging_dataset, main_dataset)
-        comparison_report = compare_datasets_and_export_report(
+        comparison_report = compare_datasets_and_output_report(
             data_type,
             staging_dataset,
             main_dataset,
@@ -471,7 +346,8 @@ def compare_datasets_by_data_type(
         )
         comparison_report = f"{header_msg}{comparison_report}"
         comparison_report = add_additional_msg_to_comparison_report(
-            comparison_report, add_msgs
+            comparison_report,
+            add_msgs=compare_column_names(data_type, staging_dataset, main_dataset),
         )
         return comparison_report
 
@@ -496,8 +372,18 @@ def main():
         staging_namespace=args.staging_namespace,
     )
     for data_type in data_types_to_compare:
-        comparison_report = compare_datasets_by_data_type(args, fs, data_type)
+        s3_folder_path = (
+            f"{args.parquet_bucket}/{args.staging_namespace}/parquet/{data_type}/"
+        )
+        comparison_report = compare_datasets_by_data_type(
+            args, fs, s3_folder_path, data_type
+        )
         print(comparison_report)
+        s3.put_object(
+            Bucket=args.parquet_bucket,
+            Key=f"{s3_folder_path}/logs/parquet_comparison_report.txt",
+            Body=comparison_report,
+        )
     return
 
 
