@@ -439,7 +439,6 @@ def main():
                 msg_type="data_type_diff",
             )
             print(comparison_report)
-            import pdb; pdb.set_trace()
             # save comparison report to report folder in staging namespace
             s3.put_object(
                 Bucket=args.parquet_bucket,

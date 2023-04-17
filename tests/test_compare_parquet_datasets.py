@@ -379,7 +379,7 @@ def test_that_add_additional_msg_to_comparison_report_throws_error_if_msg_type_n
         )
 
 
-def test_that_compare_datasets_by_data_type_returns_no_data_msg_if_input_is_empty(
+def test_that_compare_datasets_by_data_type_returns_correct_msg_if_input_is_empty(
     parquet_bucket_name, staging_dataset_empty
 ):
     with mock.patch(
@@ -420,8 +420,9 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
 
 
 @mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
-def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_if_input_is_valid(
-    mocked_compare_datasets, parquet_bucket_name, valid_staging_dataset
+@mock.patch("src.glue.jobs.compare_parquet_datasets.has_common_cols", return_value = False)
+def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_data_type_if_input_has_no_common_cols(
+   mocked_has_common_cols, mocked_compare_datasets, parquet_bucket_name, valid_staging_dataset
 ):
     with mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
@@ -434,4 +435,4 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
             s3_filesystem=None,
             data_type="dataset_fitbitactivitylogs",
         )
-        mocked_compare_datasets.assert_called_once()
+        mocked_compare_datasets.assert_not_called()
