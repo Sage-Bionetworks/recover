@@ -4,7 +4,7 @@ from unittest import mock
 import boto3
 import pytest
 import pandas as pd
-from pyarrow import fs
+from pyarrow import fs, parquet
 from moto import mock_s3
 
 
@@ -24,22 +24,40 @@ def s3(mock_aws_credentials):
         yield boto3.client("s3", region_name="us-east-1")
 
 
+@pytest.fixture(scope="function")
+def mock_aws_session(mock_aws_credentials):
+    with mock_s3():
+        yield boto3.session.Session(region_name="us-east-1")
+
+
 @pytest.fixture()
 def parquet_bucket_name():
     yield f"test-parquet-bucket"
 
 
-@pytest.fixture
-def s3_test_bucket(s3, parquet_bucket_name):
+@pytest.fixture(scope="function")
+def mock_s3_filesystem(mock_aws_session):
     with mock_s3():
-        s3.create_bucket(Bucket=parquet_bucket_name)
-        yield
+         session_credentials = mock_aws_session.get_credentials()
+         yield fs.S3FileSystem(
+            region="us-east-1",
+            access_key=session_credentials.access_key,
+            secret_key=session_credentials.secret_key,
+            session_token=session_credentials.token)
 
 
 @pytest.fixture(scope="function")
-def mock_s3_filesystem(mock_aws_credentials):
-    with mock_s3():
-        yield fs.S3FileSystem(region="us-east-1")
+def valid_staging_parquet_object(tmpdir_factory, valid_staging_dataset):
+    filename = str(tmpdir_factory.mktemp('data_folder').join('df.parquet'))
+    valid_staging_dataset.to_parquet(path=filename, engine="pyarrow")
+    data = parquet.read_table(filename)
+    yield data
+
+
+@pytest.fixture()
+def dataset_fixture(request):
+    """This allows us to use different fixtures for the same test"""
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture()
@@ -222,6 +240,7 @@ def staging_dataset_with_all_col_val_diff():
         }
     )
 
+
 @pytest.fixture()
 def staging_dataset_with_empty_columns():
     return pd.DataFrame(
@@ -231,6 +250,7 @@ def staging_dataset_with_empty_columns():
             "EndDate": [],
         }
     )
+
 
 @pytest.fixture()
 def staging_dataset_empty():

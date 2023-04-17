@@ -1,14 +1,14 @@
-import os
-import json
-import logging
 import argparse
+import json
+import os
+import logging
 
 import boto3
 import datacompy
 import pandas as pd
-import synapseclient
 from pyarrow import fs
 import pyarrow.parquet as pq
+import synapseclient
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -138,6 +138,7 @@ def get_folders_in_s3_bucket(
     Returns:
         list: folder names inside S3 bucket
     """
+
     response = s3.list_objects_v2(
         Bucket=bucket_name, Prefix=f"{namespace}/parquet/", Delimiter="/"
     )
@@ -182,7 +183,7 @@ def get_data_types_to_compare(
     main_datatype_folders = get_folders_in_s3_bucket(
         s3, bucket_name, namespace=main_namespace
     )
-    return list(set(staging_datatype_folders + main_datatype_folders))
+    return list(set(staging_datatype_folders) & set(main_datatype_folders))
 
 
 def compare_dataset_data_types(
@@ -281,7 +282,7 @@ def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
     if len(dataset.columns) == 0:
         msg = f"{namespace} dataset has no data. Comparison cannot continue."
         return {"result": False, "msg": msg}
-    elif get_duplicated_columns(dataset) != []:
+    elif get_duplicated_columns(dataset):
         msg = (
             f"{namespace} dataset has duplicated columns. Comparison cannot continue.\n"
             f"Duplicated columns:{str(get_duplicated_columns(dataset))}"
@@ -293,12 +294,19 @@ def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
 
 
 def compare_datasets_by_data_type(
-    args, s3_filesystem: fs.S3FileSystem, data_type_s3_folder_path: str, data_type: str
+    parquet_bucket: str,
+    staging_namespace: str,
+    main_namespace: str,
+    s3_filesystem: fs.S3FileSystem,
+    data_type_s3_folder_path: str,
+    data_type: str,
 ) -> str:
     """This runs the bulk of the comparison functions from beginning to end by data type
 
     Args:
-        args: arguments from command line
+        parquet_bucket (str): name of the bucket containing the parquet datasets
+        staging_namespace (str): name of namespace containing the "new" data
+        main_namespace (str): name of namespace containing the "established" data
         s3_filesystem (fs.S3FileSystem): filesystem instantiated by aws credentials
         data_type_s3_folder_path (str): path to the dataset's data type folder to read in
                                     datasets for comparison
@@ -312,16 +320,16 @@ def compare_datasets_by_data_type(
         f"\n-----------------------------------------------------------------\n\n"
     )
     staging_dataset = get_parquet_dataset(
-        dataset_key=f"s3://{args.parquet_bucket}/{args.staging_namespace}/parquet/{data_type}/",
+        dataset_key=f"s3://{parquet_bucket}/{staging_namespace}/parquet/{data_type}/",
         s3_filesystem=s3_filesystem,
     )
     main_dataset = get_parquet_dataset(
-        dataset_key=f"s3://{args.parquet_bucket}/{args.main_namespace}/parquet/{data_type}/",
+        dataset_key=f"s3://{parquet_bucket}/{main_namespace}/parquet/{data_type}/",
         s3_filesystem=s3_filesystem,
     )
     # go through specific validation for each dataset prior to comparison
-    staging_is_valid_result = is_valid_dataset(staging_dataset, args.staging_namespace)
-    main_is_valid_result = is_valid_dataset(main_dataset, args.main_namespace)
+    staging_is_valid_result = is_valid_dataset(staging_dataset, staging_namespace)
+    main_is_valid_result = is_valid_dataset(main_dataset, main_namespace)
     if (
         staging_is_valid_result["result"] == False
         or main_is_valid_result["result"] == False
@@ -332,7 +340,7 @@ def compare_datasets_by_data_type(
     # check that they have columns in common to compare
     elif not has_common_cols(staging_dataset, main_dataset):
         comparison_report = (
-            f"{header_msg}{args.staging_namespace} dataset and {args.main_namespace} have no columns in common."
+            f"{header_msg}{staging_namespace} dataset and {main_namespace} have no columns in common."
             f" Comparison cannot continue."
         )
         return comparison_report
@@ -341,8 +349,8 @@ def compare_datasets_by_data_type(
             data_type,
             staging_dataset,
             main_dataset,
-            args.staging_namespace,
-            args.main_namespace,
+            staging_namespace,
+            main_namespace,
         )
         comparison_report = f"{header_msg}{comparison_report}"
         comparison_report = add_additional_msg_to_comparison_report(
@@ -359,29 +367,54 @@ def main():
     aws_session = boto3.session.Session(profile_name="default", region_name="us-east-1")
     fs = get_S3FileSystem_from_session(aws_session)
 
-    comparison_result["missing_data_types"] = compare_dataset_data_types(
-        s3,
-        args.parquet_bucket,
-        main_namespace=args.main_namespace,
-        staging_namespace=args.staging_namespace,
-    )
     data_types_to_compare = get_data_types_to_compare(
         s3,
         args.parquet_bucket,
         main_namespace=args.main_namespace,
         staging_namespace=args.staging_namespace,
     )
-    for data_type in data_types_to_compare:
-        s3_folder_path = (
-            f"{args.parquet_bucket}/{args.staging_namespace}/parquet/{data_type}/"
+    data_types_diff = compare_dataset_data_types(
+        s3,
+        args.parquet_bucket,
+        main_namespace=args.main_namespace,
+        staging_namespace=args.staging_namespace,
+    )
+    data_types_diff_msg = "\n".join(data_types_diff)
+    if data_types_to_compare:
+        for data_type in data_types_to_compare:
+            s3_folder_path = (
+                f"{args.parquet_bucket}/{args.staging_namespace}/parquet/{data_type}/"
+            )
+            comparison_report = compare_datasets_by_data_type(
+                args.parquet_bucket,
+                args.staging_namespace,
+                args.main_namespace,
+                fs,
+                s3_folder_path,
+                data_type,
+            )
+            # update comparison report with the data_type differences message
+            comparison_report = (
+                f"{comparison_report}\n\n"
+                f"Data Type Differences between {args.staging_namespace} and {args.main_namespace}:\n"
+                f"{data_types_diff_msg}"
+            )
+            print(comparison_report)
+            # save comparison report to report folder in staging namespace
+            s3.put_object(
+                Bucket=args.parquet_bucket,
+                Key=f"{args.parquet_bucket}/{args.staging_namespace}/comparison_result/{data_type}_parquet_compare.txt",
+                Body=comparison_report,
+            )
+    else:
+        # update comparison report with the data_type differences message
+        comparison_report = (
+            f"There are no data types in common between {args.staging_namespace} and {args.main_namespace} to compare.\n"
+            f"{data_types_diff_msg}"
         )
-        comparison_report = compare_datasets_by_data_type(
-            args, fs, s3_folder_path, data_type
-        )
-        print(comparison_report)
         s3.put_object(
             Bucket=args.parquet_bucket,
-            Key=f"{s3_folder_path}/logs/parquet_comparison_report.txt",
+            Key=f"{args.parquet_bucket}/{args.staging_namespace}/comparison_result/data_types_compare.txt",
             Body=comparison_report,
         )
     return
