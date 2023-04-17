@@ -1,3 +1,4 @@
+import argparse
 from unittest import mock
 
 from moto import mock_s3
@@ -7,6 +8,39 @@ import pytest
 from pyarrow import fs, parquet
 
 from src.glue.jobs import compare_parquet_datasets as compare_parquet
+
+
+def test_that_validate_args_raises_exception_when_input_value_is_empty_string():
+    with pytest.raises(argparse.ArgumentTypeError):
+        compare_parquet.validate_args(value="")
+
+
+def test_that_validate_args_returns_value_when_value_is_not_an_empty_string():
+    assert compare_parquet.validate_args(value="TEST") == "TEST"
+
+
+def test_that_get_s3_file_key_for_comparison_results_returns_correct_filepath_for_data_types_compare(
+    parquet_bucket_name,
+):
+    file_key = compare_parquet.get_s3_file_key_for_comparison_results(
+        parquet_bucket_name, "staging", data_type=None
+    )
+    assert (
+        file_key
+        == "test-parquet-bucket/staging/comparison_result/data_types_compare.txt"
+    )
+
+
+def test_that_get_s3_file_key_for_comparison_results_has_expected_filepath_for_specific_data_type(
+    parquet_bucket_name,
+):
+    file_key = compare_parquet.get_s3_file_key_for_comparison_results(
+        parquet_bucket_name, "staging", data_type="dataset_fitbitactivitylogs"
+    )
+    assert (
+        file_key
+        == "test-parquet-bucket/staging/comparison_result/dataset_fitbitactivitylogs_parquet_compare.txt"
+    )
 
 
 def test_that_get_duplicated_columns_returns_empty_if_no_dup_exist(
@@ -48,10 +82,16 @@ def test_that_get_parquet_dataset_raises_attr_error_if_no_datasets_exist(
 
 @mock_s3
 def test_that_get_parquet_dataset_returns_dataset_if_datasets_exist(
-    s3, mock_s3_filesystem, valid_staging_parquet_object, valid_staging_dataset, parquet_bucket_name
+    s3,
+    mock_s3_filesystem,
+    valid_staging_parquet_object,
+    valid_staging_dataset,
+    parquet_bucket_name,
 ):
     file_key = "staging/parquet/dataset_fitbitactivitylogs/test.parquet"
-    with mock.patch.object(parquet, "read_table", return_value=valid_staging_parquet_object) as mock_method:
+    with mock.patch.object(
+        parquet, "read_table", return_value=valid_staging_parquet_object
+    ) as mock_method:
         parquet_dataset = compare_parquet.get_parquet_dataset(
             dataset_key=f"{parquet_bucket_name}/{file_key}",
             s3_filesystem=mock_s3_filesystem,
@@ -317,14 +357,81 @@ def test_that_compare_datasets_and_output_report_outputs_nonempty_str_if_input_i
     assert comparison_report
 
 
-def test_that_add_additional_msg_to_comparison_report_outputs_correct_updated_msg():
+def test_that_add_additional_msg_to_comparison_report_returns_correct_updated_msg():
     comparison_report = "some string\n\n"
     add_msgs = ["one message", "two message"]
     result = compare_parquet.add_additional_msg_to_comparison_report(
-        comparison_report, add_msgs
+        comparison_report, add_msgs, msg_type="column_name_diff"
     )
     assert result == (
         "some string\n\nColumn Name Differences\n"
         "-----------------------\n\n"
         "one message\ntwo message"
     )
+
+
+def test_that_add_additional_msg_to_comparison_report_throws_error_if_msg_type_not_valid():
+    comparison_report = "some string\n\n"
+    add_msgs = ["one message", "two message"]
+    with pytest.raises(ValueError):
+        result = compare_parquet.add_additional_msg_to_comparison_report(
+            comparison_report, add_msgs, msg_type="invalid_msg_type"
+        )
+
+
+def test_that_compare_datasets_by_data_type_returns_no_data_msg_if_input_is_empty(
+    parquet_bucket_name, staging_dataset_empty
+):
+    with mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
+        return_value=staging_dataset_empty,
+    ) as mock_parquet:
+        compare_msg = compare_parquet.compare_datasets_by_data_type(
+            parquet_bucket=parquet_bucket_name,
+            staging_namespace="staging",
+            main_namespace="main",
+            s3_filesystem=None,
+            data_type="dataset_fitbitactivitylogs",
+        )
+        assert compare_msg == (
+            "\n\nParquet Dataset Comparison running for Data Type: dataset_fitbitactivitylogs\n"
+            "-----------------------------------------------------------------\n\n"
+            "staging dataset has no data. Comparison cannot continue.\n"
+            "main dataset has no data. Comparison cannot continue."
+        )
+
+
+@mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
+def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_if_input_is_valid(
+    mocked_compare_datasets, parquet_bucket_name, valid_staging_dataset
+):
+    with mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
+        return_value=valid_staging_dataset,
+    ) as mock_parquet:
+        compare_parquet.compare_datasets_by_data_type(
+            parquet_bucket=parquet_bucket_name,
+            staging_namespace="staging",
+            main_namespace="main",
+            s3_filesystem=None,
+            data_type="dataset_fitbitactivitylogs",
+        )
+        mocked_compare_datasets.assert_called_once()
+
+
+@mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
+def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_if_input_is_valid(
+    mocked_compare_datasets, parquet_bucket_name, valid_staging_dataset
+):
+    with mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
+        return_value=valid_staging_dataset,
+    ) as mock_parquet:
+        compare_parquet.compare_datasets_by_data_type(
+            parquet_bucket=parquet_bucket_name,
+            staging_namespace="staging",
+            main_namespace="main",
+            s3_filesystem=None,
+            data_type="dataset_fitbitactivitylogs",
+        )
+        mocked_compare_datasets.assert_called_once()

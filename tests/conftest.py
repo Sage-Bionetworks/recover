@@ -32,7 +32,7 @@ def mock_aws_session(mock_aws_credentials):
 
 @pytest.fixture()
 def parquet_bucket_name():
-    yield f"test-parquet-bucket"
+    yield "test-parquet-bucket"
 
 
 @pytest.fixture(scope="function")
