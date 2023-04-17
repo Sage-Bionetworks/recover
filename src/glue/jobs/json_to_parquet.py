@@ -33,7 +33,6 @@ INDEX_FIELD_MAP = {
     "fitbitsleeplogs": ["LogId"],
     "healthkitv2characteristics": ["HealthKitCharacteristicKey"],
     "healthkitv2samples": ["HealthKitSampleKey"],
-    "healthkitv2samples_deleted": ["HealthKitSampleKey"],
     "healthkitv2heartbeat": ["HealthKitHeartbeatSampleKey"],
     "healthkitv2statistics": ["HealthKitStatisticKey"],
     "healthkitv2clinicalrecords": ["HealthKitClinicalRecordKey"],
@@ -101,7 +100,8 @@ def get_table(
             after the duplicates have been dropped by descending
             export date.
     """
-    _, table_data_type = table_name.split("_")
+    table_name_components = table_name.split("_")
+    table_data_type = table_name_components[1]
     table = (
             glue_context.create_dynamic_frame.from_catalog(
                  database=database_name,
@@ -128,12 +128,66 @@ def get_table(
     )
     return table
 
+def drop_deleted_healthkit_data(
+        glue_context: GlueContext,
+        table: DynamicFrame,
+        glue_database: str
+    ) -> DynamicFrame:
+    """
+    Drop records from a HealthKit table.
+
+    This function will attempt to fetch the respective *_deleted table
+    for a table containing HealthKit data. If no *_deleted table is found,
+    then the HealthKit table is return unmodified. Otherwise, a diff is taken
+    upon the HealthKit table, using the index field specified in
+    `INDEX_FIELD_MAP` as reference.
+
+    Args:
+        glue_context (GlueContext): The glue context
+        table (DynamicFrame): A DynamicFrame containing HealthKit data
+        glue_database (str): The name of the Glue database containing
+            the *_deleted table
+
+    Returns:
+        DynamicFrame: A DynamicFrame with the respective *_deleted table's
+            samples removed.
+    """
+    glue_client = boto3.client("glue")
+    deleted_table_name = f"{table.name}_deleted"
+    table_data_type = table.name.split("_")[1]
+    try:
+        glue_client.get_table(
+                DatabaseName=glue_database,
+                Name=deleted_table_name
+        )
+    except glue_client.exceptions.EntityNotFoundException:
+        return table
+    deleted_table = get_table(
+            table_name=deleted_table_name,
+            database_name=glue_database,
+            glue_context=glue_context
+    )
+    table_df = table.toDF()
+    deleted_table_df = deleted_table.toDF()
+    table_with_deleted_samples_removed = DynamicFrame.fromDF(
+            dataframe=(
+                table_df.join(
+                    other=deleted_table_df,
+                    on=INDEX_FIELD_MAP[table_data_type],
+                    how="left_anti"
+                )
+            ),
+            glue_ctx=glue_context,
+            name=table.name
+    )
+    return table_with_deleted_samples_removed
+
 def write_table_to_s3(
         dynamic_frame: DynamicFrame,
         bucket: str,
         key: str,
         glue_context: GlueContext,
-        records_per_partition: int = 1e6
+        records_per_partition: int = int(1e6)
     ) -> None:
     """
     Write a DynamicFrame to S3 as a parquet dataset.
@@ -269,6 +323,12 @@ def main() -> None:
             glue_context=glue_context
     )
     table_schema = table.schema()
+    if "healthkit" in table_name:
+        table = drop_deleted_healthkit_data(
+                glue_context=glue_context,
+                table=table,
+                glue_database=workflow_run_properties["glue_database"]
+        )
 
     # Export new table records to parquet
     if has_nested_fields(table_schema) and table.count() > 0:
