@@ -45,29 +45,29 @@ def read_args():
     parser.add_argument(
         "--staging-namespace",
         required=True,
-        type = validate_args,
+        type=validate_args,
         help="The name of the staging namespace to use",
-        default="staging"
+        default="staging",
     )
     parser.add_argument(
         "--main-namespace",
         required=True,
-        type = validate_args,
+        type=validate_args,
         help=("The name of the main namespace to use"),
-        default="main"
+        default="main",
     )
     parser.add_argument(
         "--parquet-bucket",
         required=True,
-        type = validate_args,
+        type=validate_args,
         help=("The name of the S3 bucket containing the S3 files to compare"),
-        default="recover-dev-processed_data"
+        default="recover-dev-processed_data",
     )
     args = parser.parse_args()
     return args
 
 
-def validate_args(value : str) -> str:
+def validate_args(value: str) -> str:
     """Checks to make sure none of the input command line arguments are empty strings
 
     Args:
@@ -80,7 +80,7 @@ def validate_args(value : str) -> str:
         str: the value as is
     """
     if value == "":
-        raise argparse.ArgumentTypeError('Argument value cannot be an empty string')
+        raise argparse.ArgumentTypeError("Argument value cannot be an empty string")
     return value
 
 
@@ -88,11 +88,18 @@ def get_s3_file_key_for_comparison_results(
     parquet_bucket: str, staging_namespace: str, data_type: bool = None
 ) -> str:
     """Gets the s3 file key for saving the comparison results to"""
-    s3_folder_prefix = f"{parquet_bucket}/{staging_namespace}/comparison_result"
+    s3_folder_prefix = os.path.join(
+        parquet_bucket, staging_namespace, "comparison_result"
+    )
     if data_type:
-        return f"{s3_folder_prefix}/{data_type}_parquet_compare.txt"
+        return os.path.join(s3_folder_prefix, f"{data_type}_parquet_compare.txt")
     else:
-        return f"{s3_folder_prefix}/data_types_compare.txt"
+        return os.path.join(s3_folder_prefix, "data_types_compare.txt")
+
+
+def get_parquet_dataset_s3_path(parquet_bucket: str, namespace: str, data_type: str):
+    """Gets the s3 filepath to the parquet datasets"""
+    return os.path.join("s3://", parquet_bucket, namespace, "parquet", data_type)
 
 
 def get_duplicated_columns(dataset: pd.DataFrame) -> list:
@@ -364,11 +371,15 @@ def compare_datasets_by_data_type(
         f"\n-----------------------------------------------------------------\n\n"
     )
     staging_dataset = get_parquet_dataset(
-        dataset_key=f"s3://{parquet_bucket}/{staging_namespace}/parquet/{data_type}/",
+        dataset_key=get_parquet_dataset_s3_path(
+            parquet_bucket, staging_namespace, data_type
+        ),
         s3_filesystem=s3_filesystem,
     )
     main_dataset = get_parquet_dataset(
-        dataset_key=f"s3://{parquet_bucket}/{main_namespace}/parquet/{data_type}/",
+        dataset_key=get_parquet_dataset_s3_path(
+            parquet_bucket, main_namespace, data_type
+        ),
         s3_filesystem=s3_filesystem,
     )
     # go through specific validation for each dataset prior to comparison

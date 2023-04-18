@@ -19,6 +19,15 @@ def test_that_validate_args_returns_value_when_value_is_not_an_empty_string():
     assert compare_parquet.validate_args(value="TEST") == "TEST"
 
 
+def test_that_get_parquet_dataset_s3_path_returns_correct_filepath(
+    parquet_bucket_name
+):
+    filepath = compare_parquet.get_parquet_dataset_s3_path(
+        parquet_bucket_name, "test_namespace", "dataset_fitbitactivitylogs"
+    )
+    assert filepath == "s3://test-parquet-bucket/test_namespace/parquet/dataset_fitbitactivitylogs"
+
+
 def test_that_get_s3_file_key_for_comparison_results_returns_correct_filepath_for_data_types_compare(
     parquet_bucket_name,
 ):
