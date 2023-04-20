@@ -49,6 +49,9 @@ Parameters:
     Type: String
     Description: The name of the "main" namespace
 
+Conditions:
+  IsStagingNamespace: !Not [!Equals [!Ref Namespace, "main"]]
+
 Resources:
 
   {% set datasets = [] %}
@@ -105,6 +108,7 @@ Resources:
 
   JsontoParquetCompleteTrigger:
     Type: AWS::Glue::Trigger
+    Condition: IsStagingNamespace
     Properties:
       Name: !Sub "${Namespace}-JsontoParquetCompleteTrigger"
       Actions:
@@ -122,6 +126,7 @@ Resources:
             State: SUCCEEDED
             LogicalOperator: EQUALS
           {% endfor %}
+
         Logical: AND
       StartOnCreation: true
       WorkflowName: !Ref PrimaryWorkflow

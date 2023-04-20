@@ -1,5 +1,5 @@
 template:
-  path: glue-job-S3ToJsonS3.yaml
+  path: glue-job-python-shell.yaml
 dependencies:
   - develop/glue-job-role.yaml
 stack_name: "{{ stack_group_config.namespace }}-glue-job-S3ToJsonS3"

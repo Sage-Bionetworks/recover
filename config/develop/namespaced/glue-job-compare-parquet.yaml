@@ -1,5 +1,5 @@
 template:
-  path: glue-job-compare-parquet.yaml
+  path: glue-job-python-shell.yaml
 dependencies:
   - develop/glue-job-role.yaml
 stack_name: "{{ stack_group_config.namespace }}-glue-job-CompareParquet"
