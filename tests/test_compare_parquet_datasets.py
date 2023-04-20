@@ -1,6 +1,7 @@
 import argparse
 from unittest import mock
 
+import datacompy
 from moto import mock_s3
 import pandas as pd
 from pandas.testing import assert_frame_equal
@@ -28,28 +29,30 @@ def test_that_get_parquet_dataset_s3_path_returns_correct_filepath(
     assert filepath == "s3://test-parquet-bucket/test_namespace/parquet/dataset_fitbitactivitylogs"
 
 
-def test_that_get_s3_file_key_for_comparison_results_returns_correct_filepath_for_data_types_compare(
-    parquet_bucket_name,
-):
+def test_that_get_s3_file_key_for_comparison_results_returns_correct_filepath_for_data_types_compare():
     file_key = compare_parquet.get_s3_file_key_for_comparison_results(
-        parquet_bucket_name, "staging", data_type=None
+        "staging", data_type=None, file_name = "data_types_compare.txt"
     )
     assert (
         file_key
-        == "test-parquet-bucket/staging/comparison_result/data_types_compare.txt"
+        == "staging/comparison_result/data_types_compare.txt"
     )
 
 
-def test_that_get_s3_file_key_for_comparison_results_has_expected_filepath_for_specific_data_type(
-    parquet_bucket_name,
-):
+def test_that_get_s3_file_key_for_comparison_results_has_expected_filepath_for_specific_data_type():
     file_key = compare_parquet.get_s3_file_key_for_comparison_results(
-        parquet_bucket_name, "staging", data_type="dataset_fitbitactivitylogs"
+        "staging", data_type="dataset_fitbitactivitylogs", file_name = "parquet_compare.txt"
     )
     assert (
         file_key
-        == "test-parquet-bucket/staging/comparison_result/dataset_fitbitactivitylogs_parquet_compare.txt"
+        == "staging/comparison_result/dataset_fitbitactivitylogs_parquet_compare.txt"
     )
+
+def test_that_get_s3_file_key_for_comparison_results_raises_type_error_if_filename_has_wrong_file_ext():
+    with pytest.raises(TypeError):
+        file_key = compare_parquet.get_s3_file_key_for_comparison_results(
+            "staging", data_type="dataset_fitbitactivitylogs", file_name = "parquet_compare.pdf"
+        )
 
 
 def test_that_get_duplicated_columns_returns_empty_if_no_dup_exist(
@@ -352,18 +355,19 @@ def test_that_is_valid_dataset_returns_true_if_dataset_has_empty_cols(
     ["staging_dataset_with_empty_columns", "valid_staging_dataset"],
     indirect=True,
 )
-def test_that_compare_datasets_and_output_report_outputs_nonempty_str_if_input_is_valid(
+def test_that_compare_datasets_and_output_report_outputs_datacompy_compare_obj_if_input_is_valid(
     dataset_fixture, valid_main_dataset
 ):
-    comparison_report = compare_parquet.compare_datasets_and_output_report(
-        "dataset_fitbitactivitylogs",
-        dataset_fixture,
-        valid_main_dataset,
-        "staging",
-        "main",
+    compare = compare_parquet.compare_datasets_and_output_report(
+        data_type="dataset_fitbitactivitylogs",
+        staging_dataset=dataset_fixture,
+        main_dataset=valid_main_dataset,
+        staging_namespace="staging",
+        main_namespace="main",
     )
-    assert isinstance(comparison_report, str)
-    assert comparison_report
+    assert isinstance(compare, datacompy.Compare)
+    assert_frame_equal(compare.df1, dataset_fixture)
+    assert_frame_equal(compare.df2, valid_main_dataset)
 
 
 def test_that_add_additional_msg_to_comparison_report_returns_correct_updated_msg():

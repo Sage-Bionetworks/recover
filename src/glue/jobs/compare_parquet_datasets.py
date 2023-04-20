@@ -85,16 +85,20 @@ def validate_args(value: str) -> str:
 
 
 def get_s3_file_key_for_comparison_results(
-    parquet_bucket: str, staging_namespace: str, data_type: bool = None
+    staging_namespace: str, data_type: str = None, file_name: str = ""
 ) -> str:
-    """Gets the s3 file key for saving the comparison results to"""
-    s3_folder_prefix = os.path.join(
-        parquet_bucket, staging_namespace, "comparison_result"
-    )
-    if data_type:
-        return os.path.join(s3_folder_prefix, f"{data_type}_parquet_compare.txt")
+    """Gets the s3 file key for saving the comparison results to
+    Note that file_name should contain the suffix"""
+    s3_folder_prefix = os.path.join(staging_namespace, "comparison_result")
+    if file_name.endswith(".csv") or file_name.endswith(".txt"):
+        if data_type:
+            return os.path.join(s3_folder_prefix, f"{data_type}_{file_name}")
+        else:
+            return os.path.join(s3_folder_prefix, f"{file_name}")
     else:
-        return os.path.join(s3_folder_prefix, "data_types_compare.txt")
+        raise TypeError(
+            f"file_name {file_name} should contain one of the following file extensions: [.txt, .csv]"
+        )
 
 
 def get_parquet_dataset_s3_path(parquet_bucket: str, namespace: str, data_type: str):
@@ -194,6 +198,26 @@ def get_folders_in_s3_bucket(
     return folders
 
 
+def compare_row_diffs(compare_obj: datacompy.Compare, namespace: str):
+    """Uses the datacompy Compare object to get all rows that are different
+        in each dataset
+    Args:
+        compare_obj (datacompy.Compare): _description_
+        dataset (int): _description_
+    """
+    if namespace == "staging":
+        columns = compare_obj.df1_unq_rows.columns
+        rows = compare_obj.df1_unq_rows.sample(compare_obj.df1_unq_rows.shape[0])[
+            columns
+        ]
+    elif namespace == "main":
+        columns = compare_obj.df2_unq_rows.columns
+        rows += compare_obj.df2_unq_rows.sample(compare_obj.df2_unq_rows.shape[0])[
+            columns
+        ]
+    return rows
+
+
 def compare_column_names(
     data_type: str, staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
@@ -261,13 +285,13 @@ def compare_datasets_and_output_report(
     main_dataset: pd.DataFrame,
     staging_namespace: str,
     main_namespace: str,
-) -> str:
+) -> datacompy.Compare:
     """This method prints out a human-readable report summarizing and
     sampling differences between datasets for the given data type.
     A full list of comparisons can be found in the datacompy package site.
 
     Returns:
-        str: large string block of the report
+        datacompy.Compare: object containing
     """
     compare = datacompy.Compare(
         df1=staging_dataset,
@@ -279,7 +303,7 @@ def compare_datasets_and_output_report(
         df2_name=main_namespace,  # Optional, defaults to 'df2'
     )
     compare.matches(ignore_extra_columns=False)
-    return compare.report()
+    return compare
 
 
 def add_additional_msg_to_comparison_report(
@@ -435,14 +459,14 @@ def main():
     )
     if data_types_to_compare:
         for data_type in data_types_to_compare:
-            comparison_report = compare_datasets_by_data_type(
+            compare = compare_datasets_by_data_type(
                 parquet_bucket=args.parquet_bucket,
                 staging_namespace=args.staging_namespace,
                 main_namespace=args.main_namespace,
                 s3_filesystem=fs,
                 data_type=data_type,
             )
-
+            comparison_report = compare.report()
             # update comparison report with the data_type differences message
             comparison_report = add_additional_msg_to_comparison_report(
                 comparison_report,
@@ -454,12 +478,47 @@ def main():
             s3.put_object(
                 Bucket=args.parquet_bucket,
                 Key=get_s3_file_key_for_comparison_results(
-                    parquet_bucket=args.parquet_bucket,
                     staging_namespace=args.staging_namespace,
                     data_type=data_type,
+                    file_name="_parquet_compare.txt",
                 ),
                 Body=comparison_report,
             )
+            # additional print outs
+            mismatch_cols_report = compare.all_mismatch()
+            if mismatch_cols_report:
+                s3.put_object(
+                    Bucket=args.parquet_bucket,
+                    Key=get_s3_file_key_for_comparison_results(
+                        staging_namespace=args.staging_namespace,
+                        data_type=data_type,
+                        file_name="all_mismatch_cols.csv",
+                    ),
+                    Body=mismatch_cols_report,
+                )
+            staging_rows_report = compare_row_diffs(compare, namespace="staging")
+            if staging_rows_report:
+                s3.put_object(
+                    Bucket=args.parquet_bucket,
+                    Key=get_s3_file_key_for_comparison_results(
+                        staging_namespace=args.staging_namespace,
+                        data_type=data_type,
+                        file_name="all_diff_staging_rows.csv",
+                    ),
+                    Body=staging_rows_report,
+                )
+            main_rows_report = compare_row_diffs(compare, namespace="main")
+            if main_rows_report:
+                s3.put_object(
+                    Bucket=args.parquet_bucket,
+                    Key=get_s3_file_key_for_comparison_results(
+                        staging_namespace=args.staging_namespace,
+                        data_type=data_type,
+                        file_name="all_diff_main_rows.csv",
+                    ),
+                    Body=main_rows_report,
+                )
+
     else:
         # update comparison report with the data_type differences message
         comparison_report = add_additional_msg_to_comparison_report(
@@ -471,9 +530,9 @@ def main():
         s3.put_object(
             Bucket=args.parquet_bucket,
             Key=get_s3_file_key_for_comparison_results(
-                parquet_bucket=args.parquet_bucket,
                 staging_namespace=args.staging_namespace,
                 data_type=None,
+                file_name="data_types_compare.txt",
             ),
             Body=comparison_report,
         )
