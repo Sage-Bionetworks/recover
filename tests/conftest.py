@@ -38,17 +38,18 @@ def parquet_bucket_name():
 @pytest.fixture(scope="function")
 def mock_s3_filesystem(mock_aws_session):
     with mock_s3():
-         session_credentials = mock_aws_session.get_credentials()
-         yield fs.S3FileSystem(
+        session_credentials = mock_aws_session.get_credentials()
+        yield fs.S3FileSystem(
             region="us-east-1",
             access_key=session_credentials.access_key,
             secret_key=session_credentials.secret_key,
-            session_token=session_credentials.token)
+            session_token=session_credentials.token,
+        )
 
 
 @pytest.fixture(scope="function")
 def valid_staging_parquet_object(tmpdir_factory, valid_staging_dataset):
-    filename = str(tmpdir_factory.mktemp('data_folder').join('df.parquet'))
+    filename = str(tmpdir_factory.mktemp("data_folder").join("df.parquet"))
     valid_staging_dataset.to_parquet(path=filename, engine="pyarrow")
     data = parquet.read_table(filename)
     yield data

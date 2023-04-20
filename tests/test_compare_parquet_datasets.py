@@ -20,38 +20,41 @@ def test_that_validate_args_returns_value_when_value_is_not_an_empty_string():
     assert compare_parquet.validate_args(value="TEST") == "TEST"
 
 
-def test_that_get_parquet_dataset_s3_path_returns_correct_filepath(
-    parquet_bucket_name
-):
+def test_that_get_parquet_dataset_s3_path_returns_correct_filepath(parquet_bucket_name):
     filepath = compare_parquet.get_parquet_dataset_s3_path(
         parquet_bucket_name, "test_namespace", "dataset_fitbitactivitylogs"
     )
-    assert filepath == "s3://test-parquet-bucket/test_namespace/parquet/dataset_fitbitactivitylogs"
+    assert (
+        filepath
+        == "s3://test-parquet-bucket/test_namespace/parquet/dataset_fitbitactivitylogs"
+    )
 
 
 def test_that_get_s3_file_key_for_comparison_results_returns_correct_filepath_for_data_types_compare():
     file_key = compare_parquet.get_s3_file_key_for_comparison_results(
-        "staging", data_type=None, file_name = "data_types_compare.txt"
+        "staging", data_type=None, file_name="data_types_compare.txt"
     )
-    assert (
-        file_key
-        == "staging/comparison_result/data_types_compare.txt"
-    )
+    assert file_key == "staging/comparison_result/data_types_compare.txt"
 
 
 def test_that_get_s3_file_key_for_comparison_results_has_expected_filepath_for_specific_data_type():
     file_key = compare_parquet.get_s3_file_key_for_comparison_results(
-        "staging", data_type="dataset_fitbitactivitylogs", file_name = "parquet_compare.txt"
+        "staging",
+        data_type="dataset_fitbitactivitylogs",
+        file_name="parquet_compare.txt",
     )
     assert (
         file_key
         == "staging/comparison_result/dataset_fitbitactivitylogs_parquet_compare.txt"
     )
 
+
 def test_that_get_s3_file_key_for_comparison_results_raises_type_error_if_filename_has_wrong_file_ext():
     with pytest.raises(TypeError):
         file_key = compare_parquet.get_s3_file_key_for_comparison_results(
-            "staging", data_type="dataset_fitbitactivitylogs", file_name = "parquet_compare.pdf"
+            "staging",
+            data_type="dataset_fitbitactivitylogs",
+            file_name="parquet_compare.pdf",
         )
 
 
@@ -199,6 +202,77 @@ def test_that_get_additional_cols_returns_list_of_cols_if_add_cols(
         staging_dataset_with_add_cols, valid_main_dataset
     )
     assert test_add_cols == ["AverageHeartRate"]
+
+
+def test_that_dataframe_to_text_returns_str(valid_staging_dataset):
+    staging_content = compare_parquet.convert_dataframe_to_text(valid_staging_dataset)
+    assert isinstance(staging_content, str)
+
+
+def test_that_dataframe_to_text_returns_valid_format_for_s3_put_object(
+    s3, parquet_bucket_name, valid_staging_dataset
+):
+    # shouldn't throw a botocore.exceptions.ParamValidationError
+    s3.create_bucket(Bucket=parquet_bucket_name)
+    staging_content = compare_parquet.convert_dataframe_to_text(valid_staging_dataset)
+    s3.put_object(
+        Bucket=parquet_bucket_name,
+        Key=f"staging/parquet/dataset_fitbitactivitylogs/test.csv",
+        Body=staging_content,
+    )
+
+
+def test_that_compare_row_diffs_returns_empty_df_if_columns_are_not_diff(
+    valid_staging_dataset, valid_main_dataset
+):
+    compare = datacompy.Compare(
+        df1=valid_staging_dataset,
+        df2=valid_main_dataset,
+        join_columns="LogId",
+        df1_name="staging",  # Optional, defaults to 'df1'
+        df2_name="main",  # Optional, defaults to 'df2'
+    )
+    staging_rows = compare_parquet.compare_row_diffs(compare, namespace="staging")
+    main_rows = compare_parquet.compare_row_diffs(compare, namespace="main")
+    assert staging_rows.empty
+    assert main_rows.empty
+
+
+def test_that_compare_row_diffs_returns_empty_df_if_columns_are_not_diff(
+    staging_dataset_with_diff_num_of_rows, valid_main_dataset
+):
+    compare = datacompy.Compare(
+        df1=staging_dataset_with_diff_num_of_rows,
+        df2=valid_main_dataset,
+        join_columns="LogId",
+        df1_name="staging",  # Optional, defaults to 'df1'
+        df2_name="main",  # Optional, defaults to 'df2'
+        cast_column_names_lower=False,
+    )
+    staging_rows = compare_parquet.compare_row_diffs(compare, namespace="staging")
+    main_rows = compare_parquet.compare_row_diffs(compare, namespace="main")
+    assert staging_rows.empty
+    assert_frame_equal(
+        main_rows.reset_index(drop=True),
+        pd.DataFrame(
+            {
+                "LogId": [
+                    "46096730542",
+                    "51739302864",
+                ],
+                "StartDate": [
+                    "2022-02-18T08:26:54+00:00",
+                    "2022-10-28T11:58:50+00:00",
+                ],
+                "EndDate": [
+                    "2022-02-18T09:04:30+00:00",
+                    "2022-10-28T12:35:38+00:00",
+                ],
+                "ActiveDuration": ["2256000", "2208000"],
+                "Calories": ["473", "478"],
+            }
+        ).reset_index(drop=True),
+    )
 
 
 def test_that_compare_column_names_returns_empty_msg_if_cols_are_same(
@@ -399,14 +473,14 @@ def test_that_compare_datasets_by_data_type_returns_correct_msg_if_input_is_empt
         "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
         return_value=staging_dataset_empty,
     ) as mock_parquet:
-        compare_msg = compare_parquet.compare_datasets_by_data_type(
+        compare_dict = compare_parquet.compare_datasets_by_data_type(
             parquet_bucket=parquet_bucket_name,
             staging_namespace="staging",
             main_namespace="main",
             s3_filesystem=None,
             data_type="dataset_fitbitactivitylogs",
         )
-        assert compare_msg == (
+        assert compare_dict["comparison_report"] == (
             "\n\nParquet Dataset Comparison running for Data Type: dataset_fitbitactivitylogs\n"
             "-----------------------------------------------------------------\n\n"
             "staging dataset has no data. Comparison cannot continue.\n"
@@ -433,9 +507,14 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
 
 
 @mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
-@mock.patch("src.glue.jobs.compare_parquet_datasets.has_common_cols", return_value = False)
+@mock.patch(
+    "src.glue.jobs.compare_parquet_datasets.has_common_cols", return_value=False
+)
 def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_data_type_if_input_has_no_common_cols(
-   mocked_has_common_cols, mocked_compare_datasets, parquet_bucket_name, valid_staging_dataset
+    mocked_has_common_cols,
+    mocked_compare_datasets,
+    parquet_bucket_name,
+    valid_staging_dataset,
 ):
     with mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",

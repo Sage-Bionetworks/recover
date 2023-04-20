@@ -1,7 +1,9 @@
 import argparse
+from io import StringIO
 import json
 import os
 import logging
+
 
 import boto3
 import datacompy
@@ -131,6 +133,14 @@ def get_additional_cols(
     return add_cols
 
 
+def convert_dataframe_to_text(dataset: pd.DataFrame) -> str:
+    """Converts a pandas DataFrame into a string to save as csv in S3"""
+    csv_buffer = StringIO()
+    dataset.to_csv(csv_buffer)
+    csv_content = csv_buffer.getvalue()
+    return csv_content
+
+
 def get_S3FileSystem_from_session(
     aws_session: boto3.session.Session,
 ) -> fs.S3FileSystem:
@@ -212,7 +222,7 @@ def compare_row_diffs(compare_obj: datacompy.Compare, namespace: str):
         ]
     elif namespace == "main":
         columns = compare_obj.df2_unq_rows.columns
-        rows += compare_obj.df2_unq_rows.sample(compare_obj.df2_unq_rows.shape[0])[
+        rows = compare_obj.df2_unq_rows.sample(compare_obj.df2_unq_rows.shape[0])[
             columns
         ]
     return rows
@@ -301,6 +311,7 @@ def compare_datasets_and_output_report(
         rel_tol=0,  # Optional, defaults to 0
         df1_name=staging_namespace,  # Optional, defaults to 'df1'
         df2_name=main_namespace,  # Optional, defaults to 'df2'
+        cast_column_names_lower=False,
     )
     compare.matches(ignore_extra_columns=False)
     return compare
@@ -377,7 +388,7 @@ def compare_datasets_by_data_type(
     main_namespace: str,
     s3_filesystem: fs.S3FileSystem,
     data_type: str,
-) -> str:
+) -> dict:
     """This runs the bulk of the comparison functions from beginning to end by data type
 
     Args:
@@ -388,7 +399,9 @@ def compare_datasets_by_data_type(
         data_type (str): data type to be compared for the given datasets
 
     Returns:
-        str: final report on the datasets for the given data type
+        dict:
+            compare_obj: the datacompy.Compare obj on the two datasets
+            comparison_report:final report on the datasets for the given data type
     """
     header_msg = (
         f"\n\nParquet Dataset Comparison running for Data Type: {data_type}"
@@ -416,14 +429,16 @@ def compare_datasets_by_data_type(
         comparison_report = (
             f"{staging_is_valid_result['msg']}\n{main_is_valid_result['msg']}"
         )
+        compare = None
     # check that they have columns in common to compare
     elif not has_common_cols(staging_dataset, main_dataset):
         comparison_report = (
             f"{staging_namespace} dataset and {main_namespace} have no columns in common."
             f" Comparison cannot continue."
         )
+        compare = None
     else:
-        comparison_report = compare_datasets_and_output_report(
+        compare = compare_datasets_and_output_report(
             data_type=data_type,
             staging_dataset=staging_dataset,
             main_dataset=main_dataset,
@@ -432,11 +447,14 @@ def compare_datasets_by_data_type(
         )
 
         comparison_report = add_additional_msg_to_comparison_report(
-            comparison_report,
+            compare.report(),
             add_msgs=compare_column_names(data_type, staging_dataset, main_dataset),
             msg_type="column_name_diff",
         )
-    return f"{header_msg}{comparison_report}"
+    return {
+        "compare_obj": compare,
+        "comparison_report": f"{header_msg}{comparison_report}",
+    }
 
 
 def main():
@@ -459,17 +477,16 @@ def main():
     )
     if data_types_to_compare:
         for data_type in data_types_to_compare:
-            compare = compare_datasets_by_data_type(
+            compare_dict = compare_datasets_by_data_type(
                 parquet_bucket=args.parquet_bucket,
                 staging_namespace=args.staging_namespace,
                 main_namespace=args.main_namespace,
                 s3_filesystem=fs,
                 data_type=data_type,
             )
-            comparison_report = compare.report()
             # update comparison report with the data_type differences message
             comparison_report = add_additional_msg_to_comparison_report(
-                comparison_report,
+                compare_dict["comparison_report"],
                 add_msgs=data_types_diff,
                 msg_type="data_type_diff",
             )
@@ -485,8 +502,9 @@ def main():
                 Body=comparison_report,
             )
             # additional print outs
+            compare = compare_dict["compare_obj"]
             mismatch_cols_report = compare.all_mismatch()
-            if mismatch_cols_report:
+            if not mismatch_cols_report.empty:
                 s3.put_object(
                     Bucket=args.parquet_bucket,
                     Key=get_s3_file_key_for_comparison_results(
@@ -494,10 +512,10 @@ def main():
                         data_type=data_type,
                         file_name="all_mismatch_cols.csv",
                     ),
-                    Body=mismatch_cols_report,
+                    Body=convert_dataframe_to_text(mismatch_cols_report),
                 )
             staging_rows_report = compare_row_diffs(compare, namespace="staging")
-            if staging_rows_report:
+            if not staging_rows_report.empty:
                 s3.put_object(
                     Bucket=args.parquet_bucket,
                     Key=get_s3_file_key_for_comparison_results(
@@ -505,10 +523,10 @@ def main():
                         data_type=data_type,
                         file_name="all_diff_staging_rows.csv",
                     ),
-                    Body=staging_rows_report,
+                    Body=convert_dataframe_to_text(staging_rows_report),
                 )
             main_rows_report = compare_row_diffs(compare, namespace="main")
-            if main_rows_report:
+            if not main_rows_report.empty:
                 s3.put_object(
                     Bucket=args.parquet_bucket,
                     Key=get_s3_file_key_for_comparison_results(
@@ -516,7 +534,7 @@ def main():
                         data_type=data_type,
                         file_name="all_diff_main_rows.csv",
                     ),
-                    Body=main_rows_report,
+                    Body=convert_dataframe_to_text(main_rows_report),
                 )
 
     else:
