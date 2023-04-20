@@ -45,7 +45,7 @@ def test_that_get_s3_file_key_for_comparison_results_has_expected_filepath_for_s
     )
     assert (
         file_key
-        == "staging/comparison_result/dataset_fitbitactivitylogs_parquet_compare.txt"
+        == "staging/comparison_result/dataset_fitbitactivitylogs/parquet_compare.txt"
     )
 
 
@@ -222,6 +222,50 @@ def test_that_dataframe_to_text_returns_valid_format_for_s3_put_object(
     )
 
 
+def test_that_get_duplicates_returns_empty_df_if_no_dups(
+    valid_staging_dataset, valid_main_dataset
+):
+    compare = datacompy.Compare(
+        df1=valid_staging_dataset,
+        df2=valid_main_dataset,
+        join_columns="LogId",
+        df1_name="staging",  # Optional, defaults to 'df1'
+        df2_name="main",  # Optional, defaults to 'df2'
+        cast_column_names_lower=False,
+    )
+    staging_dups = compare_parquet.get_duplicates(compare, namespace="staging")
+    assert staging_dups.empty
+
+
+def test_that_get_duplicates_returns_dups_df_if_dups_exist(
+    staging_dataset_with_dup_indexes, valid_main_dataset
+):
+    compare = datacompy.Compare(
+        df1=staging_dataset_with_dup_indexes,
+        df2=valid_main_dataset,
+        join_columns="LogId",
+        df1_name="staging",  # Optional, defaults to 'df1'
+        df2_name="main",  # Optional, defaults to 'df2'
+        cast_column_names_lower=False,
+    )
+    staging_dups = compare_parquet.get_duplicates(compare, namespace="staging")
+    assert_frame_equal(
+        staging_dups.reset_index(drop=True),
+        pd.DataFrame(
+            {
+                "LogId": ["44984262767"],
+                "StartDate": [ "2021-12-24T14:27:40"],
+                "EndDate": ["2021-12-24T14:40:28"],
+            }
+        ).reset_index(drop=True),
+    )
+
+
+def test_that_get_duplicates_raises_key_error_if_namespace_invalid():
+    with pytest.raises(KeyError):
+        compare_parquet.get_duplicates(None, namespace="invalid")
+
+
 def test_that_compare_row_diffs_returns_empty_df_if_columns_are_not_diff(
     valid_staging_dataset, valid_main_dataset
 ):
@@ -231,6 +275,7 @@ def test_that_compare_row_diffs_returns_empty_df_if_columns_are_not_diff(
         join_columns="LogId",
         df1_name="staging",  # Optional, defaults to 'df1'
         df2_name="main",  # Optional, defaults to 'df2'
+        cast_column_names_lower=False,
     )
     staging_rows = compare_parquet.compare_row_diffs(compare, namespace="staging")
     main_rows = compare_parquet.compare_row_diffs(compare, namespace="main")
@@ -273,6 +318,12 @@ def test_that_compare_row_diffs_returns_empty_df_if_columns_are_not_diff(
             }
         ).reset_index(drop=True),
     )
+
+
+def test_that_compare_row_diffs_raises_key_error_is_namespace_is_invalid(
+):
+    with pytest.raises(KeyError):
+        compare_parquet.compare_row_diffs(None, namespace="invalid_namespace")
 
 
 def test_that_compare_column_names_returns_empty_msg_if_cols_are_same(

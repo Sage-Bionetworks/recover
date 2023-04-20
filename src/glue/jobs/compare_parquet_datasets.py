@@ -90,11 +90,16 @@ def get_s3_file_key_for_comparison_results(
     staging_namespace: str, data_type: str = None, file_name: str = ""
 ) -> str:
     """Gets the s3 file key for saving the comparison results to
-    Note that file_name should contain the suffix"""
+    Note that file_name should contain the file extension.
+
+    NOTE: When using s3.put_object, if the bucket name is part of the the
+    Key parameter where we put the filepath to the file to save, it will
+    just assume it's another folder and will create another folder inside the
+    bucket"""
     s3_folder_prefix = os.path.join(staging_namespace, "comparison_result")
     if file_name.endswith(".csv") or file_name.endswith(".txt"):
         if data_type:
-            return os.path.join(s3_folder_prefix, f"{data_type}_{file_name}")
+            return os.path.join(s3_folder_prefix, data_type, f"{file_name}")
         else:
             return os.path.join(s3_folder_prefix, f"{file_name}")
     else:
@@ -134,7 +139,10 @@ def get_additional_cols(
 
 
 def convert_dataframe_to_text(dataset: pd.DataFrame) -> str:
-    """Converts a pandas DataFrame into a string to save as csv in S3"""
+    """Converts a pandas DataFrame into a string to save as csv in S3
+
+    NOTE: This is because s3.put_object only allows bytes or string
+    objects when saving them to S3"""
     csv_buffer = StringIO()
     dataset.to_csv(csv_buffer)
     csv_content = csv_buffer.getvalue()
@@ -174,6 +182,10 @@ def get_parquet_dataset(
 
     Returns:
         pandas.DataFrame
+
+    TODO: Currently, internal pyarrow things like to_table as a
+    result of the read_table function below takes a while as the dataset
+    grows bigger. Could find a way to optimize that.
     """
     table_source = dataset_key.split("s3://")[-1]
     parquet_dataset = pq.read_table(source=table_source, filesystem=s3_filesystem)
@@ -208,12 +220,37 @@ def get_folders_in_s3_bucket(
     return folders
 
 
-def compare_row_diffs(compare_obj: datacompy.Compare, namespace: str):
+def get_duplicates(compare_obj: datacompy.Compare, namespace: str) -> pd.DataFrame:
+    """Uses the datacompy Compare object to get all duplicates for a given dataset
+    Args:
+        compare_obj (datacompy.Compare): compare object that was defined earlier
+        namespace (str): The dataset we want to get the duplicated rows from
+
+    Returns:
+        pd.DataFrame: All the duplicated rows
+    """
+    if namespace == "staging":
+        dup_rows = compare_obj.df1[
+            compare_obj.df1.duplicated(subset=compare_obj.join_columns)
+        ]
+    elif namespace == "main":
+        dup_rows = compare_obj.df2[
+            compare_obj.df2.duplicated(subset=compare_obj.join_columns)
+        ]
+    else:
+        raise KeyError("namespace can only be one of 'staging', 'main'")
+    return dup_rows
+
+
+def compare_row_diffs(compare_obj: datacompy.Compare, namespace: str) -> pd.DataFrame:
     """Uses the datacompy Compare object to get all rows that are different
         in each dataset
     Args:
-        compare_obj (datacompy.Compare): _description_
-        dataset (int): _description_
+        compare_obj (datacompy.Compare): compare object that was defined earlier
+        namespace (str): The dataset we want to get the rows that are different from
+
+    Returns:
+        pd.DataFrame: All the rows that's in one dataframe but not the other
     """
     if namespace == "staging":
         columns = compare_obj.df1_unq_rows.columns
@@ -225,6 +262,8 @@ def compare_row_diffs(compare_obj: datacompy.Compare, namespace: str):
         rows = compare_obj.df2_unq_rows.sample(compare_obj.df2_unq_rows.shape[0])[
             columns
         ]
+    else:
+        raise KeyError("namespace can only be one of 'staging', 'main'")
     return rows
 
 
@@ -302,6 +341,11 @@ def compare_datasets_and_output_report(
 
     Returns:
         datacompy.Compare: object containing
+
+    TODO: Look into using datacompy.SparkCompare as in the docs, it mentions
+    it works with data that is partitioned Parquet, CSV, or JSON files,
+    or Cerebro tables. This will also likely be necessary once we have
+    more data coming in over weeks and months
     """
     compare = datacompy.Compare(
         df1=staging_dataset,
@@ -490,19 +534,24 @@ def main():
                 add_msgs=data_types_diff,
                 msg_type="data_type_diff",
             )
-            print(comparison_report)
             # save comparison report to report folder in staging namespace
             s3.put_object(
                 Bucket=args.parquet_bucket,
                 Key=get_s3_file_key_for_comparison_results(
                     staging_namespace=args.staging_namespace,
                     data_type=data_type,
-                    file_name="_parquet_compare.txt",
+                    file_name="parquet_compare.txt",
                 ),
                 Body=comparison_report,
             )
-            # additional print outs
+            logger.info("Comparison report saved!")
+            # additional report print outs
             compare = compare_dict["compare_obj"]
+            # TODO: Find out if pandas.to_csv, or direct write to S3
+            # is more efficient. s3.put_object is very slow and memory heavy
+            # esp. if using StringIO conversion
+
+            # print out all mismatch columns
             mismatch_cols_report = compare.all_mismatch()
             if not mismatch_cols_report.empty:
                 s3.put_object(
@@ -514,6 +563,8 @@ def main():
                     ),
                     Body=convert_dataframe_to_text(mismatch_cols_report),
                 )
+                logger.info("Mismatch columns saved!")
+            # print out all staging rows that are different to main
             staging_rows_report = compare_row_diffs(compare, namespace="staging")
             if not staging_rows_report.empty:
                 s3.put_object(
@@ -525,6 +576,8 @@ def main():
                     ),
                     Body=convert_dataframe_to_text(staging_rows_report),
                 )
+                logger.info("Different staging dataset rows saved!")
+            # print out all main rows that are different to staging
             main_rows_report = compare_row_diffs(compare, namespace="main")
             if not main_rows_report.empty:
                 s3.put_object(
@@ -536,7 +589,34 @@ def main():
                     ),
                     Body=convert_dataframe_to_text(main_rows_report),
                 )
+                logger.info("Different main dataset rows saved!")
 
+            # print out all staging duplicated rows
+            staging_dups_report = get_duplicates(compare, namespace ="staging")
+            if not staging_dups_report.empty:
+                s3.put_object(
+                    Bucket=args.parquet_bucket,
+                    Key=get_s3_file_key_for_comparison_results(
+                        staging_namespace=args.staging_namespace,
+                        data_type=data_type,
+                        file_name="all_dup_staging_rows.csv",
+                    ),
+                    Body=convert_dataframe_to_text(staging_dups_report),
+                )
+                logger.info("Staging dataset duplicates saved!")
+            # print out all main duplicated rows
+            main_dups_report = get_duplicates(compare, namespace ="main")
+            if not main_dups_report.empty:
+                s3.put_object(
+                    Bucket=args.parquet_bucket,
+                    Key=get_s3_file_key_for_comparison_results(
+                        staging_namespace=args.staging_namespace,
+                        data_type=data_type,
+                        file_name="all_dup_main_rows.csv",
+                    ),
+                    Body=convert_dataframe_to_text(main_dups_report),
+                )
+                logger.info("Main dataset duplicates saved!")
     else:
         # update comparison report with the data_type differences message
         comparison_report = add_additional_msg_to_comparison_report(
@@ -554,6 +634,7 @@ def main():
             ),
             Body=comparison_report,
         )
+        logger.info("Comparison report saved!")
     return
 
 
