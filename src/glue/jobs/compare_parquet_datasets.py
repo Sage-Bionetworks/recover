@@ -119,13 +119,15 @@ def get_duplicated_columns(dataset: pd.DataFrame) -> list:
 
 
 def has_common_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
-    """Gets the list of common columns between two dataframes"""
+    """Gets the list of common columns between two dataframes
+    TODO: Could look into depreciating this and using datacompy.intersect_columns function"""
     common_cols = staging_dataset.columns.intersection(main_dataset.columns).tolist()
     return common_cols != []
 
 
 def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
-    """Gets the list of missing columns present in main but not in staging"""
+    """Gets the list of missing columns present in main but not in staging
+    TODO: Could look into depreciating this and using datacompy.df2_unq_columns function"""
     missing_cols = main_dataset.columns.difference(staging_dataset.columns).tolist()
     return missing_cols
 
@@ -133,7 +135,8 @@ def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) 
 def get_additional_cols(
     staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
-    """Gets the list of additional columns present in staging but not in main"""
+    """Gets the list of additional columns present in staging but not in main
+    TODO: Could look into depreciating this and using datacompy.df1_unq_columns function"""
     add_cols = staging_dataset.columns.difference(main_dataset.columns).tolist()
     return add_cols
 
@@ -521,6 +524,7 @@ def main():
     )
     if data_types_to_compare:
         for data_type in data_types_to_compare:
+            logger.info(f"Running comparison report for {data_type}")
             compare_dict = compare_datasets_by_data_type(
                 parquet_bucket=args.parquet_bucket,
                 staging_namespace=args.staging_namespace,
@@ -592,7 +596,7 @@ def main():
                 logger.info("Different main dataset rows saved!")
 
             # print out all staging duplicated rows
-            staging_dups_report = get_duplicates(compare, namespace ="staging")
+            staging_dups_report = get_duplicates(compare, namespace="staging")
             if not staging_dups_report.empty:
                 s3.put_object(
                     Bucket=args.parquet_bucket,
@@ -605,7 +609,7 @@ def main():
                 )
                 logger.info("Staging dataset duplicates saved!")
             # print out all main duplicated rows
-            main_dups_report = get_duplicates(compare, namespace ="main")
+            main_dups_report = get_duplicates(compare, namespace="main")
             if not main_dups_report.empty:
                 s3.put_object(
                     Bucket=args.parquet_bucket,
