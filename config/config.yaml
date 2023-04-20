@@ -3,8 +3,8 @@ namespace: {{ var.namespace | default('main') }}
 region: us-east-1
 synapseAuthSsmParameterName: synapse-recover-auth
 admincentral_cf_bucket: bootstrap-awss3cloudformationbucket-19qromfd235z9
-s3_to_json_python_shell_version: "3.9"
-s3_to_json_glue_version: "3.0"
+glue_python_shell_python_version: "3.9"
+glue_python_shell_glue_version: "3.0"
 json_to_parquet_glue_version: "4.0"
 default_stack_tags:
   Department: DNT
