@@ -117,6 +117,7 @@ Resources:
             "--main-namespace": !Ref CompareParquetMainNamespace
             "--staging-namespace": !Ref CompareParquetStagingNamespace
             "--parquet-bucket": !Ref ParquetBucketName
+            "--additional-python-modules": "datacompy~=0.8"
       Description: This trigger runs after completion of all JSON to Parquet jobs
       Type: CONDITIONAL
       Predicate:
