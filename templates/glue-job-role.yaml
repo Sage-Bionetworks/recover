@@ -48,7 +48,7 @@ Resources:
             - iam:GetRolePolicy
             Resource:
             - "*"
-      - PolicyName: ReadWriteInternalS3
+      - PolicyName: ReadWriteS3
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
@@ -65,9 +65,7 @@ Resources:
             - !Sub arn:aws:s3:::${S3IntermediateBucketName}/*
             - !Sub arn:aws:s3:::${S3ParquetBucketName}
             - !Sub arn:aws:s3:::${S3ParquetBucketName}/*
-            - !Sub arn:aws:s3:::${S3ArtifactBucketName}
-            - !Sub arn:aws:s3:::${S3ArtifactBucketName}/*
-      - PolicyName: ReadExternalS3
+      - PolicyName: ReadS3
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
@@ -78,6 +76,8 @@ Resources:
             Resource:
             - !Sub arn:aws:s3:::${S3SourceBucketName}
             - !Sub arn:aws:s3:::${S3SourceBucketName}/*
+            - !Sub arn:aws:s3:::${S3ArtifactBucketName}
+            - !Sub arn:aws:s3:::${S3ArtifactBucketName}/*
       - PolicyName: EC2
         PolicyDocument:
           Version: '2012-10-17'

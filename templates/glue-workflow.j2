@@ -76,7 +76,7 @@ Resources:
     Properties:
       Actions:
         {% for dataset in datasets %}
-        - JobName: {{ dataset["stackname_prefix"]}}-Job
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
           Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
         {% endfor %}
       Description: This trigger runs after completion of the S3 to JSON job.
