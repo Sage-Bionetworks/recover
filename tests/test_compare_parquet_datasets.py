@@ -12,12 +12,12 @@ from src.glue.jobs import compare_parquet_datasets as compare_parquet
 
 
 def test_that_validate_args_raises_exception_when_input_value_is_empty_string():
-    with pytest.raises(argparse.ArgumentTypeError):
+    with pytest.raises(ValueError):
         compare_parquet.validate_args(value="")
 
 
-def test_that_validate_args_returns_value_when_value_is_not_an_empty_string():
-    assert compare_parquet.validate_args(value="TEST") == "TEST"
+def test_that_validate_args_returns_nothing_when_value_is_not_an_empty_string():
+    assert compare_parquet.validate_args(value="TEST") == None
 
 
 def test_that_get_parquet_dataset_s3_path_returns_correct_filepath(parquet_bucket_name):
@@ -254,7 +254,7 @@ def test_that_get_duplicates_returns_dups_df_if_dups_exist(
         pd.DataFrame(
             {
                 "LogId": ["44984262767"],
-                "StartDate": [ "2021-12-24T14:27:40"],
+                "StartDate": ["2021-12-24T14:27:40"],
                 "EndDate": ["2021-12-24T14:40:28"],
             }
         ).reset_index(drop=True),
@@ -320,8 +320,7 @@ def test_that_compare_row_diffs_returns_empty_df_if_columns_are_not_diff(
     )
 
 
-def test_that_compare_row_diffs_raises_key_error_is_namespace_is_invalid(
-):
+def test_that_compare_row_diffs_raises_key_error_is_namespace_is_invalid():
     with pytest.raises(KeyError):
         compare_parquet.compare_row_diffs(None, namespace="invalid_namespace")
 

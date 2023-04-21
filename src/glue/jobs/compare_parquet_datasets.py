@@ -1,16 +1,16 @@
 import argparse
 from io import StringIO
 import json
-import os
 import logging
+import os
+import sys
 
-
+from awsglue.utils import getResolvedOptions
 import boto3
 import datacompy
 import pandas as pd
 from pyarrow import fs
 import pyarrow.parquet as pq
-import synapseclient
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -38,52 +38,29 @@ INDEX_FIELD_MAP = {
 }
 
 
-def read_args():
-    parser = argparse.ArgumentParser(
-        description=(
-            "Compare parquet datasets between two namespaced S3 bucket locations"
-        )
+def read_args() -> dict:
+    """Returns the specific params that our code needs to run"""
+    args = getResolvedOptions(
+        sys.argv, ["staging-namespace", "main-namespace", "parquet-bucket"]
     )
-    parser.add_argument(
-        "--staging-namespace",
-        required=True,
-        type=validate_args,
-        help="The name of the staging namespace to use",
-        default="staging",
-    )
-    parser.add_argument(
-        "--main-namespace",
-        required=True,
-        type=validate_args,
-        help=("The name of the main namespace to use"),
-        default="main",
-    )
-    parser.add_argument(
-        "--parquet-bucket",
-        required=True,
-        type=validate_args,
-        help=("The name of the S3 bucket containing the S3 files to compare"),
-        default="recover-dev-processed_data",
-    )
-    args = parser.parse_args()
+    for arg in args:
+        validate_args(args[arg])
     return args
 
 
-def validate_args(value: str) -> str:
+def validate_args(value: str) -> None:
     """Checks to make sure none of the input command line arguments are empty strings
 
     Args:
         value (str): the value of the command line argument parsed by argparse
 
     Raises:
-        argparse.ArgumentTypeError: when value is an empty string
-
-    Returns:
-        str: the value as is
+        ValueError: when value is an empty string
     """
     if value == "":
-        raise argparse.ArgumentTypeError("Argument value cannot be an empty string")
-    return value
+        raise ValueError("Argument value cannot be an empty string")
+    else:
+        return None
 
 
 def get_s3_file_key_for_comparison_results(
@@ -507,28 +484,28 @@ def compare_datasets_by_data_type(
 def main():
     args = read_args()
     s3 = boto3.client("s3")
-    aws_session = boto3.session.Session(profile_name="default", region_name="us-east-1")
+    aws_session = boto3.session.Session(region_name="us-east-1")
     fs = get_S3FileSystem_from_session(aws_session)
 
     data_types_to_compare = get_data_types_to_compare(
         s3,
-        args.parquet_bucket,
-        main_namespace=args.main_namespace,
-        staging_namespace=args.staging_namespace,
+        args["parquet_bucket"],
+        main_namespace=args["main_namespace"],
+        staging_namespace=args["staging_namespace"],
     )
     data_types_diff = compare_dataset_data_types(
         s3,
-        args.parquet_bucket,
-        main_namespace=args.main_namespace,
-        staging_namespace=args.staging_namespace,
+        args["parquet_bucket"],
+        main_namespace=args["main_namespace"],
+        staging_namespace=args["staging_namespace"],
     )
     if data_types_to_compare:
         for data_type in data_types_to_compare:
             logger.info(f"Running comparison report for {data_type}")
             compare_dict = compare_datasets_by_data_type(
-                parquet_bucket=args.parquet_bucket,
-                staging_namespace=args.staging_namespace,
-                main_namespace=args.main_namespace,
+                parquet_bucket=args["parquet_bucket"],
+                staging_namespace=args["staging_namespace"],
+                main_namespace=args["main_namespace"],
                 s3_filesystem=fs,
                 data_type=data_type,
             )
@@ -540,9 +517,9 @@ def main():
             )
             # save comparison report to report folder in staging namespace
             s3.put_object(
-                Bucket=args.parquet_bucket,
+                Bucket=args["parquet_bucket"],
                 Key=get_s3_file_key_for_comparison_results(
-                    staging_namespace=args.staging_namespace,
+                    staging_namespace=args["staging_namespace"],
                     data_type=data_type,
                     file_name="parquet_compare.txt",
                 ),
@@ -559,9 +536,9 @@ def main():
             mismatch_cols_report = compare.all_mismatch()
             if not mismatch_cols_report.empty:
                 s3.put_object(
-                    Bucket=args.parquet_bucket,
+                    Bucket=args["parquet_bucket"],
                     Key=get_s3_file_key_for_comparison_results(
-                        staging_namespace=args.staging_namespace,
+                        staging_namespace=args["staging_namespace"],
                         data_type=data_type,
                         file_name="all_mismatch_cols.csv",
                     ),
@@ -572,9 +549,9 @@ def main():
             staging_rows_report = compare_row_diffs(compare, namespace="staging")
             if not staging_rows_report.empty:
                 s3.put_object(
-                    Bucket=args.parquet_bucket,
+                    Bucket=args["parquet_bucket"],
                     Key=get_s3_file_key_for_comparison_results(
-                        staging_namespace=args.staging_namespace,
+                        staging_namespace=args["staging_namespace"],
                         data_type=data_type,
                         file_name="all_diff_staging_rows.csv",
                     ),
@@ -585,9 +562,9 @@ def main():
             main_rows_report = compare_row_diffs(compare, namespace="main")
             if not main_rows_report.empty:
                 s3.put_object(
-                    Bucket=args.parquet_bucket,
+                    Bucket=args["parquet_bucket"],
                     Key=get_s3_file_key_for_comparison_results(
-                        staging_namespace=args.staging_namespace,
+                        staging_namespace=args["staging_namespace"],
                         data_type=data_type,
                         file_name="all_diff_main_rows.csv",
                     ),
@@ -599,9 +576,9 @@ def main():
             staging_dups_report = get_duplicates(compare, namespace="staging")
             if not staging_dups_report.empty:
                 s3.put_object(
-                    Bucket=args.parquet_bucket,
+                    Bucket=args["parquet_bucket"],
                     Key=get_s3_file_key_for_comparison_results(
-                        staging_namespace=args.staging_namespace,
+                        staging_namespace=args["staging_namespace"],
                         data_type=data_type,
                         file_name="all_dup_staging_rows.csv",
                     ),
@@ -612,9 +589,9 @@ def main():
             main_dups_report = get_duplicates(compare, namespace="main")
             if not main_dups_report.empty:
                 s3.put_object(
-                    Bucket=args.parquet_bucket,
+                    Bucket=args["parquet_bucket"],
                     Key=get_s3_file_key_for_comparison_results(
-                        staging_namespace=args.staging_namespace,
+                        staging_namespace=args["staging_namespace"],
                         data_type=data_type,
                         file_name="all_dup_main_rows.csv",
                     ),
@@ -630,9 +607,9 @@ def main():
         )
         print(comparison_report)
         s3.put_object(
-            Bucket=args.parquet_bucket,
+            Bucket=args["parquet_bucket"],
             Key=get_s3_file_key_for_comparison_results(
-                staging_namespace=args.staging_namespace,
+                staging_namespace=args["staging_namespace"],
                 data_type=None,
                 file_name="data_types_compare.txt",
             ),
