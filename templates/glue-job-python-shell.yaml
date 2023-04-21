@@ -5,6 +5,10 @@ Description: >-
   to your data target.
 
 Parameters:
+  Namespace:
+    Type: String
+    Description: >-
+      The namespace string used to for the individual glue job names
 
   JobDescription:
     Type: String
@@ -56,10 +60,24 @@ Parameters:
     Type: String
     Description: The name of the S3 bucket where temporary files and logs are written.
 
+  IsNamespaceDependent:
+    Type: String
+    Description: >-
+      Whether this resource is dependent on the namespace in terms of being created
+
+Conditions:
+  IsStagingNamespace: !Not [!Equals [!Ref Namespace, "main"]]
+  CreateResource: !Or
+      - !And
+        - !Condition IsStagingNamespace
+        - !Equals [!Ref IsNamespaceDependent, "true"]
+      - !Equals [!Ref IsNamespaceDependent, "false"]
+
 Resources:
 
   GlueJob:
     Type: AWS::Glue::Job
+    Condition: CreateResource
     Properties:
       Command:
         Name: pythonshell
@@ -83,6 +101,6 @@ Resources:
 Outputs:
 
   JobName:
-    Value: !Ref GlueJob
+    Value: !If [CreateResource, !Ref GlueJob, "GlueJobPythonShellNotCreated"]
     Export:
       Name: !Sub '${AWS::Region}-${AWS::StackName}-JobName'
