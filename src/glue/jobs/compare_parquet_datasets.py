@@ -327,10 +327,13 @@ def compare_datasets_and_output_report(
     or Cerebro tables. This will also likely be necessary once we have
     more data coming in over weeks and months
     """
+    # there exists folders with data subtypes, but we want to just merge on
+    # the main level datatypes
+    main_data_type = f'dataset_{data_type.split("_")[1]}'
     compare = datacompy.Compare(
         df1=staging_dataset,
         df2=main_dataset,
-        join_columns=INDEX_FIELD_MAP[data_type],
+        join_columns=INDEX_FIELD_MAP[main_data_type],
         abs_tol=0,  # Optional, defaults to 0
         rel_tol=0,  # Optional, defaults to 0
         df1_name=staging_namespace,  # Optional, defaults to 'df1'
