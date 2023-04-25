@@ -12,7 +12,7 @@ parameters:
   ParquetBucketName: {{ stack_group_config.processed_data_bucket_name }}
   GlueDatabase: !stack_output_external "{{ stack_group_config.namespace }}-glue-tables::DatabaseName"
   S3ToJsonJobName: !stack_output_external "{{ stack_group_config.namespace }}-glue-job-S3ToJsonS3::JobName"
-  CompareParquetJobName: !stack_output_external "{{ stack_group_config.namespace }}-glue-job-CompareParquet::JobName"
+  #CompareParquetJobName: !stack_output_external "{{ stack_group_config.namespace }}-glue-job-CompareParquet::JobName"
   CompareParquetStagingNamespace: {{ stack_group_config.namespace }}
   CompareParquetMainNamespace: "main"
 stack_tags:

@@ -37,10 +37,6 @@ Parameters:
     Type: String
     Description: The name of the S3 To JSON Job
 
-  CompareParquetJobName:
-    Type: String
-    Description: The name of the Compare Parquet glue job
-
   CompareParquetStagingNamespace:
     Type: String
     Description: the name of the "staging" namespace
@@ -112,12 +108,15 @@ Resources:
     Properties:
       Name: !Sub "${Namespace}-JsontoParquetCompleteTrigger"
       Actions:
-        - JobName: !Ref CompareParquetJobName
+        {% for dataset in datasets %}
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"] }}-CompareParquetJob
           Arguments:
+            "--data-type": {{ "{}".format(dataset["table_name"]) }}
             "--main-namespace": !Ref CompareParquetMainNamespace
             "--staging-namespace": !Ref CompareParquetStagingNamespace
             "--parquet-bucket": !Ref ParquetBucketName
             "--additional-python-modules": "datacompy~=0.8"
+        {% endfor %}
       Description: This trigger runs after completion of all JSON to Parquet jobs
       Type: CONDITIONAL
       Predicate:
@@ -127,7 +126,6 @@ Resources:
             State: SUCCEEDED
             LogicalOperator: EQUALS
           {% endfor %}
-
         Logical: AND
       StartOnCreation: true
       WorkflowName: !Ref PrimaryWorkflow
