@@ -1,5 +1,5 @@
 template:
-  path: glue-job-python-shell.yaml
+  path: glue-job-compare-parquet.j2
 dependencies:
   - prod/glue-job-role.yaml
 stack_name: "{{ stack_group_config.namespace }}-glue-job-CompareParquet"
@@ -15,3 +15,5 @@ parameters:
   IsNamespaceDependent: "true"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
+sceptre_user_data:
+  dataset_schemas: !file src/glue/resources/table_columns.yaml
