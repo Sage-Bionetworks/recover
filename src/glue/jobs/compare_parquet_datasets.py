@@ -41,11 +41,18 @@ INDEX_FIELD_MAP = {
 def read_args() -> dict:
     """Returns the specific params that our code needs to run"""
     args = getResolvedOptions(
-        sys.argv, ["staging-namespace", "main-namespace", "parquet-bucket"]
+        sys.argv, ["data-type", "staging-namespace", "main-namespace", "parquet-bucket"]
     )
     for arg in args:
         validate_args(args[arg])
     return args
+
+
+def convert_to_categorical(dataset: pd.DataFrame) -> pd.DataFrame:
+    """Converts the dataset to have all categorical cols"""
+    for col in dataset.columns:
+        dataset[col] = dataset[col].astype("category")
+    return dataset
 
 
 def validate_args(value: str) -> None:
@@ -465,6 +472,8 @@ def compare_datasets_by_data_type(
         )
         compare = None
     else:
+        staging_dataset = convert_to_categorical(staging_dataset)
+        main_dataset = convert_to_categorical(main_dataset)
         compare = compare_datasets_and_output_report(
             data_type=data_type,
             staging_dataset=staging_dataset,
@@ -489,6 +498,7 @@ def main():
     s3 = boto3.client("s3")
     aws_session = boto3.session.Session(region_name="us-east-1")
     fs = get_S3FileSystem_from_session(aws_session)
+    data_type = args["data_type"]
 
     data_types_to_compare = get_data_types_to_compare(
         s3,
@@ -503,108 +513,103 @@ def main():
         staging_namespace=args["staging_namespace"],
     )
     if data_types_to_compare:
-        for data_type in data_types_to_compare:
-            logger.info(f"Running comparison report for {data_type}")
+        logger.info(f"Running comparison report for {data_type}")
+        compare_dict = compare_datasets_by_data_type(
+            parquet_bucket=args["parquet_bucket"],
+            staging_namespace=args["staging_namespace"],
+            main_namespace=args["main_namespace"],
+            s3_filesystem=fs,
+            data_type=data_type,
+        )
+        # update comparison report with the data_type differences message
+        comparison_report = add_additional_msg_to_comparison_report(
+            compare_dict["comparison_report"],
+            add_msgs=data_types_diff,
+            msg_type="data_type_diff",
+        )
+        # save comparison report to report folder in staging namespace
+        s3.put_object(
+            Bucket=args["parquet_bucket"],
+            Key=get_s3_file_key_for_comparison_results(
+                staging_namespace=args["staging_namespace"],
+                data_type=data_type,
+                file_name="parquet_compare.txt",
+            ),
+            Body=comparison_report,
+        )
+        logger.info("Comparison report saved!")
+        # additional report print outs
+        compare = compare_dict["compare_obj"]
+        # TODO: Find out if pandas.to_csv, or direct write to S3
+        # is more efficient. s3.put_object is very slow and memory heavy
+        # esp. if using StringIO conversion
 
-            try:
-                compare_dict = compare_datasets_by_data_type(
-                    parquet_bucket=args["parquet_bucket"],
+        # print out all mismatch columns
+        mismatch_cols_report = compare.all_mismatch()
+        if not mismatch_cols_report.empty:
+            s3.put_object(
+                Bucket=args["parquet_bucket"],
+                Key=get_s3_file_key_for_comparison_results(
                     staging_namespace=args["staging_namespace"],
-                    main_namespace=args["main_namespace"],
-                    s3_filesystem=fs,
                     data_type=data_type,
-                )
-                # update comparison report with the data_type differences message
-                comparison_report = add_additional_msg_to_comparison_report(
-                    compare_dict["comparison_report"],
-                    add_msgs=data_types_diff,
-                    msg_type="data_type_diff",
-                )
-                # save comparison report to report folder in staging namespace
-                s3.put_object(
-                    Bucket=args["parquet_bucket"],
-                    Key=get_s3_file_key_for_comparison_results(
-                        staging_namespace=args["staging_namespace"],
-                        data_type=data_type,
-                        file_name="parquet_compare.txt",
-                    ),
-                    Body=comparison_report,
-                )
-                logger.info("Comparison report saved!")
-                # additional report print outs
-                compare = compare_dict["compare_obj"]
-                # TODO: Find out if pandas.to_csv, or direct write to S3
-                # is more efficient. s3.put_object is very slow and memory heavy
-                # esp. if using StringIO conversion
+                    file_name="all_mismatch_cols.csv",
+                ),
+                Body=convert_dataframe_to_text(mismatch_cols_report),
+            )
+            logger.info("Mismatch columns saved!")
+        # print out all staging rows that are different to main
+        staging_rows_report = compare_row_diffs(compare, namespace="staging")
+        if not staging_rows_report.empty:
+            s3.put_object(
+                Bucket=args["parquet_bucket"],
+                Key=get_s3_file_key_for_comparison_results(
+                    staging_namespace=args["staging_namespace"],
+                    data_type=data_type,
+                    file_name="all_diff_staging_rows.csv",
+                ),
+                Body=convert_dataframe_to_text(staging_rows_report),
+            )
+            logger.info("Different staging dataset rows saved!")
+        # print out all main rows that are different to staging
+        main_rows_report = compare_row_diffs(compare, namespace="main")
+        if not main_rows_report.empty:
+            s3.put_object(
+                Bucket=args["parquet_bucket"],
+                Key=get_s3_file_key_for_comparison_results(
+                    staging_namespace=args["staging_namespace"],
+                    data_type=data_type,
+                    file_name="all_diff_main_rows.csv",
+                ),
+                Body=convert_dataframe_to_text(main_rows_report),
+            )
+            logger.info("Different main dataset rows saved!")
 
-                # print out all mismatch columns
-                mismatch_cols_report = compare.all_mismatch()
-                if not mismatch_cols_report.empty:
-                    s3.put_object(
-                        Bucket=args["parquet_bucket"],
-                        Key=get_s3_file_key_for_comparison_results(
-                            staging_namespace=args["staging_namespace"],
-                            data_type=data_type,
-                            file_name="all_mismatch_cols.csv",
-                        ),
-                        Body=convert_dataframe_to_text(mismatch_cols_report),
-                    )
-                    logger.info("Mismatch columns saved!")
-                # print out all staging rows that are different to main
-                staging_rows_report = compare_row_diffs(compare, namespace="staging")
-                if not staging_rows_report.empty:
-                    s3.put_object(
-                        Bucket=args["parquet_bucket"],
-                        Key=get_s3_file_key_for_comparison_results(
-                            staging_namespace=args["staging_namespace"],
-                            data_type=data_type,
-                            file_name="all_diff_staging_rows.csv",
-                        ),
-                        Body=convert_dataframe_to_text(staging_rows_report),
-                    )
-                    logger.info("Different staging dataset rows saved!")
-                # print out all main rows that are different to staging
-                main_rows_report = compare_row_diffs(compare, namespace="main")
-                if not main_rows_report.empty:
-                    s3.put_object(
-                        Bucket=args["parquet_bucket"],
-                        Key=get_s3_file_key_for_comparison_results(
-                            staging_namespace=args["staging_namespace"],
-                            data_type=data_type,
-                            file_name="all_diff_main_rows.csv",
-                        ),
-                        Body=convert_dataframe_to_text(main_rows_report),
-                    )
-                    logger.info("Different main dataset rows saved!")
-
-                # print out all staging duplicated rows
-                staging_dups_report = get_duplicates(compare, namespace="staging")
-                if not staging_dups_report.empty:
-                    s3.put_object(
-                        Bucket=args["parquet_bucket"],
-                        Key=get_s3_file_key_for_comparison_results(
-                            staging_namespace=args["staging_namespace"],
-                            data_type=data_type,
-                            file_name="all_dup_staging_rows.csv",
-                        ),
-                        Body=convert_dataframe_to_text(staging_dups_report),
-                    )
-                    logger.info("Staging dataset duplicates saved!")
-                # print out all main duplicated rows
-                main_dups_report = get_duplicates(compare, namespace="main")
-                if not main_dups_report.empty:
-                    s3.put_object(
-                        Bucket=args["parquet_bucket"],
-                        Key=get_s3_file_key_for_comparison_results(
-                            staging_namespace=args["staging_namespace"],
-                            data_type=data_type,
-                            file_name="all_dup_main_rows.csv",
-                        ),
-                        Body=convert_dataframe_to_text(main_dups_report),
-                    )
-                    logger.info("Main dataset duplicates saved!")
-            except Exception as e:
-                logger.info(f"ERROR: {e} with {data_type}. Continuing to next dataset.")
+        # print out all staging duplicated rows
+        staging_dups_report = get_duplicates(compare, namespace="staging")
+        if not staging_dups_report.empty:
+            s3.put_object(
+                Bucket=args["parquet_bucket"],
+                Key=get_s3_file_key_for_comparison_results(
+                    staging_namespace=args["staging_namespace"],
+                    data_type=data_type,
+                    file_name="all_dup_staging_rows.csv",
+                ),
+                Body=convert_dataframe_to_text(staging_dups_report),
+            )
+            logger.info("Staging dataset duplicates saved!")
+        # print out all main duplicated rows
+        main_dups_report = get_duplicates(compare, namespace="main")
+        if not main_dups_report.empty:
+            s3.put_object(
+                Bucket=args["parquet_bucket"],
+                Key=get_s3_file_key_for_comparison_results(
+                    staging_namespace=args["staging_namespace"],
+                    data_type=data_type,
+                    file_name="all_dup_main_rows.csv",
+                ),
+                Body=convert_dataframe_to_text(main_dups_report),
+            )
+            logger.info("Main dataset duplicates saved!")
     else:
         # update comparison report with the data_type differences message
         comparison_report = add_additional_msg_to_comparison_report(
