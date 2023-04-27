@@ -474,6 +474,14 @@ def compare_datasets_by_data_type(
     else:
         staging_dataset = convert_to_categorical(staging_dataset)
         main_dataset = convert_to_categorical(main_dataset)
+        logger.info(
+            f"{staging_namespace} dataset memory usage:"
+            f"{staging_dataset.memory_usage(deep=True).sum()/1e+6} MB"
+        )
+        logger.info(
+            f"{main_namespace} dataset memory usage:"
+            f"{main_dataset.memory_usage(deep=True).sum()/1e+6} MB"
+        )
         compare = compare_datasets_and_output_report(
             data_type=data_type,
             staging_dataset=staging_dataset,
