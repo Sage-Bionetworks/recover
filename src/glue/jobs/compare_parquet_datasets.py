@@ -48,13 +48,6 @@ def read_args() -> dict:
     return args
 
 
-def convert_to_categorical(dataset: pd.DataFrame) -> pd.DataFrame:
-    """Converts the dataset to have all categorical cols"""
-    for col in dataset.columns:
-        dataset[col] = dataset[col].astype("category")
-    return dataset
-
-
 def validate_args(value: str) -> None:
     """Checks to make sure none of the input command line arguments are empty strings
 
@@ -472,8 +465,6 @@ def compare_datasets_by_data_type(
         )
         compare = None
     else:
-        staging_dataset = convert_to_categorical(staging_dataset)
-        main_dataset = convert_to_categorical(main_dataset)
         logger.info(
             f"{staging_namespace} dataset memory usage:"
             f"{staging_dataset.memory_usage(deep=True).sum()/1e+6} MB"

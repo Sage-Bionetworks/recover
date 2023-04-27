@@ -11,10 +11,6 @@ from pyarrow import fs, parquet
 from src.glue.jobs import compare_parquet_datasets as compare_parquet
 
 
-def test_that_convert_to_categorical_returns_expected_dtype(valid_staging_dataset):
-    cat_dataset = compare_parquet.convert_to_categorical(valid_staging_dataset)
-    assert valid_staging_dataset["LogId"].dtype == "category"
-
 def test_that_validate_args_raises_exception_when_input_value_is_empty_string():
     with pytest.raises(ValueError):
         compare_parquet.validate_args(value="")
@@ -287,7 +283,7 @@ def test_that_compare_row_diffs_returns_empty_df_if_columns_are_not_diff(
     assert main_rows.empty
 
 
-def test_that_compare_row_diffs_returns_empty_df_if_columns_are_not_diff(
+def test_that_compare_row_diffs_returns_df_if_columns_are_not_diff(
     staging_dataset_with_diff_num_of_rows, valid_main_dataset
 ):
     compare = datacompy.Compare(
