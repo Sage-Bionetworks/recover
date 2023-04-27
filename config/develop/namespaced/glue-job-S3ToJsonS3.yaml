@@ -1,5 +1,5 @@
 template:
-  path: glue-job-S3ToJsonS3.yaml
+  path: glue-job-python-shell.yaml
 dependencies:
   - develop/glue-job-role.yaml
 stack_name: "{{ stack_group_config.namespace }}-glue-job-S3ToJsonS3"
@@ -9,7 +9,7 @@ parameters:
   TempS3Bucket: {{ stack_group_config.intermediate_bucket_name }}
   S3ScriptBucket: {{ stack_group_config.cloudformation_artifact_bucket_name }}
   S3ScriptKey: '{{ stack_group_config.namespace }}/src/glue/jobs/s3_to_json.py'
-  GluePythonShellVersion: "{{ stack_group_config.s3_to_json_python_shell_version }}"
-  GlueVersion: "{{ stack_group_config.s3_to_json_glue_version }}"
+  GluePythonShellVersion: "{{ stack_group_config.glue_python_shell_python_version }}"
+  GlueVersion: "{{ stack_group_config.glue_python_shell_glue_version }}"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}

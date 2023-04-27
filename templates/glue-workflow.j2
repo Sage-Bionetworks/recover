@@ -37,6 +37,17 @@ Parameters:
     Type: String
     Description: The name of the S3 To JSON Job
 
+  CompareParquetStagingNamespace:
+    Type: String
+    Description: the name of the "staging" namespace
+
+  CompareParquetMainNamespace:
+    Type: String
+    Description: The name of the "main" namespace
+
+Conditions:
+  IsStagingNamespace: !Not [!Equals [!Ref Namespace, "main"]]
+
 Resources:
 
   {% set datasets = [] %}
@@ -65,6 +76,7 @@ Resources:
   InitialTrigger:
     Type: AWS::Glue::Trigger
     Properties:
+      Name: !Sub "${Namespace}-InitialTrigger"
       Actions:
         - JobName: !Ref S3ToJsonJobName
       Description: This is the first trigger in the primary workflow.
@@ -74,6 +86,7 @@ Resources:
   S3ToJsonCompleteTrigger:
     Type: AWS::Glue::Trigger
     Properties:
+      Name: !Sub "${Namespace}-S3ToJsonCompleteTrigger"
       Actions:
         {% for dataset in datasets %}
         - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
@@ -86,6 +99,34 @@ Resources:
         - JobName: !Ref S3ToJsonJobName
           State: SUCCEEDED
           LogicalOperator: EQUALS
+      StartOnCreation: true
+      WorkflowName: !Ref PrimaryWorkflow
+
+  JsontoParquetCompleteTrigger:
+    Type: AWS::Glue::Trigger
+    Condition: IsStagingNamespace
+    Properties:
+      Name: !Sub "${Namespace}-JsontoParquetCompleteTrigger"
+      Actions:
+        {% for dataset in datasets %}
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"] }}-CompareParquetJob
+          Arguments:
+            "--data-type": {{ "{}".format(dataset["table_name"]) }}
+            "--main-namespace": !Ref CompareParquetMainNamespace
+            "--staging-namespace": !Ref CompareParquetStagingNamespace
+            "--parquet-bucket": !Ref ParquetBucketName
+            "--additional-python-modules": "datacompy~=0.8"
+        {% endfor %}
+      Description: This trigger runs after completion of all JSON to Parquet jobs
+      Type: CONDITIONAL
+      Predicate:
+        Conditions:
+          {% for dataset in datasets %}
+          - JobName: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
+            State: SUCCEEDED
+            LogicalOperator: EQUALS
+          {% endfor %}
+        Logical: AND
       StartOnCreation: true
       WorkflowName: !Ref PrimaryWorkflow
 

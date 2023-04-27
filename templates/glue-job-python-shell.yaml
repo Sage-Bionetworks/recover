@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  An AWS Glue job in the data catalog. An AWS Glue job encapsulates a script
+  that connects to your source data, processes it, and then writes it out
+  to your data target.
+
+Parameters:
+  JobDescription:
+    Type: String
+    Description: A fuller description of what the job does.
+    Default: ''
+
+  JobRole:
+    Type: String
+    Description: The name or ARN of the IAM role that will run this job.
+
+  S3ScriptBucket:
+    Type: String
+    Description: The name of the S3 bucket where the script file is located.
+
+  S3ScriptKey:
+    Type: String
+    Description: The bucket key where the script file is located.
+
+  MaxCapacity:
+    Type: Number
+    Description: How many DPUs to allot to this job.
+    Default: 1
+
+  MaxConcurrentRuns:
+    Type: Number
+    Description: >-
+      Number of this type of glue job that can be run at same time (double).
+    Default: 150
+
+  MaxRetries:
+    Type: Number
+    Description: How many times to retry the job if it fails (integer).
+    Default: 0 # TODO change this to 1 after initial development
+
+  GluePythonShellVersion:
+    Type: String
+    Description: The version of Python to use for the Glue Python Shell job
+
+  GlueVersion:
+    Type: String
+    Description: The version of glue to use for this job
+
+  TimeoutInMinutes:
+    Type: Number
+    Description: The job timeout in minutes (integer).
+    Default: 120
+
+  TempS3Bucket:
+    Type: String
+    Description: The name of the S3 bucket where temporary files and logs are written.
+
+Resources:
+
+  GlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: pythonshell
+        PythonVersion: !Ref GluePythonShellVersion
+        ScriptLocation: !Sub s3://${S3ScriptBucket}/${S3ScriptKey}
+      DefaultArguments:
+        --TempDir: !Sub s3://${TempS3Bucket}/tmp
+        --job-language: python
+        --enable-continuous-cloudwatch-log: true
+        --enable-metrics: true
+      Description: !Ref JobDescription
+      GlueVersion: !Ref GlueVersion
+      ExecutionProperty:
+        MaxConcurrentRuns: !Ref MaxConcurrentRuns
+      MaxCapacity: !Ref MaxCapacity
+      MaxRetries: !Ref MaxRetries
+      Name: !Sub '${AWS::StackName}-Job'
+      Role: !Ref JobRole
+      Timeout: !Ref TimeoutInMinutes
+
+Outputs:
+
+  JobName:
+    Value: !Ref GlueJob
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-JobName'

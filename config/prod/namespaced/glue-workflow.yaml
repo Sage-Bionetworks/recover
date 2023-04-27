@@ -4,12 +4,16 @@ stack_name: "{{ stack_group_config.namespace }}-glue-workflow"
 dependencies:
   - prod/namespaced/glue-tables.yaml
   - prod/namespaced/glue-job-S3ToJsonS3.yaml
+  - prod/namespaced/glue-job-JSONToParquet.yaml
+  - prod/namespaced/glue-job-compare-parquet.yaml
 parameters:
   Namespace: {{ stack_group_config.namespace }}
   JsonBucketName: {{ stack_group_config.intermediate_bucket_name }}
   ParquetBucketName: {{ stack_group_config.processed_data_bucket_name }}
   GlueDatabase: !stack_output_external "{{ stack_group_config.namespace }}-glue-tables::DatabaseName"
   S3ToJsonJobName: !stack_output_external "{{ stack_group_config.namespace }}-glue-job-S3ToJsonS3::JobName"
+  CompareParquetStagingNamespace: "staging"
+  CompareParquetMainNamespace: "main"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
