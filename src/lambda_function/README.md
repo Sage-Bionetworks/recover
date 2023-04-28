@@ -35,20 +35,17 @@ sam build
 
 ### Creating/modifying test events
 
-The `test-trigger-event.json` at `src/lambda_function/events` contains a
-dummy event of what a scheduled event trigger using CloudWatch would look
-like as our lambda function receives it. The part of the event that is actually used
-is the `time` key in the file whose date portion is used in the lambda function to
-compare against files in the S3 bucket we are checking against since only files that were
-modified/created the same date as the trigger event would be submitted by the lambda to
-the s3-to-glue workflow. You can modify the value for the `time` to test whether files
-get submitted or not.
+The file `single-record.json` in `src/lambda_function/events` contains a
+dummy event for an S3 event trigger. You can generate your own test events
+for single or multiple records with the script at
+`src/lambda_function/events/generate_test_event.py`.
 
 ### Invoking test events
 
 To test the lambda function locally, run the following command from the lambda directory.
-Use `test-trigger-event.json` to trigger the Glue workflow. The file `test-env-vars.json` contains
-the namespace environment variable that is expected by the lambda script.
+Use `single-record.json` or your own test event to trigger the S3 to JSON Glue workflow.
+The file `test-env-vars.json` contains
+the environment variable that is expected by the lambda script.
 Don't forget to update the value of this variable
 if you are testing a stack deployed as part of a feature branch.
 
@@ -56,7 +53,7 @@ To invoke the lambda with the test event:
 
 ```bash
 cd src/lambda_function
-sam local invoke -e events/test-trigger-event.json --env-vars test-env-vars.json
+sam local invoke -e events/single-record.json --env-vars test-env-vars.json
 ```
 
 ## Launching Lambda stack in AWS
