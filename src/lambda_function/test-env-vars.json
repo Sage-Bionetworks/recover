@@ -1,5 +1,5 @@
 {
   "S3ToGlueFunction": {
-    "NAMESPACE": "test-recover"
+    "PRIMARY_WORKFLOW_NAME": "main-PrimaryWorkflow"
   }
 }
