@@ -68,4 +68,3 @@ class TestS3ToGlueLambda:
                 messages=test_messages,
                 workflow_name="example-workflow"
         )
-

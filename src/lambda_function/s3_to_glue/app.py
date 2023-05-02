@@ -1,3 +1,9 @@
+"""
+This Lambda app responds to an S3 event notification and starts a Glue workflow.
+The Glue workflow name is set by the environment variable `PRIMARY_WORKFLOW_NAME`.
+Subsequently, the S3 objects which were contained in the event are written as a
+JSON string to the `messages` workflow run property.
+"""
 import os
 import json
 import logging
