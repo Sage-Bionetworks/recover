@@ -1,74 +1,38 @@
+"""
+This Lambda app responds to an S3 event notification and starts a Glue workflow.
+The Glue workflow name is set by the environment variable `PRIMARY_WORKFLOW_NAME`.
+Subsequently, the S3 objects which were contained in the event are written as a
+JSON string to the `messages` workflow run property.
+"""
 import os
 import json
 import logging
-import datetime
-from dateutil import parser
-
 import boto3
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
-def query_files_to_submit(
-    objects: dict, files_to_submit: list, trigger_event_date: datetime
-):
-    """Queries the files in bucket for ones with the same
-    date as the trigger event
-
-    Args:
-        objects (dict): bucket objects' metadata info
-        files_to_submit (list): fielsto submit from source s3 bucket
-        trigger_event_date (datetime): _description_
-
-    Returns:
-        list: List of dictionaries containing source_bucket and source_key
-        for each file to submit from the source s3 bucket
+def submit_s3_to_json_workflow(messages: list[dict[str,str]], workflow_name):
     """
-    files_current = objects["Contents"]
-    logger.info("Querying S3 bucket for new data from source")
-
-    # query bucket for new/updated files
-    for fi in files_current:
-        # skip objects with no last modified
-        if "LastModified" not in fi:
-            continue
-        file_date = fi["LastModified"].date()
-        # if object's last modified date is same as today
-        if file_date == trigger_event_date:
-            # grab Bucket and Key
-            message_parameters = {
-                "source_bucket": objects["Name"],
-                "source_key": fi["Key"],
-            }
-            files_to_submit.append(message_parameters)
-        else:
-            pass
-    return files_to_submit
-
-
-def submit_s3_to_json_workflow(files_to_submit: list):
-    """Submits list of dicts with keys source_bucket and source_key
-    for the new files added to the S3 to Json glue workflow
+    Submits list of dicts with keys `source_bucket` and `source_key`
+    to the S3 to JSON Glue workflow.
 
     Args:
         workflow_name (str): name of the glue workflow to submit to
-        files_to_submit (list): files from source S3 bucket to submit
-        to glue workflow
+        messages (list): objects from source S3 bucket to submit
+        to Glue workflow.
 
     Returns:
         (None)
     """
-    workflow_name = os.environ["PRIMARY_WORKFLOW_NAME"]
     glue_client = boto3.client("glue")
-    logger.info(f"Starting workflow run for workflow {workflow_name}")
+    logger.info(f"Starting workflow run for {workflow_name}")
     workflow_run = glue_client.start_workflow_run(Name=workflow_name)
     glue_client.put_workflow_run_properties(
         Name=workflow_name,
         RunId=workflow_run["RunId"],
-        RunProperties={"messages": json.dumps(files_to_submit)},
+        RunProperties={"messages": json.dumps(messages)},
     )
-    return None
 
 
 def lambda_handler(event, context):
@@ -86,20 +50,19 @@ def lambda_handler(event, context):
     Returns:
         (None) Submits new file records to a Glue workflow.
     """
-    s3 = boto3.client("s3")
-    source_bucket_name = os.environ["S3_SOURCE_BUCKET_NAME"]
-    trigger_event_date = parser.isoparse(event["time"]).date()
-    objects = s3.list_objects_v2(Bucket=source_bucket_name)
-    files_to_submit = []
-    if "Contents" in objects:
-        files_to_submit = query_files_to_submit(
-            objects, files_to_submit, trigger_event_date
+    messages = []
+    for record in event["Records"]:
+        bucket_name = record["s3"]["bucket"]["name"]
+        object_key = record["s3"]["object"]["key"]
+        message = {"source_bucket": bucket_name, "source_key": object_key}
+        if "owner.txt" not in object_key:
+            messages.append(message)
+    if len(messages) > 0:
+        logger.info(
+                "Submitting the following files to "
+                f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(messages)}"
         )
-    else:
-        logger.info(f"No files found in {source_bucket_name} bucket")
-
-    # submit new files to new glue workflow
-    if len(files_to_submit) > 0:
-        submit_s3_to_json_workflow(files_to_submit)
-    else:
-        logger.info(f"No new files to be submitted in {source_bucket_name} bucket")
+        submit_s3_to_json_workflow(
+                messages = messages,
+                workflow_name = os.environ["PRIMARY_WORKFLOW_NAME"]
+        )
