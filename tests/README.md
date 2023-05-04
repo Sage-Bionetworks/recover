@@ -56,10 +56,23 @@ pytest with other tests because they have to be run in a Dockerfile:
 - test_s3_to_glue_lambda.py
 - test_setup_external_storage.py
 
-Example)
+
+#### Running tests for lambda
 Run the following command from the repo root to run tests for the lambda function (in develop).
-You can run this locally or inside the docker image.
 
 ```shell script
 python3 -m pytest tests/test_s3_to_glue_lambda.py -v
+```
+
+#### Running tests for setup external storage
+Run the following command from the repo root to run the integration test for the setup external storage script to check that the STS
+access has been set for a given synapse folder (in develop).
+
+This test takes in two command line arguments:
+
+- test-synapse-folder-id - synapse id of the folder to check STS access for
+- test-ssm-parameter - ssm parameter to get AWS credentials for otherwise leave blank and it will pull credentials from the environment
+
+```shell script
+python3 -m pytest tests/test_setup_external_storage.py --test-synapse-folder-id <put_synapse_folder_id_here> --test-ssm-parameter <put_ssm_parameter_here_or_leave_blank>
 ```
