@@ -256,3 +256,18 @@ def staging_dataset_with_empty_columns():
 @pytest.fixture()
 def staging_dataset_empty():
     return pd.DataFrame()
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--test-synapse-folder-id",
+        action="store",
+        default=None,
+        help="ID of the synapse folder to check STS access. Required.",
+    )
+    parser.addoption(
+        "--test-ssm-parameter",
+        action="store",
+        default=None,
+        help="The SSM parameter to use to check STS access. Optional",
+    )
