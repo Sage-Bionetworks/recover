@@ -16,6 +16,7 @@ def test_ssm_parameter(pytestconfig):
     yield pytestconfig.getoption("test_ssm_parameter")
 
 
+@pytest.mark.integration()
 def test_setup_external_storage_success(test_synapse_folder_id, test_ssm_parameter):
     """This test tests that it can get the STS token credentials and view and list the
     files in the S3 bucket location to verify that it has access"""

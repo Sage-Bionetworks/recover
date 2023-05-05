@@ -262,8 +262,8 @@ def pytest_addoption(parser):
     parser.addoption(
         "--test-synapse-folder-id",
         action="store",
-        default="syn27558289",
-        help="ID of the synapse folder to check STS access. Defaults to test folder",
+        default=None,
+        help="ID of the synapse folder to check STS access. Required.",
     )
     parser.addoption(
         "--test-ssm-parameter",
