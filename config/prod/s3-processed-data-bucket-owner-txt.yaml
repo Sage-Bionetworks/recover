@@ -1,0 +1,13 @@
+template:
+  type: file
+  path: s3-owner-txt.yaml
+stack_name: "{{ stack_group_config.namespace }}-recover-processed-data-bucket-owner-txt"
+dependencies:
+  - prod/cfn-s3objects-macro.yaml
+  - prod/s3-processed-data-bucket.yaml
+parameters:
+  BucketName: !stack_output_external recover-processed-data-bucket::BucketName
+  SynapseIds: "3461799" # recoverETL
+  OwnerTxtKeyPrefix: "{{ stack_group_config.namespace }}/parquet"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}

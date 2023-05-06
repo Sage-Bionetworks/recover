@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Transform: S3Objects
+
+Description: >-
+  Stores an owner.txt to an S3 key.
+
+Parameters:
+
+  BucketName:
+    Type: String
+    Description: Name of the bucket.
+
+  SynapseIds:
+    Type: CommaDelimitedList
+    Description: Synapse ids to set as owners of this bucket
+    ConstraintDescription: >-
+      List of Synapse users or team IDs separated by commas
+      (i.e. 1111111, 2222222)
+
+  OwnerTxtKeyPrefix:
+    Type: String
+    Default: ""
+    Description: >-
+      The key prefix to write owner.txt. It will be written
+      to the root of the bucket if no value is provided.
+
+Resources:
+  SynapseOwnerFile:
+    Type: AWS::S3::Object
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - E3001
+    Properties:
+      Target:
+        Bucket: !Ref BucketName
+        Key: !Sub ${OwnerTxtKeyPrefix}/owner.txt
+        ContentType: text
+      Body: !Join [ ",", !Ref SynapseIds ]

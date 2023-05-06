@@ -1,0 +1,11 @@
+template:
+  type: file
+  path: s3-owner-txt.yaml
+stack_name: "{{ stack_group_config.namespace }}-recover-input-bucket-owner-txt"
+dependencies:
+  - prod/cfn-s3objects-macro.yaml
+  - prod/s3-input-bucket.yaml
+parameters:
+  BucketName: !stack_output_external recover-input-bucket::BucketName
+  SynapseIds: "3461799,3357179" # RecoverETL and meghasyam
+  OwnerTxtKeyPrefix: {{ stack_group_config.namespace }}

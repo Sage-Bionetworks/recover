@@ -5,6 +5,7 @@ Create an STS-enabled folder on Synapse over an S3 location.
 import os
 import json
 import argparse
+import boto3
 
 import synapseclient
 
@@ -35,13 +36,47 @@ def read_args():
         action="store_true",
         help="Whether this storage location should be STS enabled",
     )
+    parser.add_argument("--profile",
+                        help=("Optional. The AWS profile to use. Uses the default "
+                              "profile if not specified."))
+    parser.add_argument("--ssm-parameter",
+                        help=("Optional. The name of the SSM parameter containing "
+                              "the Synapse personal access token. "
+                              "If not provided, cached credentials are used"))
     args = parser.parse_args()
     return args
 
+def get_synapse_client(ssm_parameter=None, aws_session=None):
+    """
+    Return an authenticated Synapse client.
+
+    Args:
+        ssm_parameter (str): Name of the SSM parameter containing the
+            recoverETL Synapse authentication token.
+        aws_session (boto3.session.Session)
+
+    Returns:
+        synapseclient.Synapse
+    """
+    if ssm_parameter is not None:
+        ssm_client = aws_session.client("ssm")
+        token = ssm_client.get_parameter(
+            Name=ssm_parameter,
+            WithDecryption=True)
+        syn = synapseclient.Synapse()
+        syn.login(authToken=token["Parameter"]["Value"])
+    else: # try cached credentials
+        syn = synapseclient.login()
+    return syn
 
 def main():
     args = read_args()
-    syn = synapseclient.login()
+    aws_session = boto3.session.Session(
+            profile_name=args.profile,
+            region_name="us-east-1")
+    syn = get_synapse_client(
+            ssm_parameter=args.ssm_parameter,
+            aws_session=aws_session)
     synapse_folder, storage_location, synapse_project = syn.create_s3_storage_location(
         parent=args.synapse_parent,
         folder_name=args.synapse_folder_name,

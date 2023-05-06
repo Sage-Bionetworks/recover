@@ -8,7 +8,6 @@ Parameters:
     Description: >-
       The namespace string used to build up the path to the correct object keys
       in the bucket
-    Default: recover
 
   S3IntermediateBucketName:
     Type: String
@@ -37,6 +36,7 @@ Resources:
     Properties:
       CatalogId: !Ref AWS::AccountId
       DatabaseInput:
+        Name: !Sub '${Namespace}-gluedatabase'
         Description: !Sub 'Recover database using namespace ${Namespace}'
 
   # Table stacks

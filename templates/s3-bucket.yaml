@@ -1,7 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
 
-Transform: S3Objects
-
 Description: >-
   This S3 bucket will be used for development and production,
   and for storing partly or fully processed data
@@ -13,25 +11,18 @@ Parameters:
     Description: Name of the bucket.
     Default: ''
 
-  SynapseIds:
-    Type: CommaDelimitedList
-    Default: ''
-    Description: Synapse ids to set as owners of this bucket
-    ConstraintDescription: >-
-      List of Synapse users or team IDs separated by commas
-      (i.e. 1111111, 2222222)
-
-  Namespace:
+  ConnectToSynapse:
     Type: String
-    Default: ""
-    Description: >-
-      The namespace string used to build up the path to the correct object keys
-      in the bucket
+    Description: Whether to grant Synapse read/write permissions on the bucket.
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
 
 Conditions:
   HasBucketName: !Not [!Equals [!Ref BucketName, ""]]
   ConnectToSynapse:
-    !Not [!Equals [!Join [",", !Ref SynapseIds], ""]]
+    !Equals [!Ref ConnectToSynapse, "true"]
 
 Resources:
   Bucket:
@@ -92,21 +83,6 @@ Resources:
                 - 's3:*MultipartUpload*'
               Resource: !Sub ${Bucket.Arn}/*
             - !Ref AWS::NoValue
-
-  SynapseOwnerFile:
-    Type: AWS::S3::Object
-    Condition: ConnectToSynapse
-    Metadata:
-      cfn-lint:
-        config:
-          ignore_checks:
-            - E3001
-    Properties:
-      Target:
-        Bucket: !Ref Bucket
-        Key: !Sub ${Namespace}/parquet/owner.txt
-        ContentType: text
-      Body: !Join [ ",", !Ref SynapseIds ]
 
 Outputs:
 

@@ -3,4 +3,4 @@ template:
   path: s3-bucket.yaml
 stack_name: recover-cloudformation-bucket
 parameters:
-  BucketName: recover-cloudformation
+  BucketName: {{ stack_group_config.cloudformation_artifact_bucket_name }}

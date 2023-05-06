@@ -5,6 +5,10 @@ Description: >-
   to your data target.
 
 Parameters:
+  Namespace:
+    Type: String
+    Description: >-
+      The namespace string used to for the individual glue job names
 
   JobDescription:
     Type: String
@@ -56,10 +60,34 @@ Parameters:
     Type: String
     Description: The name of the S3 bucket where temporary files and logs are written.
 
+  IsNamespaceDependent:
+    Type: String
+    Description: >-
+      Whether this resource is dependent on the namespace in terms of being created
+
+Conditions:
+  IsStagingNamespace: !Not [!Equals [!Ref Namespace, "main"]]
+  CreateResource: !Or
+      - !And
+        - !Condition IsStagingNamespace
+        - !Equals [!Ref IsNamespaceDependent, "true"]
+      - !Equals [!Ref IsNamespaceDependent, "false"]
+
 Resources:
 
-  GlueJob:
+  {% set datasets = [] %}
+  {% for v in sceptre_user_data.dataset_schemas.tables.keys() if not "Deleted" in v %}
+    {% set dataset = {} %}
+    {% do dataset.update({"type": v}) %}
+    {% do dataset.update({"table_name": "dataset_" + v.lower()})%}
+    {% do dataset.update({"stackname_prefix": "{}".format(v.replace("_",""))}) %}
+    {% do datasets.append(dataset) %}
+  {% endfor %}
+
+  {% for dataset in datasets %}
+  {{ dataset["stackname_prefix"] }}CompareParquetJob:
     Type: AWS::Glue::Job
+    Condition: CreateResource
     Properties:
       Command:
         Name: pythonshell
@@ -76,13 +104,7 @@ Resources:
         MaxConcurrentRuns: !Ref MaxConcurrentRuns
       MaxCapacity: !Ref MaxCapacity
       MaxRetries: !Ref MaxRetries
-      Name: !Sub '${AWS::StackName}-Job'
+      Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-CompareParquetJob"
       Role: !Ref JobRole
       Timeout: !Ref TimeoutInMinutes
-
-Outputs:
-
-  JobName:
-    Value: !Ref GlueJob
-    Export:
-      Name: !Sub '${AWS::Region}-${AWS::StackName}-JobName'
+{% endfor %}
