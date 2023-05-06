@@ -40,8 +40,9 @@ INDEX_FIELD_MAP = {
     "healthkitv2workouts": ["HealthKitWorkoutKey"],
     "healthkitv2activitysummaries": ["HealthKitActivitySummaryKey"],
     "googlefitsamples": ["GoogleFitSampleKey"],
-    "symptomlog": ["DataPointKey"]
+    "symptomlog": ["DataPointKey"],
 }
+
 
 def get_args() -> tuple[dict, dict]:
     """
@@ -52,15 +53,13 @@ def get_args() -> tuple[dict, dict]:
     """
     glue_client = boto3.client("glue")
     args = getResolvedOptions(
-             sys.argv,
-             ["WORKFLOW_NAME",
-              "WORKFLOW_RUN_ID",
-              "JOB_NAME",
-              "glue-table"])
+        sys.argv, ["WORKFLOW_NAME", "WORKFLOW_RUN_ID", "JOB_NAME", "glue-table"]
+    )
     workflow_run_properties = glue_client.get_workflow_run_properties(
-            Name=args["WORKFLOW_NAME"],
-            RunId=args["WORKFLOW_RUN_ID"])["RunProperties"]
+        Name=args["WORKFLOW_NAME"], RunId=args["WORKFLOW_RUN_ID"]
+    )["RunProperties"]
     return args, workflow_run_properties
+
 
 def has_nested_fields(schema: StructType) -> bool:
     """
@@ -82,11 +81,10 @@ def has_nested_fields(schema: StructType) -> bool:
             return True
     return False
 
+
 def get_table(
-        table_name: str,
-        database_name: str,
-        glue_context: GlueContext
-    ) -> DynamicFrame:
+    table_name: str, database_name: str, glue_context: GlueContext
+) -> DynamicFrame:
     """
     Return a table as a DynamicFrame with an unambiguous schema.
 
@@ -102,37 +100,29 @@ def get_table(
     """
     table_name_components = table_name.split("_")
     table_data_type = table_name_components[1]
-    table = (
-            glue_context.create_dynamic_frame.from_catalog(
-                 database=database_name,
-                 table_name=table_name,
-                 transformation_ctx="create_dynamic_frame"
-            )
-            .resolveChoice(
-                choice="match_catalog",
-                database=database_name,
-                table_name=table_name
-            )
+    table = glue_context.create_dynamic_frame.from_catalog(
+        database=database_name,
+        table_name=table_name,
+        transformation_ctx="create_dynamic_frame",
+    ).resolveChoice(
+        choice="match_catalog", database=database_name, table_name=table_name
     )
     spark_df = table.toDF()
     table = DynamicFrame.fromDF(
-            dataframe=(
-                spark_df
-                .sort(spark_df.export_end_date.desc())
-                .dropDuplicates(
-                    subset=INDEX_FIELD_MAP[table_data_type]
-                )
-            ),
-            glue_ctx=glue_context,
-            name=table_name
+        dataframe=(
+            spark_df.sort(spark_df.export_end_date.desc()).dropDuplicates(
+                subset=INDEX_FIELD_MAP[table_data_type]
+            )
+        ),
+        glue_ctx=glue_context,
+        name=table_name,
     )
     return table
 
+
 def drop_deleted_healthkit_data(
-        glue_context: GlueContext,
-        table: DynamicFrame,
-        glue_database: str
-    ) -> DynamicFrame:
+    glue_context: GlueContext, table: DynamicFrame, glue_database: str
+) -> DynamicFrame:
     """
     Drop records from a HealthKit table.
 
@@ -156,39 +146,37 @@ def drop_deleted_healthkit_data(
     deleted_table_name = f"{table.name}_deleted"
     table_data_type = table.name.split("_")[1]
     try:
-        glue_client.get_table(
-                DatabaseName=glue_database,
-                Name=deleted_table_name
-        )
+        glue_client.get_table(DatabaseName=glue_database, Name=deleted_table_name)
     except glue_client.exceptions.EntityNotFoundException:
         return table
     deleted_table = get_table(
-            table_name=deleted_table_name,
-            database_name=glue_database,
-            glue_context=glue_context
+        table_name=deleted_table_name,
+        database_name=glue_database,
+        glue_context=glue_context,
     )
     table_df = table.toDF()
     deleted_table_df = deleted_table.toDF()
     table_with_deleted_samples_removed = DynamicFrame.fromDF(
-            dataframe=(
-                table_df.join(
-                    other=deleted_table_df,
-                    on=INDEX_FIELD_MAP[table_data_type],
-                    how="left_anti"
-                )
-            ),
-            glue_ctx=glue_context,
-            name=table.name
+        dataframe=(
+            table_df.join(
+                other=deleted_table_df,
+                on=INDEX_FIELD_MAP[table_data_type],
+                how="left_anti",
+            )
+        ),
+        glue_ctx=glue_context,
+        name=table.name,
     )
     return table_with_deleted_samples_removed
 
+
 def write_table_to_s3(
-        dynamic_frame: DynamicFrame,
-        bucket: str,
-        key: str,
-        glue_context: GlueContext,
-        records_per_partition: int = int(1e6)
-    ) -> None:
+    dynamic_frame: DynamicFrame,
+    bucket: str,
+    key: str,
+    glue_context: GlueContext,
+    records_per_partition: int = int(1e6),
+) -> None:
     """
     Write a DynamicFrame to S3 as a parquet dataset.
 
@@ -207,24 +195,26 @@ def write_table_to_s3(
     s3_write_path = os.path.join("s3://", bucket, key)
     num_partitions = int(dynamic_frame.count() // records_per_partition + 1)
     dynamic_frame = dynamic_frame.coalesce(num_partitions)
-    logger.info(f"Writing {os.path.basename(key)} to {s3_write_path} "
-                f"as {num_partitions} partitions.")
+    logger.info(
+        f"Writing {os.path.basename(key)} to {s3_write_path} "
+        f"as {num_partitions} partitions."
+    )
     glue_context.write_dynamic_frame.from_options(
-            frame = dynamic_frame,
-            connection_type = "s3",
-            connection_options = {
-                "path": s3_write_path
-            },
-            format = "parquet",
-            transformation_ctx="write_dynamic_frame")
+        frame=dynamic_frame,
+        connection_type="s3",
+        connection_options={"path": s3_write_path},
+        format="parquet",
+        transformation_ctx="write_dynamic_frame",
+    )
+
 
 def add_index_to_table(
-        table_key: str,
-        table_name: str,
-        processed_tables: dict[str, DynamicFrame],
-        unprocessed_tables: dict[str, DynamicFrame],
-        glue_context: GlueContext
-    ) -> DynamicFrame:
+    table_key: str,
+    table_name: str,
+    processed_tables: dict[str, DynamicFrame],
+    unprocessed_tables: dict[str, DynamicFrame],
+    glue_context: GlueContext,
+) -> DynamicFrame:
     """Add partition and index fields to a DynamicFrame.
 
     A DynamicFrame containing the top-level fields already includes the index
@@ -255,11 +245,10 @@ def add_index_to_table(
     """
     _, table_data_type = table_name.split("_")
     this_table = unprocessed_tables[table_key].toDF()
-    if table_key == table_name: # top-level fields already include index
+    if table_key == table_name:  # top-level fields already include index
         for c in list(this_table.columns):
-            if "." in c: # a flattened struct field
-                this_table = this_table.withColumnRenamed(
-                        c, c.replace(".", "_"))
+            if "." in c:  # a flattened struct field
+                this_table = this_table.withColumnRenamed(c, c.replace(".", "_"))
         df_with_index = this_table
     else:
         if ".val." in table_key:
@@ -267,7 +256,7 @@ def add_index_to_table(
             parent_key = ".".join(hierarchy[:-1])
             original_field_name = hierarchy[-1]
             parent_table = processed_tables[parent_key]
-        else: # table_key is the value of a top-level field
+        else:  # table_key is the value of a top-level field
             parent_key = table_name
             original_field_name = table_key.replace(f"{table_name}_", "")
             parent_table = unprocessed_tables[parent_key].toDF()
@@ -275,24 +264,19 @@ def add_index_to_table(
             selectable_original_field_name = f"`{original_field_name}`"
         else:
             selectable_original_field_name = original_field_name
-        parent_index = (parent_table
-                .select(
-                    [selectable_original_field_name] + INDEX_FIELD_MAP[table_data_type])
-                .distinct())
+        parent_index = parent_table.select(
+            [selectable_original_field_name] + INDEX_FIELD_MAP[table_data_type]
+        ).distinct()
         this_index = parent_index.withColumnRenamed(original_field_name, "id")
-        df_with_index = this_table.join(
-                this_index,
-                on = "id",
-                how = "inner")
+        df_with_index = this_table.join(this_index, on="id", how="inner")
         # remove prefix from field names
         field_prefix = table_key.replace(f"{table_name}_", "") + ".val."
         columns = list(df_with_index.columns)
         for c in columns:
             # do nothing if c is id, index, or partition field
-            if f"{original_field_name}.val" == c: # field is an array
+            if f"{original_field_name}.val" == c:  # field is an array
                 succinct_name = c.replace(".", "_")
-                df_with_index = df_with_index.withColumnRenamed(
-                        c, succinct_name)
+                df_with_index = df_with_index.withColumnRenamed(c, succinct_name)
             elif field_prefix in c:
                 succinct_name = c.replace(field_prefix, "").replace(".", "_")
                 if succinct_name in df_with_index.columns:
@@ -301,9 +285,9 @@ def add_index_to_table(
                 if succinct_name in df_with_index.columns:
                     # If key is still duplicate, leave unchanged
                     continue
-                df_with_index = df_with_index.withColumnRenamed(
-                        c, succinct_name)
+                df_with_index = df_with_index.withColumnRenamed(c, succinct_name)
     return df_with_index
+
 
 def main() -> None:
     # Get args and setup environment
@@ -318,62 +302,63 @@ def main() -> None:
     # Get table info
     table_name = args["glue_table"]
     table = get_table(
-            table_name=table_name,
-            database_name=workflow_run_properties["glue_database"],
-            glue_context=glue_context
+        table_name=table_name,
+        database_name=workflow_run_properties["glue_database"],
+        glue_context=glue_context,
     )
     table_schema = table.schema()
     if "healthkit" in table_name:
         table = drop_deleted_healthkit_data(
-                glue_context=glue_context,
-                table=table,
-                glue_database=workflow_run_properties["glue_database"]
+            glue_context=glue_context,
+            table=table,
+            glue_database=workflow_run_properties["glue_database"],
         )
 
     # Export new table records to parquet
     if has_nested_fields(table_schema) and table.count() > 0:
         tables_with_index = {}
         table_relationalized = table.relationalize(
-            root_table_name = table_name,
-            staging_path = f"s3://{workflow_run_properties['parquet_bucket']}/tmp/",
-            transformation_ctx="relationalize")
+            root_table_name=table_name,
+            staging_path=f"s3://{workflow_run_properties['parquet_bucket']}/tmp/",
+            transformation_ctx="relationalize",
+        )
         # Inject record identifier into child tables
         for k in sorted(table_relationalized.keys()):
             tables_with_index[k] = add_index_to_table(
-                    table_key=k,
-                    table_name=table_name,
-                    processed_tables=tables_with_index,
-                    unprocessed_tables=table_relationalized,
-                    glue_context=glue_context
+                table_key=k,
+                table_name=table_name,
+                processed_tables=tables_with_index,
+                unprocessed_tables=table_relationalized,
+                glue_context=glue_context,
             )
         for t in tables_with_index:
             clean_name = t.replace(".", "_").lower()
             dynamic_frame_with_index = DynamicFrame.fromDF(
-                    tables_with_index[t],
-                    glue_ctx = glue_context,
-                    name = clean_name
+                tables_with_index[t], glue_ctx=glue_context, name=clean_name
             )
             write_table_to_s3(
-                    dynamic_frame=dynamic_frame_with_index,
-                    bucket=workflow_run_properties["parquet_bucket"],
-                    key=os.path.join(
-                        workflow_run_properties["namespace"],
-                        workflow_run_properties["parquet_prefix"],
-                        clean_name
-                    ),
-                    glue_context=glue_context
-            )
-    elif table.count() > 0:
-        write_table_to_s3(
-                dynamic_frame=table,
+                dynamic_frame=dynamic_frame_with_index,
                 bucket=workflow_run_properties["parquet_bucket"],
                 key=os.path.join(
                     workflow_run_properties["namespace"],
                     workflow_run_properties["parquet_prefix"],
-                    args["glue_table"]),
-                glue_context=glue_context
+                    clean_name,
+                ),
+                glue_context=glue_context,
+            )
+    elif table.count() > 0:
+        write_table_to_s3(
+            dynamic_frame=table,
+            bucket=workflow_run_properties["parquet_bucket"],
+            key=os.path.join(
+                workflow_run_properties["namespace"],
+                workflow_run_properties["parquet_prefix"],
+                args["glue_table"],
+            ),
+            glue_context=glue_context,
         )
     job.commit()
+
 
 if __name__ == "__main__":
     main()

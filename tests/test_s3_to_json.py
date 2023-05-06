@@ -52,8 +52,7 @@ class TestS3ToJsonS3:
         }
         # sample test data
         with open(
-            shared_datadir
-            / "2023-01-13T21--08--51Z_TESTDATA",
+            shared_datadir / "2023-01-13T21--08--51Z_TESTDATA",
             "rb",
         ) as z:
             s3_obj["Body"] = z.read()
@@ -83,7 +82,9 @@ class TestS3ToJsonS3:
         }
         return json_file_basenames
 
-    def test_write_healthkitv2samples_file_to_json_dataset(self, s3_obj, namespace, monkeypatch):
+    def test_write_healthkitv2samples_file_to_json_dataset(
+        self, s3_obj, namespace, monkeypatch
+    ):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
         sample_metadata = {
             "Metadata": {
@@ -121,13 +122,15 @@ class TestS3ToJsonS3:
                     )
                     break
 
-    def test_write_symptom_log_file_to_json_dataset(self, s3_obj, namespace, monkeypatch):
+    def test_write_symptom_log_file_to_json_dataset(
+        self, s3_obj, namespace, monkeypatch
+    ):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
         sample_metadata = {
             "Metadata": {
                 "type": "SymptomLog",
                 "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
             }
         }
         workflow_run_properties = {
@@ -155,16 +158,18 @@ class TestS3ToJsonS3:
                         sample_metadata["Metadata"]["end_date"].isoformat()
                         == metadata["export_end_date"]
                     )
-                    assert isinstance(metadata['Value'], dict)
+                    assert isinstance(metadata["Value"], dict)
                     break
 
-    def test_write_enrolled_participants_file_to_json_dataset(self, s3_obj, namespace, monkeypatch):
+    def test_write_enrolled_participants_file_to_json_dataset(
+        self, s3_obj, namespace, monkeypatch
+    ):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
         sample_metadata = {
             "Metadata": {
                 "type": "EnrolledParticipants",
                 "start_date": None,
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
             }
         }
         workflow_run_properties = {
@@ -188,19 +193,21 @@ class TestS3ToJsonS3:
                         sample_metadata["Metadata"]["end_date"].isoformat()
                         == metadata["export_end_date"]
                     )
-                    if "Symptoms" in metadata['CustomFields']:
-                        assert isinstance(metadata['CustomFields']['Symptoms'], list)
-                    if "Treatments" in metadata['CustomFields']:
-                        assert isinstance(metadata['CustomFields']['Treatments'], list)
+                    if "Symptoms" in metadata["CustomFields"]:
+                        assert isinstance(metadata["CustomFields"]["Symptoms"], list)
+                    if "Treatments" in metadata["CustomFields"]:
+                        assert isinstance(metadata["CustomFields"]["Treatments"], list)
                     break
 
-    def test_write_file_to_json_dataset_record_consistency(self, s3_obj, namespace, monkeypatch):
+    def test_write_file_to_json_dataset_record_consistency(
+        self, s3_obj, namespace, monkeypatch
+    ):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
         sample_metadata = {
             "Metadata": {
                 "type": "FitbitDevices",
                 "start_date": None,
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
             }
         }
         workflow_run_properties = {
@@ -232,7 +239,6 @@ class TestS3ToJsonS3:
                     output_line_cnt += 1
             # gets line count of input json and exported json and checks the two
             assert input_line_cnt == output_line_cnt
-
 
     def test_get_metadata_startdate_enddate(self, json_file_basenames_dict):
         basename = json_file_basenames_dict["HealthKitV2Samples_Deleted"]
@@ -273,10 +279,15 @@ class TestS3ToJsonS3:
             "subtype" in record.keys()
             for record in metadata
             if record["type"]
-            not in ["HealthKitV2Samples", "HealthKitV2Samples_Deleted", "HealthKitV2Statistics"]
+            not in [
+                "HealthKitV2Samples",
+                "HealthKitV2Samples_Deleted",
+                "HealthKitV2Statistics",
+            ]
         ]
-        assert not any(subtypes),\
-            "Some data types that are not HealthKitV2Samples or HealthKitV2Statistics have the metadata subtype key"
+        assert not any(
+            subtypes
+        ), "Some data types that are not HealthKitV2Samples or HealthKitV2Statistics have the metadata subtype key"
 
     def test_get_metadata_type(self, json_file_basenames_dict):
         # check that all file basenames match their type
@@ -285,5 +296,4 @@ class TestS3ToJsonS3:
             == basename
             for basename in json_file_basenames_dict.keys()
         ]
-        assert all(metadata_check),\
-            "Some data types' metadata type key are incorrect"
+        assert all(metadata_check), "Some data types' metadata type key are incorrect"

@@ -97,14 +97,16 @@ def get_duplicated_columns(dataset: pd.DataFrame) -> list:
 
 def has_common_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
     """Gets the list of common columns between two dataframes
-    TODO: Could look into depreciating this and using datacompy.intersect_columns function"""
+    TODO: Could look into depreciating this and using datacompy.intersect_columns function
+    """
     common_cols = staging_dataset.columns.intersection(main_dataset.columns).tolist()
     return common_cols != []
 
 
 def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
     """Gets the list of missing columns present in main but not in staging
-    TODO: Could look into depreciating this and using datacompy.df2_unq_columns function"""
+    TODO: Could look into depreciating this and using datacompy.df2_unq_columns function
+    """
     missing_cols = main_dataset.columns.difference(staging_dataset.columns).tolist()
     return missing_cols
 
@@ -113,7 +115,8 @@ def get_additional_cols(
     staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
     """Gets the list of additional columns present in staging but not in main
-    TODO: Could look into depreciating this and using datacompy.df1_unq_columns function"""
+    TODO: Could look into depreciating this and using datacompy.df1_unq_columns function
+    """
     add_cols = staging_dataset.columns.difference(main_dataset.columns).tolist()
     return add_cols
 

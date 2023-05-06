@@ -12,7 +12,8 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-def submit_s3_to_json_workflow(messages: list[dict[str,str]], workflow_name):
+
+def submit_s3_to_json_workflow(messages: list[dict[str, str]], workflow_name):
     """
     Submits list of dicts with keys `source_bucket` and `source_key`
     to the S3 to JSON Glue workflow.
@@ -59,10 +60,9 @@ def lambda_handler(event, context):
             messages.append(message)
     if len(messages) > 0:
         logger.info(
-                "Submitting the following files to "
-                f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(messages)}"
+            "Submitting the following files to "
+            f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(messages)}"
         )
         submit_s3_to_json_workflow(
-                messages = messages,
-                workflow_name = os.environ["PRIMARY_WORKFLOW_NAME"]
+            messages=messages, workflow_name=os.environ["PRIMARY_WORKFLOW_NAME"]
         )
