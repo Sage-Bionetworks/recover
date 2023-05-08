@@ -83,6 +83,19 @@ Resources:
                 - 's3:*MultipartUpload*'
               Resource: !Sub ${Bucket.Arn}/*
             - !Ref AWS::NoValue
+          - !If
+            - ConnectToSynapse
+            - Sid: RestrictAccessByRegion
+              Effect: Deny
+              NotAction:
+                - 'iam:*'
+                - 'support:*'
+              Principal: '*'
+              Resource: !Sub ${Bucket.Arn}/*
+              Condition:
+                StringNotEquals:
+                  aws:RequestedRegion: 'us-east-1'
+            - !Ref AWS::NoValue
 
 Outputs:
 
