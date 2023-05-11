@@ -27,7 +27,7 @@ Use the SAM CLI to build and test your lambda locally.
 Build your application with the `sam build` command.
 
 ```bash
-cd src/lambda_function
+cd src/lambda_function/s3_to_glue/
 sam build
 ```
 
@@ -35,10 +35,10 @@ sam build
 
 ### Creating/modifying test events
 
-The file `single-record.json` in `src/lambda_function/events` contains a
+The file `single-record.json` in `src/lambda_function/s3_to_glue/events` contains a
 dummy event for an S3 event trigger. You can generate your own test events
 for single or multiple records with the script at
-`src/lambda_function/events/generate_test_event.py`.
+`src/lambda_function/s3_to_glue/events/generate_test_event.py`.
 
 ### Invoking test events
 
@@ -52,7 +52,7 @@ if you are testing a stack deployed as part of a feature branch.
 To invoke the lambda with the test event:
 
 ```bash
-cd src/lambda_function
+cd src/lambda_function/s3_to_glue
 sam local invoke -e events/single-record.json --env-vars test-env-vars.json
 ```
 
