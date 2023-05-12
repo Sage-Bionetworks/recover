@@ -6,6 +6,10 @@ Description: >
   SAM Template for s3-event-config lambda function
 
 Parameters:
+  Namespace:
+    Type: String
+    Description: >-
+      The namespace string used for the bucket key prefix
 
   S3ToGlueFunctionArn:
     Type: String
@@ -39,6 +43,7 @@ Resources:
         Variables:
           S3_SOURCE_BUCKET_NAME: !Ref S3SourceBucketName
           S3_TO_GLUE_FUNCTION_ARN: !Ref S3ToGlueFunctionArn
+          BUCKET_KEY_PREFIX: !Ref Namespace
 
 Outputs:
   S3EventConfigFunctionArn:

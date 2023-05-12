@@ -23,22 +23,27 @@ def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event, indent=2)}")
     if event["RequestType"] == "Delete":
         logger.info(f'Request Type:{event["RequestType"]}')
-        bucket = os.environ["S3_SOURCE_BUCKET_NAME"]
-        delete_notification(s3, bucket)
+        delete_notification(s3, bucket=os.environ["S3_SOURCE_BUCKET_NAME"])
         logger.info("Sending response to custom resource after Delete")
     elif event["RequestType"] in ["Update", "Create"]:
         logger.info(f'Request Type: {event["RequestType"]}')
-        lambda_arn = os.environ["S3_TO_GLUE_FUNCTION_ARN"]
-        bucket = os.environ["S3_SOURCE_BUCKET_NAME"]
-        add_notification(s3, lambda_arn, bucket)
+        add_notification(
+            s3,
+            lambda_arn=os.environ["S3_TO_GLUE_FUNCTION_ARN"],
+            bucket=os.environ["S3_SOURCE_BUCKET_NAME"],
+            bucket_key_prefix=os.environ["BUCKET_KEY_PREFIX"],
+        )
         logger.info("Sending response to custom resource")
     else:
-        err_msg =  f"The 'RequestType' key should have one of the following values: {REQUEST_TYPE_VALS}"
+        err_msg = f"The 'RequestType' key should have one of the following values: {REQUEST_TYPE_VALS}"
         raise KeyError(err_msg)
 
 
 def add_notification(
-    s3_resource: boto3.resources.base.ServiceResource, lambda_arn: str, bucket: str
+    s3_resource: boto3.resources.base.ServiceResource,
+    lambda_arn: str,
+    bucket: str,
+    bucket_key_prefix: str,
 ):
     """Adds the S3 notification configuration to an existing bucket
 
@@ -46,12 +51,23 @@ def add_notification(
         s3_resource (boto3.resources.base.ServiceResource) : s3 resource to use for s3 event config
         lambda_arn (str): Arn of the lambda s3 event config function
         bucket (str): bucket name of the s3 bucket to add the config to
+        bucket_key_prefix (str): bucket key prefix for where to look for s3 object notifications
     """
     bucket_notification = s3_resource.BucketNotification(bucket)
     response = bucket_notification.put(
         NotificationConfiguration={
             "LambdaFunctionConfigurations": [
-                {"LambdaFunctionArn": lambda_arn, "Events": ["s3:ObjectCreated:*"]}
+                {
+                    "LambdaFunctionArn": lambda_arn,
+                    "Events": ["s3:ObjectCreated:*"],
+                    "Filter": {
+                        "Key": {
+                            "FilterRules": [
+                                {"Name": "prefix", "Value": bucket_key_prefix}
+                            ]
+                        }
+                    },
+                }
             ]
         }
     )
