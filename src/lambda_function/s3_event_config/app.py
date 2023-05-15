@@ -19,7 +19,7 @@ REQUEST_TYPE_VALS = ["Delete", "Create", "Update"]
 
 
 def lambda_handler(event, context):
-    s3 = boto3.resource("s3")
+    s3 = boto3.client("s3")
     logger.info(f"Received event: {json.dumps(event, indent=2)}")
     if event["RequestType"] == "Delete":
         logger.info(f'Request Type:{event["RequestType"]}')
@@ -40,7 +40,7 @@ def lambda_handler(event, context):
 
 
 def add_notification(
-    s3_resource: boto3.resources.base.ServiceResource,
+    s3_client: boto3.client,
     lambda_arn: str,
     bucket: str,
     bucket_key_prefix: str,
@@ -48,13 +48,13 @@ def add_notification(
     """Adds the S3 notification configuration to an existing bucket
 
     Args:
-        s3_resource (boto3.resources.base.ServiceResource) : s3 resource to use for s3 event config
+        s3_client (boto3.client) : s3 client to use for s3 event config
         lambda_arn (str): Arn of the lambda s3 event config function
         bucket (str): bucket name of the s3 bucket to add the config to
         bucket_key_prefix (str): bucket key prefix for where to look for s3 object notifications
     """
-    bucket_notification = s3_resource.BucketNotification(bucket)
-    response = bucket_notification.put(
+    s3_client.put_bucket_notification_configuration(
+        Bucket=bucket,
         NotificationConfiguration={
             "LambdaFunctionConfigurations": [
                 {
@@ -69,18 +69,19 @@ def add_notification(
                     },
                 }
             ]
-        }
+        },
     )
     logger.info("Put request completed....")
 
 
-def delete_notification(s3_resource: boto3, bucket: str):
+def delete_notification(s3_client: boto3.client, bucket: str):
     """Deletes the S3 notification configuration from an existing bucket
 
     Args:
-        s3_resource (boto3.resources.base.ServiceResource) : s3 resource to use for s3 event config
+        s3_client (boto3.client) : s3 client to use for s3 event config
         bucket (str): bucket name of the s3 bucket to delete the config in
     """
-    bucket_notification = s3_resource.BucketNotification(bucket)
-    response = bucket_notification.put(NotificationConfiguration={})
+    s3_client.put_bucket_notification_configuration(
+        Bucket=bucket, NotificationConfiguration={}
+    )
     logger.info("Delete request completed....")

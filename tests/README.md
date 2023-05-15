@@ -54,14 +54,18 @@ Here are the tests you can run locally using a pipenv. You'll run into an error 
 pytest with other tests because they have to be run in a Dockerfile:
 
 - test_s3_to_glue_lambda.py
+- test_s3_event_config_lambda.py
 - test_setup_external_storage.py
 
-
 #### Running tests for lambda
-Run the following command from the repo root to run tests for the lambda function (in develop).
+Run the following command from the repo root to run tests for the lambda functions (in develop).
 
 ```shell script
 python3 -m pytest tests/test_s3_to_glue_lambda.py -v
+```
+
+```shell script
+python3 -m pytest tests/test_s3_event_config_lambda.py -v
 ```
 
 #### Running tests for setup external storage
