@@ -35,7 +35,7 @@ Note that they depend on the `s3 to json` lambda stacks.
 #### Launching in development
 
 Run the following command to create the lambda stack in your AWS account. Note this will
-also create the lambda s3 to glue IAM role stack as well:
+also create the lambda event config IAM role stack as well as well as any other dependencies of this stack:
 
 ```shell script
 sceptre --var namespace='test-namespace' launch develop/namespaced/s3-event-config-lambda.yaml
