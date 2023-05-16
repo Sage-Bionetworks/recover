@@ -1,0 +1,15 @@
+template:
+  type: sam
+  path: src/lambda_function/s3_event_config/template.yaml
+  artifact_bucket_name: {{ stack_group_config.cloudformation_artifact_bucket_name }}
+  artifact_prefix: '{{ stack_group_config.namespace }}/src/lambda'
+dependencies:
+  - prod/namespaced/s3-event-config-lambda-role.yaml
+  - prod/namespaced/s3-to-glue-lambda.yaml
+stack_name: '{{ stack_group_config.namespace }}-lambda-S3EventConfig'
+stack_tags: {{ stack_group_config.default_stack_tags }}
+parameters:
+  Namespace: {{ stack_group_config.namespace }}
+  S3ToGlueFunctionArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-S3ToGlue::S3ToGlueFunctionArn"
+  S3EventConfigRoleArn: !stack_output_external "{{ stack_group_config.namespace }}-s3-event-config-lambda-role::RoleArn"
+  S3SourceBucketName: {{ stack_group_config.input_bucket_name }}

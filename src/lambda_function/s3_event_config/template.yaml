@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  SAM Template for s3-event-config lambda function
+
+Parameters:
+  Namespace:
+    Type: String
+    Description: >-
+      The namespace string used for the bucket key prefix
+
+  S3ToGlueFunctionArn:
+    Type: String
+    Description: Arn for the S3 Event Config Lambda Function
+
+  S3EventConfigRoleArn:
+    Type: String
+    Description: Arn for the S3 Event Config Lambda Role
+
+  S3SourceBucketName:
+    Type: String
+    Description: Name of the S3 bucket where source data are stored.
+
+  LambdaPythonVersion:
+    Type: String
+    Description: Python version to use for this lambda function
+    Default: "3.9"
+
+
+Resources:
+  S3EventConfigFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Zip
+      CodeUri: ./
+      Handler: app.lambda_handler
+      Runtime: !Sub "python${LambdaPythonVersion}"
+      Role: !Ref S3EventConfigRoleArn
+      Timeout: 30
+      Environment:
+        Variables:
+          S3_SOURCE_BUCKET_NAME: !Ref S3SourceBucketName
+          S3_TO_GLUE_FUNCTION_ARN: !Ref S3ToGlueFunctionArn
+          BUCKET_KEY_PREFIX: !Ref Namespace
+
+Outputs:
+  S3EventConfigFunctionArn:
+    Description: Arn of the S3EventConfigFunction function
+    Value: !GetAtt S3EventConfigFunction.Arn
+    Export:
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-S3EventConfigFunctionArn"

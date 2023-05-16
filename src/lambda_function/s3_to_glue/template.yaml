@@ -7,6 +7,10 @@ Description: >
 
 Parameters:
 
+  S3SourceBucketName:
+    Type: String
+    Description: Name of the S3 bucket where source data are stored.
+
   S3ToGlueRoleArn:
     Type: String
     Description: Arn for the S3 to Glue Lambda Role
@@ -27,7 +31,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Zip
-      CodeUri: ./s3_to_glue
+      CodeUri: ./
       Handler: app.lambda_handler
       Runtime: !Sub "python${LambdaPythonVersion}"
       Role: !Ref S3ToGlueRoleArn
@@ -35,6 +39,16 @@ Resources:
       Environment:
         Variables:
           PRIMARY_WORKFLOW_NAME: !Ref PrimaryWorkflowName
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt S3ToGlueFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !Sub 'arn:aws:s3:::${S3SourceBucketName}'
+
 
 Outputs:
   S3ToGlueFunctionArn:

@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  An IAM Role for the S3 Event Config lambda allowing one to put
+  s3 event notification configuration in the source bucket
+
+Parameters:
+  S3SourceBucketName:
+    Type: String
+    Description: Name of the S3 bucket where source data are stored.
+
+
+Resources:
+  S3EventConfigRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+        - PolicyName: PutS3NotificationConfiguration
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+                - 's3:GetBucketNotification'
+                - 's3:PutBucketNotification'
+              Resource:
+              - !Sub arn:aws:s3:::${S3SourceBucketName}
+            - Effect: Allow
+              Action:
+                - 'logs:CreateLogGroup'
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: 'arn:aws:logs:*:*:*'
+
+Outputs:
+  RoleName:
+    Value: !Ref S3EventConfigRole
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleName'
+
+  RoleArn:
+    Value: !GetAtt S3EventConfigRole.Arn
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleArn'

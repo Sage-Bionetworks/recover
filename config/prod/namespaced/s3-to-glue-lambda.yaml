@@ -1,6 +1,6 @@
 template:
   type: sam
-  path: src/lambda_function/template.yaml
+  path: src/lambda_function/s3_to_glue/template.yaml
   artifact_bucket_name: {{ stack_group_config.cloudformation_artifact_bucket_name }}
   artifact_prefix: '{{ stack_group_config.namespace }}/src/lambda'
 dependencies:
@@ -9,5 +9,6 @@ dependencies:
 stack_name: '{{ stack_group_config.namespace }}-lambda-S3ToGlue'
 stack_tags: {{ stack_group_config.default_stack_tags }}
 parameters:
+  S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
   S3ToGlueRoleArn: !stack_output_external s3-to-glue-lambda-role::RoleArn
   PrimaryWorkflowName: !stack_output_external "{{ stack_group_config.namespace }}-glue-workflow::WorkflowName"
