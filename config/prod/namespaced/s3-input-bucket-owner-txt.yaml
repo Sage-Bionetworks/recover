@@ -7,5 +7,5 @@ dependencies:
   - prod/s3-input-bucket.yaml
 parameters:
   BucketName: !stack_output_external recover-input-bucket::BucketName
-  SynapseIds: "3461799,3357179" # RecoverETL and meghasyam
+  SynapseIds: "3461799,3455604" # RecoverETL and synapse-service-sysbio-recover-data-storage-01
   OwnerTxtKeyPrefix: {{ stack_group_config.namespace }}
