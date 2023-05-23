@@ -7,7 +7,7 @@ dependencies:
   - prod/s3-processed-data-bucket.yaml
 parameters:
   BucketName: !stack_output_external recover-processed-data-bucket::BucketName
-  SynapseIds: "3461799" # recoverETL
+  SynapseIds: "3461799,3455604" # RecoverETL and synapse-service-sysbio-recover-data-storage-01
   OwnerTxtKeyPrefix: "{{ stack_group_config.namespace }}/parquet"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
