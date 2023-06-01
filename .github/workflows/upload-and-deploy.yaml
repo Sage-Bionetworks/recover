@@ -74,6 +74,16 @@ jobs:
       - name: "Deploy sceptre stacks to dev"
         run: pipenv run sceptre --var "namespace=${{ env.NAMESPACE }}" launch develop --yes
 
+      - name: Configure S3 to Glue lambda with S3 trigger
+        uses: gagoar/invoke-aws-lambda@v3
+        with:
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
+          REGION: ${{ env.AWS_REGION }}
+          FunctionName: ${{ env.NAMESPACE }}-S3EventConfig
+          Payload: '{"RequestType": "Create"}'
+          LogType: Tail
 
   sceptre-deploy-staging:
     name: Deploys to staging of prod using sceptre

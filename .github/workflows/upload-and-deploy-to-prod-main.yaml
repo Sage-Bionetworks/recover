@@ -71,7 +71,7 @@ jobs:
         run: pipenv run sceptre --var "namespace=${{ env.NAMESPACE }}" launch prod --yes
 
       - name: Configure S3 to Glue lambda with S3 trigger
-        uses: actions/invoke-aws-lambda@v3
+        uses: gagoar/invoke-aws-lambda@v3
         with:
           AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
