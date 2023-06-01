@@ -46,13 +46,6 @@ Resources:
           S3_TO_GLUE_FUNCTION_ARN: !Ref S3ToGlueFunctionArn
           BUCKET_KEY_PREFIX: !Ref Namespace
 
-  LambdaInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt S3EventConfigFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: !Ref 'AWS::AccountId'
-
 Outputs:
   S3EventConfigFunctionArn:
     Description: Arn of the S3EventConfigFunction function
