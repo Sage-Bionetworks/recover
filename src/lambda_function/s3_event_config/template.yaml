@@ -33,6 +33,7 @@ Resources:
   S3EventConfigFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "${Namespace}-S3EventConfig"
       PackageType: Zip
       CodeUri: ./
       Handler: app.lambda_handler
