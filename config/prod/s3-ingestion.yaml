@@ -18,3 +18,5 @@ parameters:
     - 'arn:aws:sts::526515999252:assumed-role/AWSReservedSSO_S3ExternalCollab_40c062f682e7f3f5/meghasyam@sagebase.org'
     - 'arn:aws:sts::526515999252:assumed-role/AWSReservedSSO_S3ExternalCollab_40c062f682e7f3f5/pranav.anbarasu@sagebase.org'
     - 'arn:aws:iam::621233246578:role/EES3-RK-6A32F45B-RECOVER' # QA ARN role for Care Evolution
+    - 'arn:aws:iam::621233246578:role/EES3-RK-72CF2DF7-RECOVER-Pediatric' # ARN for Care Evolution Pediatric
+    - 'arn:aws:iam::621233246578:role/EES3-RK-72CF2DF7-RECOVER-Adult' # ARN for Care Evolution Adult
