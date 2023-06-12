@@ -13,8 +13,9 @@ assessmentid, year, month, and day to each record in each table.
 
 import os
 import sys
-import boto3
+from datetime import datetime
 
+import boto3
 from awsglue import DynamicFrame
 from awsglue.context import GlueContext
 from awsglue.job import Job
@@ -182,11 +183,86 @@ def drop_deleted_healthkit_data(
     )
     return table_with_deleted_samples_removed
 
+def archive_existing_datasets(
+        glue_context: GlueContext,
+        bucket: str,
+        key_prefix: str,
+        workflow_run_id: str,
+        delete_upon_completion: bool
+    ) -> None:
+    """
+    Archives existing datasets in S3 by copying them to a timestamped subfolder
+    within an "archive" folder. The format of the timestamped subfolder is:
+
+        {year}_{month}_{day}_{workflow_run_id}
+
+    If the dataset does not exist at `key_prefix` or the dataset is empty,
+    no action will be taken.
+
+    Args:
+        glue_context (GlueContext): The Glue context
+        bucket (str): The name of the S3 bucket containing the dataset to archive.
+        key_prefix (str): The S3 key prefix of the objects to be archived.
+            Ensure that this ends with a trailing "/" to avoid matching
+            child datasets.
+        workflow_run_id (str): The Glue workflow run ID.
+        delete_upon_completion (bool): Whether to delete the dataset after archiving.
+
+    Returns:
+        None
+
+    Raises:
+        N/A
+    """
+    logger = glue_context.get_logger()
+    s3_client = boto3.client("s3")
+    response = s3_client.list_objects_v2(
+            Bucket=bucket,
+            Prefix=key_prefix
+    )
+    if "Contents" not in response:
+        return
+    formatted_datetime = ( # e.g., 2023_06_28
+            str(datetime.now())
+            .split(" ")[0]
+            .replace('-', '_')
+    )
+    this_archive_collection = "_".join([formatted_datetime, workflow_run_id])
+    source_objects = [
+            obj for obj in response["Contents"] if obj["Size"] > 0]
+    objects_to_delete = []
+    for source_object in source_objects:
+        this_object = {
+                "Bucket": bucket,
+                "Key": source_object["Key"]
+        }
+        destination_key = os.path.join(
+                os.path.dirname(key_prefix[:-1]), # .../parquet/
+                "archive",
+                this_archive_collection, # {year}_{month}_{day}_{workflow_run_id}
+                os.path.basename(key_prefix[:-1]), # {dataset}
+                os.path.relpath(this_object["Key"], key_prefix) # some/path/object.parquet
+        )
+        logger.info(f"Copying {this_object['Key']} to {destination_key}")
+        copy_response = s3_client.copy_object(
+                CopySource=this_object,
+                Bucket=bucket,
+                Key=destination_key
+        )
+        this_object.pop("Bucket")
+        objects_to_delete.append(this_object)
+    if delete_upon_completion and objects_to_delete:
+        s3_client.delete_objects(
+                Bucket=bucket,
+                Delete={"Objects": objects_to_delete}
+        )
+
 def write_table_to_s3(
         dynamic_frame: DynamicFrame,
         bucket: str,
         key: str,
         glue_context: GlueContext,
+        workflow_run_id: str,
         records_per_partition: int = int(1e6)
     ) -> None:
     """
@@ -197,6 +273,7 @@ def write_table_to_s3(
         bucket (str): An S3 bucket name.
         key (str): The key to which we write the `dynamic_frame`.
         glue_context (GlueContext): The glue context
+        workflow_run_id (str): The Glue workflow run ID
         records_per_partition (int): The number of records (rows) to include
             in each partition. Defaults to 1e6.
 
@@ -207,6 +284,14 @@ def write_table_to_s3(
     s3_write_path = os.path.join("s3://", bucket, key)
     num_partitions = int(dynamic_frame.count() // records_per_partition + 1)
     dynamic_frame = dynamic_frame.coalesce(num_partitions)
+    logger.info(f"Archiving {os.path.basename(key)}")
+    archive_existing_datasets(
+            glue_context=glue_context,
+            bucket=bucket,
+            key_prefix=key+"/",
+            workflow_run_id=workflow_run_id,
+            delete_upon_completion=True
+    )
     logger.info(f"Writing {os.path.basename(key)} to {s3_write_path} "
                 f"as {num_partitions} partitions.")
     glue_context.write_dynamic_frame.from_options(
@@ -253,13 +338,16 @@ def add_index_to_table(
     Returns:
         awsglue.DynamicFrame with index columns
     """
+    logger = glue_context.get_logger()
     _, table_data_type = table_name.split("_")
     this_table = unprocessed_tables[table_key].toDF()
+    logger.info(f"Adding index to {table_name}")
     if table_key == table_name: # top-level fields already include index
         for c in list(this_table.columns):
             if "." in c: # a flattened struct field
-                this_table = this_table.withColumnRenamed(
-                        c, c.replace(".", "_"))
+                c_new = c.replace(".", "_")
+                logger.info(f"Renaming field {c} to {c_new}")
+                this_table = this_table.withColumnRenamed(c, c_new)
         df_with_index = this_table
     else:
         if ".val." in table_key:
@@ -275,6 +363,7 @@ def add_index_to_table(
             selectable_original_field_name = f"`{original_field_name}`"
         else:
             selectable_original_field_name = original_field_name
+        logger.info(f"Adding index to {original_field_name}")
         parent_index = (parent_table
                 .select(
                     [selectable_original_field_name] + INDEX_FIELD_MAP[table_data_type])
@@ -291,6 +380,7 @@ def add_index_to_table(
             # do nothing if c is id, index, or partition field
             if f"{original_field_name}.val" == c: # field is an array
                 succinct_name = c.replace(".", "_")
+                logger.info(f"Renaming field {c} to {succinct_name}")
                 df_with_index = df_with_index.withColumnRenamed(
                         c, succinct_name)
             elif field_prefix in c:
@@ -301,6 +391,7 @@ def add_index_to_table(
                 if succinct_name in df_with_index.columns:
                     # If key is still duplicate, leave unchanged
                     continue
+                logger.info(f"Renaming field {c} to {succinct_name}")
                 df_with_index = df_with_index.withColumnRenamed(
                         c, succinct_name)
     return df_with_index
@@ -361,6 +452,7 @@ def main() -> None:
                         workflow_run_properties["parquet_prefix"],
                         clean_name
                     ),
+                    workflow_run_id=args["WORKFLOW_RUN_ID"],
                     glue_context=glue_context
             )
     elif table.count() > 0:
@@ -371,6 +463,7 @@ def main() -> None:
                     workflow_run_properties["namespace"],
                     workflow_run_properties["parquet_prefix"],
                     args["glue_table"]),
+                workflow_run_id=args["WORKFLOW_RUN_ID"],
                 glue_context=glue_context
         )
     job.commit()
