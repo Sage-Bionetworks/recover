@@ -271,3 +271,16 @@ def pytest_addoption(parser):
         default=None,
         help="The SSM parameter to use to check STS access. Optional",
     )
+    parser.addoption(
+        "--namespace",
+        default=None,
+        help="The namespace to test."
+    )
+
+@pytest.fixture(scope="session")
+def namespace(pytestconfig):
+    yield pytestconfig.getoption("namespace")
+
+@pytest.fixture(scope="session")
+def artifact_bucket():
+    yield "recover-dev-cloudformation"
