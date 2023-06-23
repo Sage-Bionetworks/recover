@@ -85,9 +85,6 @@ jobs:
       contents: read
     environment: develop
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
       - name: Assume AWS role
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -113,9 +110,11 @@ jobs:
       - name: Build and push to ECR
         id: docker-build-push
         uses: docker/build-push-action@v4
+        env:
+          DOCKER_IMAGE: ${{ steps.login-ecr.outputs.registry }}/pytest:${{ github.ref_name }}
         with:
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/pytest:${{ github.ref_name }}
+          tags: ${{ env.DOCKER_IMAGE }}
           file: tests/Dockerfile.aws_glue_3
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
