@@ -49,10 +49,29 @@ jobs:
         run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace $NAMESPACE --cfn_bucket ${{ vars.CFN_BUCKET }}
 
 
+  nonglue-unit-tests:
+    name: Runs unit tests that are dependent on aws-glue package resources
+    runs-on: ubuntu-latest
+    needs: [pre-commit, upload-files]
+    environment: develop
+    steps:
+      - name: Setup code, pipenv, aws
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
+        with:
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: ${{ github.event.repository.name }}-${{ github.run_id }}-nonglue-unit-tests
+          python_version: ${{ env.PYTHON_VERSION }}
+
+      - name: Test with pytest
+        run: |
+          pytest tests/test_s3_event_config_lambda.py
+          pytest tests/test_s3_to_glue_lambda.py
+          pytest tests/test_setup_external_storage.py --test-synapse-folder-id syn51084525 --test-ssm-parameter synapse-recover-auth
+
   sceptre-deploy-develop:
     name: Deploys branch using sceptre
     runs-on: ubuntu-latest
-    needs: [pre-commit, upload-files]
+    needs: [pre-commit, upload-files, nonglue-unit-tests]
     environment: develop
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
@@ -91,7 +110,7 @@ jobs:
   sceptre-deploy-staging:
     name: Deploys to staging of prod using sceptre
     runs-on: ubuntu-latest
-    needs: [pre-commit, upload-files, sceptre-deploy-develop]
+    needs: [pre-commit, upload-files, nonglue-unit-tests, sceptre-deploy-develop]
     if: github.ref_name == 'main'
     environment: prod
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
