@@ -62,10 +62,12 @@ jobs:
           role_session_name: ${{ github.event.repository.name }}-${{ github.run_id }}-nonglue-unit-tests
           python_version: ${{ env.PYTHON_VERSION }}
 
-      - name: Test with pytest
+      - name: Test lambda scripts with pytest
         run: |
           pytest tests/test_s3_event_config_lambda.py
           pytest tests/test_s3_to_glue_lambda.py
+      - name: Test synapse folders for STS access with pytest
+        run: |
           pytest tests/test_setup_external_storage.py --test-synapse-folder-id syn51084525 --test-ssm-parameter synapse-recover-auth
 
   sceptre-deploy-develop:
