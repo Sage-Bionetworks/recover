@@ -52,7 +52,7 @@ jobs:
   nonglue-unit-tests:
     name: Runs unit tests that are not dependent on aws-glue package resources
     runs-on: ubuntu-latest
-    needs: [pre-commit, upload-files]
+    needs: pre-commit
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
       id-token: write
@@ -77,7 +77,7 @@ jobs:
 
   pytest-docker:
     name: Build and push testing docker images to ECR
-    needs: upload-files
+    needs: pre-commit
     runs-on: ubuntu-latest
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
@@ -86,7 +86,7 @@ jobs:
     environment: develop
     steps:
       - name: Assume AWS role
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           role_session_name: ${{ github.event.repository.name }}-${{ github.run_id }}-nonglue-unit-tests
@@ -121,7 +121,7 @@ jobs:
   sceptre-deploy-develop:
     name: Deploys branch using sceptre
     runs-on: ubuntu-latest
-    needs: [pre-commit, upload-files, nonglue-unit-tests]
+    needs: [pre-commit, upload-files, nonglue-unit-tests, pytest-docker]
     environment: develop
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
@@ -160,7 +160,7 @@ jobs:
   sceptre-deploy-staging:
     name: Deploys to staging of prod using sceptre
     runs-on: ubuntu-latest
-    needs: [pre-commit, upload-files, nonglue-unit-tests, sceptre-deploy-develop]
+    needs: [pre-commit, upload-files, nonglue-unit-tests, pytest-docker, sceptre-deploy-develop]
     if: github.ref_name == 'main'
     environment: prod
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
