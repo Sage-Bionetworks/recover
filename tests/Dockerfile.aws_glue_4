@@ -1,0 +1,4 @@
+FROM amazon/aws-glue-libs:glue_libs_4.0.0_image_01
+
+RUN pip3 install moto~=4.1 pytest-datadir
+ENTRYPOINT ["bash", "-l"]
