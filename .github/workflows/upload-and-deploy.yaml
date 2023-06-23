@@ -68,11 +68,11 @@ jobs:
 
       - name: Test lambda scripts with pytest
         run: |
-          python3 -m pytest tests/test_s3_event_config_lambda.py
-          python3 -m pytest tests/test_s3_to_glue_lambda.py
+          pipenv run python -m pytest tests/test_s3_event_config_lambda.py
+          pipenv run python -m pytest tests/test_s3_to_glue_lambda.py
       - name: Test synapse folders for STS access with pytest
         run: |
-          python3 -m pytest tests/test_setup_external_storage.py --test-synapse-folder-id syn51084525 --test-ssm-parameter synapse-recover-auth
+          pipenv run python -m pytest tests/test_setup_external_storage.py --test-synapse-folder-id syn51084525 --test-ssm-parameter synapse-recover-auth
 
   sceptre-deploy-develop:
     name: Deploys branch using sceptre
