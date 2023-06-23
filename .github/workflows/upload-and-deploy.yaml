@@ -88,8 +88,8 @@ jobs:
       - name: Assume AWS role
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
-          role_session_name: ${{ github.event.repository.name }}-${{ github.run_id }}-nonglue-unit-tests
+          role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role-session-name: ${{ github.event.repository.name }}-${{ github.run_id }}-nonglue-unit-tests
           aws-region: "us-east-1"
           role-duration-seconds: 1200
       - name: Login to Amazon ECR
