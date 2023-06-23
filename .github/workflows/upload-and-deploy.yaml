@@ -85,16 +85,19 @@ jobs:
       contents: read
     environment: develop
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
       - name: Assume AWS role
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
-          role-session-name: ${{ github.event.repository.name }}-${{ github.run_id }}-nonglue-unit-tests
           aws-region: "us-east-1"
-          role-duration-seconds: 1200
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
+
       - name: Get ECR secret names
         id: ecr
         run: |
@@ -103,8 +106,10 @@ jobs:
           passwordKey=docker_password_$(echo ${{ steps.login-ecr.outputs.registry }} | tr '.-' _)
           echo "password-key=$passwordKey" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
+
       - name: Build and push to ECR
         id: docker-build-push
         uses: docker/build-push-action@v4
