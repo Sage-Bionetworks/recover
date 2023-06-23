@@ -53,6 +53,10 @@ jobs:
     name: Runs unit tests that are dependent on aws-glue package resources
     runs-on: ubuntu-latest
     needs: [pre-commit, upload-files]
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
     environment: develop
     steps:
       - name: Setup code, pipenv, aws
