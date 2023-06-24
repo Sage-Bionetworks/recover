@@ -76,7 +76,9 @@ jobs:
 
 
   pytest-docker:
-    name: Build and push testing docker images to ECR
+    # A ECR repo called pytest would need to exist in the AWS account
+    # we are pushing docker images to prior to this
+    name: Build and push testing docker images to the pytest ECR repository.
     needs: pre-commit
     runs-on: ubuntu-latest
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
@@ -97,6 +99,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           aws-region: "us-east-1"
+          # unmasking of the AWS account ID allows the acct id to pass through outputs
           mask-aws-account-id: "no"
 
       - name: Login to Amazon ECR
