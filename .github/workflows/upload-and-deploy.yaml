@@ -97,6 +97,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           aws-region: "us-east-1"
+          mask-aws-account-id: "no"
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -140,8 +141,7 @@ jobs:
     strategy:
       matrix:
           tag_name:
-            - aws_glue_3
-            - aws_glue_4
+            ["aws_glue_3", "aws_glue_4"]
     container:
       image: ${{ needs.pytest-docker.outputs.ecr-registry }}/pytest:${{ github.ref_name }}_${{ matrix.tag_name }}
       credentials:
