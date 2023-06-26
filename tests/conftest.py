@@ -276,6 +276,12 @@ def pytest_addoption(parser):
         default=None,
         help="The namespace to test."
     )
+    parser.addoption(
+        "--test-sts-permission",
+        default=None,
+        choices= ["read_only", "read_write"],
+        help="The permission type to use for the STS token credentials. Required."
+    )
 
 @pytest.fixture(scope="session")
 def namespace(pytestconfig):

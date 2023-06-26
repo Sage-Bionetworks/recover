@@ -78,5 +78,9 @@ This test takes in two command line arguments:
 - test-ssm-parameter - ssm parameter to get AWS credentials for otherwise leave blank and it will pull credentials from the environment
 
 ```shell script
-python3 -m pytest tests/test_setup_external_storage.py --test-synapse-folder-id <put_synapse_folder_id_here> --test-ssm-parameter <put_ssm_parameter_here_or_leave_blank>
+python3 -m pytest tests/test_setup_external_storage.py
+--test-synapse-folder-id <put_synapse_folder_id_here>
+--test-ssm-parameter <put_ssm_parameter_here_or_leave_blank>
+--namespace <put_namespace_here>
+--test_sts_permission <put_the_type_of_permission_to_test_here>
 ```
