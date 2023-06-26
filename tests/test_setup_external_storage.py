@@ -27,3 +27,9 @@ def test_setup_external_storage_success(test_synapse_folder_id, test_ssm_paramet
     token = test_synapse_client.get_sts_storage_token(
         entity=test_synapse_folder_id, permission="read_only", output_format="json"
     )
+    # login with the credentials and list objects
+    s3_client = boto3.session.Session(
+        aws_access_key_id = token["accessKeyId"],
+        aws_secret_access_key = token["secretAccessKey"],
+        aws_session_token = token["sessionToken"]).client("s3")
+    s3_client.list_objects_v2(Bucket=token["bucket"])
