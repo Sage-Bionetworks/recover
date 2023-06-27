@@ -16,8 +16,8 @@ import argparse
 import json
 import boto3
 
-SINGLE_RECORD_OUTFILE = 'single-record.json'
-MULTI_RECORD_OUTFILE = 'records.json'
+SINGLE_RECORD_OUTFILE = './src/lambda_function/s3_to_glue/events/single-record.json'
+MULTI_RECORD_OUTFILE = './src/lambda_function/s3_to_glue/events/records.json'
 
 
 def read_args() -> argparse.Namespace:
