@@ -271,21 +271,30 @@ def pytest_addoption(parser):
         default=None,
         help="The SSM parameter to use to check STS access. Optional",
     )
-    parser.addoption(
-        "--namespace",
-        default=None,
-        help="The namespace to test."
-    )
+    parser.addoption("--namespace", default=None, help="The namespace to test.")
     parser.addoption(
         "--test-sts-permission",
-        default=None,
-        choices= ["read_only", "read_write"],
-        help="The permission type to use for the STS token credentials. Required."
+        default="read_only",
+        choices=["read_only", "read_write"],
+        help="The permission type to use for the STS token credentials. Required.",
     )
+    parser.addoption(
+        "--test-bucket",
+        default=None,
+        choices=[
+            "recover-input-data",
+            "recover-processed-data",
+            "recover-dev-input-data",
+            "recover-dev-processed-data",
+        ],
+        help="The bucket to test access with the STS token credentials. Required.",
+    )
+
 
 @pytest.fixture(scope="session")
 def namespace(pytestconfig):
     yield pytestconfig.getoption("namespace")
+
 
 @pytest.fixture(scope="session")
 def artifact_bucket():

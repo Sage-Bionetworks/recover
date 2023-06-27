@@ -21,9 +21,18 @@ def test_sts_permission(pytestconfig):
     yield pytestconfig.getoption("test_sts_permission")
 
 
+@pytest.fixture()
+def test_bucket(pytestconfig):
+    yield pytestconfig.getoption("test_bucket")
+
+
 @pytest.mark.integration()
 def test_setup_external_storage_success(
-    namespace : str, test_synapse_folder_id: str, test_ssm_parameter: str, test_sts_permission: str
+    test_bucket: str,
+    namespace: str,
+    test_synapse_folder_id: str,
+    test_ssm_parameter: str,
+    test_sts_permission: str,
 ):
     """This test tests that it can get the STS token credentials and view and list the
     files in the S3 bucket location to verify that it has access"""
@@ -32,12 +41,10 @@ def test_setup_external_storage_success(
     )
     # Get STS credentials
     token = test_synapse_client.get_sts_storage_token(
-        entity=test_synapse_folder_id, permission=test_sts_permission, output_format="json"
+        entity=test_synapse_folder_id,
+        permission=test_sts_permission,
+        output_format="boto",
     )
     # login with the credentials and list objects
-    s3_client = boto3.session.Session(
-        aws_access_key_id=token["accessKeyId"],
-        aws_secret_access_key=token["secretAccessKey"],
-        aws_session_token=token["sessionToken"],
-    ).client("s3")
-    s3_client.list_objects_v2(Bucket=token["bucket"], Prefix = namespace)
+    s3_client = boto3.Session(**token).client("s3")
+    s3_client.list_objects_v2(Bucket=test_bucket, Prefix=namespace)
