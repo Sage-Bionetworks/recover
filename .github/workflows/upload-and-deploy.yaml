@@ -8,6 +8,7 @@ on:
 env:
   NAMESPACE: main
   PYTHON_VERSION: 3.9
+  DEV_INPUT_DATA_BUCKET: recover-dev-input-data
 
 jobs:
 
@@ -46,7 +47,17 @@ jobs:
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
       - name: Copy files to templates bucket, use dev cloudformation bucket
-        run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace $NAMESPACE --cfn_bucket ${{ vars.CFN_BUCKET }}
+        run: >
+          python src/scripts/manage_artifacts/artifacts.py
+          --upload
+          --namespace $NAMESPACE
+          --cfn_bucket ${{ vars.CFN_BUCKET }}
+
+      - name: Copies over test files from ingestion bucket
+        run: >
+          aws sync s3://recover-dev-ingestion/ s3://$DEV_INPUT_DATA_BUCKET/$NAMESPACE/
+          --exclude "owner.txt"
+          --exclude "test_upload.rtf"
 
 
   nonglue-unit-tests:
@@ -70,9 +81,13 @@ jobs:
         run: |
           pipenv run python -m pytest tests/test_s3_event_config_lambda.py -v
           pipenv run python -m pytest tests/test_s3_to_glue_lambda.py -v
+
       - name: Test synapse folders for STS access with pytest
-        run: |
-          pipenv run python -m pytest tests/test_setup_external_storage.py --test-synapse-folder-id syn51084525 --test-ssm-parameter synapse-recover-auth -v
+        run: >
+          pipenv run python -m pytest tests/test_setup_external_storage.py
+          --test-synapse-folder-id syn51084525
+          --test-ssm-parameter synapse-recover-auth
+          -v
 
 
   pytest-docker:
@@ -132,6 +147,7 @@ jobs:
       ecr-username: ${{ steps.login-ecr.outputs[steps.ecr.outputs.username-key] }}
       ecr-password: ${{ steps.login-ecr.outputs[steps.ecr.outputs.password-key] }}
 
+
   glue-unit-tests:
     name: Run Pytest unit tests for AWS glue
     needs: pytest-docker
@@ -178,13 +194,15 @@ jobs:
 
       - name: Run Pytest unit tests under AWS 4.0
         if: matrix.tag_name == 'aws_glue_4'
-        run: su - glue_user --command "cd $GITHUB_WORKSPACE && python3 -m pytest tests/test_json_to_parquet.py --namespace $NAMESPACE -v"
+        run: >
+          su - glue_user --command "cd $GITHUB_WORKSPACE &&
+          python3 -m pytest tests/test_json_to_parquet.py --namespace $NAMESPACE -v"
 
 
   sceptre-deploy-develop:
     name: Deploys branch using sceptre
     runs-on: ubuntu-latest
-    needs: [pre-commit, upload-files, nonglue-unit-tests, pytest-docker, glue-unit-tests]
+    needs: [upload-files, nonglue-unit-tests, glue-unit-tests]
     environment: develop
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
@@ -220,10 +238,51 @@ jobs:
           Payload: '{"RequestType": "Create"}'
           LogType: Tail
 
+
+  integration-test-develop:
+    name: Triggers ETL workflow with S3 test files
+    runs-on: ubuntu-latest
+    needs: sceptre-deploy-develop
+    environment: develop
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Setup code, pipenv, aws
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
+        with:
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: integration-test-${{ github.run_id }}
+          python_version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set namespace for non-default branch or for tag
+        if: github.ref_name != 'main'
+        run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
+
+      - name: generate test events
+        run: >
+          pipenv run python src/lambda_function/s3_to_glue/events/generate_test_event.py
+          --input-bucket $DEV_INPUT_DATA_BUCKET
+          --input-key-prefix $NAMESPACE
+
+      - name: Setup sam
+        uses: aws-actions/setup-sam@v2
+
+      - name: sam build lambda
+        run: >
+          sam build
+          -s src/lambda_function/s3_to_glue/
+          -t src/lambda_function/s3_to_glue/template.yaml
+
+      - name: Invoke Lambda
+        run: sam local invoke -e records.json
+
+
   sceptre-deploy-staging:
     name: Deploys to staging of prod using sceptre
     runs-on: ubuntu-latest
-    needs: [pre-commit, upload-files, nonglue-unit-tests, pytest-docker, glue-unit-tests, sceptre-deploy-develop]
+    needs: integration-test-develop
     if: github.ref_name == 'main'
     environment: prod
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
