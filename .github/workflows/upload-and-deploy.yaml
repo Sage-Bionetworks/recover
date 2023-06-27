@@ -55,7 +55,7 @@ jobs:
 
       - name: Copies over test files from ingestion bucket
         run: >
-          aws sync s3://recover-dev-ingestion/ s3://$DEV_INPUT_DATA_BUCKET/$NAMESPACE/
+          aws s3 sync s3://recover-dev-ingestion/ s3://$DEV_INPUT_DATA_BUCKET/$NAMESPACE/
           --exclude "owner.txt"
           --exclude "test_upload.rtf"
 
