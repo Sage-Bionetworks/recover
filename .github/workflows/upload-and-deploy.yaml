@@ -278,7 +278,7 @@ jobs:
       - name: Invoke Lambda
         run: |
           cd src/lambda_function/s3_to_glue/
-          sam local invoke -e events/records.json --parameter-overrides 'PrimaryWorkflowName=$NAMESPACE-PrimaryWorkflow'
+          sam local invoke -e events/records.json --parameter-overrides "PrimaryWorkflowName=$NAMESPACE-PrimaryWorkflow"
 
 
   sceptre-deploy-staging:
