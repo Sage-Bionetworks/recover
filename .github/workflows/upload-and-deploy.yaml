@@ -83,7 +83,6 @@ jobs:
           pipenv run python -m pytest tests/test_s3_to_glue_lambda.py -v
 
       - name: Test dev synapse folders for STS access with pytest
-        if: github.ref_name == 'main'
         run: >
           pipenv run python -m pytest tests/test_setup_external_storage.py
           --test-bucket $DEV_INPUT_BUCKET
