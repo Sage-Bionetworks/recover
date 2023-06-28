@@ -275,6 +275,7 @@ jobs:
           pipenv run python src/lambda_function/s3_to_glue/events/generate_test_event.py
           --input-bucket $DEV_INPUT_BUCKET
           --input-key-prefix $NAMESPACE
+          --output-directory ./src/lambda_function/s3_to_glue/events/
 
       - name: Setup sam
         uses: aws-actions/setup-sam@v2

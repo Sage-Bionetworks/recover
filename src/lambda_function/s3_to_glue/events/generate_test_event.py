@@ -12,12 +12,13 @@ See https://github.com/Sage-Bionetworks/recover/tree/main/src/lambda_function
 for detailed information how to use this event with the Lambda.
 """
 
+import os
 import argparse
 import json
 import boto3
 
-SINGLE_RECORD_OUTFILE = './src/lambda_function/s3_to_glue/events/single-record.json'
-MULTI_RECORD_OUTFILE = './src/lambda_function/s3_to_glue/events/records.json'
+SINGLE_RECORD_OUTFILE = 'single-record.json'
+MULTI_RECORD_OUTFILE = 'records.json'
 
 
 def read_args() -> argparse.Namespace:
@@ -40,6 +41,12 @@ def read_args() -> argparse.Namespace:
             help=("Takes precedence over `--input-key`. If you want "
                   "to generate a single event containing all data under a specific "
                   "S3 key prefix, specify that here.")
+    )
+    parser.add_argument(
+            "--output-directory",
+            default = "./",
+            help=("Specifies the directory that the S3 notification json gets saved to. "
+                  "Defaults to current directory that the script is running from. ")
     )
     args = parser.parse_args()
     return args
@@ -137,11 +144,11 @@ def main() -> None:
     )
 
     if args.input_key_prefix is not None:
-        with open(MULTI_RECORD_OUTFILE, "w") as outfile:
+        with open(os.path.join(args.output_directory, MULTI_RECORD_OUTFILE), "w") as outfile:
             json.dump(s3_event, outfile)
             print(f"Event with multiple records written to {outfile.name}.")
     else:
-        with open(SINGLE_RECORD_OUTFILE, "w") as outfile:
+        with open(os.path.join(args.output_directory, SINGLE_RECORD_OUTFILE), "w") as outfile:
             json.dump(s3_event, outfile)
             print(f"Event with single record written to {outfile.name}.")
     print("Done.")
