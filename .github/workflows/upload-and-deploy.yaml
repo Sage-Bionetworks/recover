@@ -56,9 +56,8 @@ jobs:
 
       - name: Copies over test files from ingestion bucket
         run: >
-          aws s3 sync s3://recover-dev-ingestion/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
+          aws s3 sync s3://recover-dev-ingestion/pilot-data/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
           --exclude "owner.txt"
-          --exclude "test_upload.rtf"
 
 
   nonglue-unit-tests:

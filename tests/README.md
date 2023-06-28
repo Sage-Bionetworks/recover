@@ -59,7 +59,7 @@ You can find your test related resources here (for reviewing/troubleshooting):
 `s3://<recover_artifacts_bucket_name>/<namespace>/tests/test_json_to_parquet`
 
 ```shell script
-python3 -m pytest <path_to_your_specific_script> -namespace <name_of_namespace_to_use> -v
+python3 -m pytest <path_to_your_specific_script> --namespace <name_of_namespace_to_use> -v
 ```
 
 ##### Running tests for everything else
