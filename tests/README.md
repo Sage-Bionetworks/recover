@@ -77,7 +77,6 @@ access has been set for a given synapse folder (in develop).
 python3 -m pytest tests/test_setup_external_storage.py
 --test-bucket <put_bucket_name_here>
 --test-synapse-folder-id <put_synapse_folder_id_here>
---test-ssm-parameter <put_ssm_parameter_here_or_leave_blank>
 --namespace <put_namespace_here>
 --test_sts_permission <put_the_type_of_permission_to_test_here>
 ```

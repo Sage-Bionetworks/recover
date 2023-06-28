@@ -12,11 +12,6 @@ def test_synapse_folder_id(pytestconfig):
 
 
 @pytest.fixture()
-def test_ssm_parameter(pytestconfig):
-    yield pytestconfig.getoption("test_ssm_parameter")
-
-
-@pytest.fixture()
 def test_sts_permission(pytestconfig):
     yield pytestconfig.getoption("test_sts_permission")
 
@@ -31,13 +26,13 @@ def test_setup_external_storage_success(
     test_bucket: str,
     namespace: str,
     test_synapse_folder_id: str,
-    test_ssm_parameter: str,
     test_sts_permission: str,
+    ssm_parameter : str
 ):
     """This test tests that it can get the STS token credentials and view and list the
     files in the S3 bucket location to verify that it has access"""
     test_synapse_client = setup_external_storage.get_synapse_client(
-        ssm_parameter=test_ssm_parameter, aws_session=boto3
+        ssm_parameter=ssm_parameter, aws_session=boto3
     )
     # Get STS credentials
     token = test_synapse_client.get_sts_storage_token(

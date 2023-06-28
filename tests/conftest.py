@@ -265,12 +265,6 @@ def pytest_addoption(parser):
         default=None,
         help="ID of the synapse folder to check STS access. Required.",
     )
-    parser.addoption(
-        "--test-ssm-parameter",
-        action="store",
-        default=None,
-        help="The SSM parameter to use to check STS access. Optional",
-    )
     parser.addoption("--namespace", default=None, help="The namespace to test.")
     parser.addoption(
         "--test-sts-permission",
@@ -299,3 +293,8 @@ def namespace(pytestconfig):
 @pytest.fixture(scope="session")
 def artifact_bucket():
     yield "recover-dev-cloudformation"
+
+
+@pytest.fixture(scope="session")
+def ssm_parameter():
+    yield "synapse-recover-auth"
