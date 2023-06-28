@@ -100,8 +100,6 @@ jobs:
 
 
   pytest-docker:
-    # A ECR repo called pytest would need to exist in the AWS account
-    # we are pushing docker images to prior to this
     name: Build and push testing docker images to the pytest ECR repository.
     needs: pre-commit
     runs-on: ubuntu-latest
