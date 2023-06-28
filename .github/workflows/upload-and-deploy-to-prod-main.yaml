@@ -80,3 +80,38 @@ jobs:
           FunctionName: ${{ env.NAMESPACE }}-S3EventConfig
           Payload: '{"RequestType": "Create"}'
           LogType: Tail
+
+
+  sts-access-test:
+    name: Runs STS access tests on prod synapse folders
+    runs-on: ubuntu-latest
+    needs: sceptre-deploy-main
+    environment: prod
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Setup code, pipenv, aws
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
+        with:
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: ${{ github.event.repository.name }}-${{ github.run_id }}-nonglue-unit-tests
+          python_version: ${{ env.PYTHON_VERSION }}
+
+      - name: Test prod synapse folders for STS access with pytest
+        run: >
+          pipenv run python -m pytest tests/test_setup_external_storage.py
+          --test-bucket recover-input-data
+          --test-synapse-folder-id syn51714264
+          --namespace $NAMESPACE
+          --test-sts-permission read_only
+          -v
+
+          pipenv run python -m pytest tests/test_setup_external_storage.py
+          --test-bucket recover-processed-data
+          --test-synapse-folder-id syn51406699
+          --namespace $NAMESPACE/parquet
+          --test-sts-permission read_write
+          -v

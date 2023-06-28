@@ -8,7 +8,8 @@ on:
 env:
   NAMESPACE: main
   PYTHON_VERSION: 3.9
-  DEV_INPUT_DATA_BUCKET: recover-dev-input-data
+  DEV_INPUT_BUCKET: recover-dev-input-data
+  DEV_PROCESSED_BUCKET: recover-dev-processed-data
 
 jobs:
 
@@ -55,7 +56,7 @@ jobs:
 
       - name: Copies over test files from ingestion bucket
         run: >
-          aws s3 sync s3://recover-dev-ingestion/ s3://$DEV_INPUT_DATA_BUCKET/$NAMESPACE/
+          aws s3 sync s3://recover-dev-ingestion/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
           --exclude "owner.txt"
           --exclude "test_upload.rtf"
 
@@ -82,11 +83,21 @@ jobs:
           pipenv run python -m pytest tests/test_s3_event_config_lambda.py -v
           pipenv run python -m pytest tests/test_s3_to_glue_lambda.py -v
 
-      - name: Test synapse folders for STS access with pytest
+      - name: Test dev synapse folders for STS access with pytest
+        if: github.ref_name == 'main'
         run: >
           pipenv run python -m pytest tests/test_setup_external_storage.py
+          --test-bucket $DEV_INPUT_BUCKET
+          --test-synapse-folder-id syn51758510
+          --namespace $NAMESPACE
+          --test_sts_permission read_only
+          -v
+
+          pipenv run python -m pytest tests/test_setup_external_storage.py
+          --test-bucket $DEV_PROCESSED_BUCKET
           --test-synapse-folder-id syn51084525
-          --test-ssm-parameter synapse-recover-auth
+          --namespace $NAMESPACE/parquet
+          --test_sts_permission read_write
           -v
 
 
@@ -263,7 +274,7 @@ jobs:
       - name: generate test events
         run: >
           pipenv run python src/lambda_function/s3_to_glue/events/generate_test_event.py
-          --input-bucket $DEV_INPUT_DATA_BUCKET
+          --input-bucket $DEV_INPUT_BUCKET
           --input-key-prefix $NAMESPACE
 
       - name: Setup sam
