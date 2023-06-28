@@ -88,14 +88,14 @@ jobs:
           --test-bucket $DEV_INPUT_BUCKET
           --test-synapse-folder-id syn51758510
           --namespace $NAMESPACE
-          --test_sts_permission read_only
+          --test-sts-permission read_only
           -v
 
           pipenv run python -m pytest tests/test_setup_external_storage.py
           --test-bucket $DEV_PROCESSED_BUCKET
           --test-synapse-folder-id syn51084525
           --namespace $NAMESPACE/parquet
-          --test_sts_permission read_write
+          --test-sts-permission read_write
           -v
 
 
