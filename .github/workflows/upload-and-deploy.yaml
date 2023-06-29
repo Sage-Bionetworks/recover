@@ -8,6 +8,8 @@ on:
 env:
   NAMESPACE: main
   PYTHON_VERSION: 3.9
+  DEV_INPUT_BUCKET: recover-dev-input-data
+  DEV_PROCESSED_BUCKET: recover-dev-processed-data
 
 jobs:
 
@@ -46,13 +48,168 @@ jobs:
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
       - name: Copy files to templates bucket, use dev cloudformation bucket
-        run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace $NAMESPACE --cfn_bucket ${{ vars.CFN_BUCKET }}
+        run: >
+          python src/scripts/manage_artifacts/artifacts.py
+          --upload
+          --namespace $NAMESPACE
+          --cfn_bucket ${{ vars.CFN_BUCKET }}
+
+      - name: Copies over test files from ingestion bucket
+        run: >
+          aws s3 sync s3://recover-dev-ingestion/pilot-data/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
+          --exclude "owner.txt"
+
+
+  nonglue-unit-tests:
+    name: Runs unit tests that are not dependent on aws-glue package resources
+    runs-on: ubuntu-latest
+    needs: pre-commit
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    environment: develop
+    steps:
+      - name: Setup code, pipenv, aws
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
+        with:
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: ${{ github.event.repository.name }}-${{ github.run_id }}-nonglue-unit-tests
+          python_version: ${{ env.PYTHON_VERSION }}
+
+      - name: Test lambda scripts with pytest
+        run: |
+          pipenv run python -m pytest tests/test_s3_event_config_lambda.py -v
+          pipenv run python -m pytest tests/test_s3_to_glue_lambda.py -v
+
+      - name: Test dev synapse folders for STS access with pytest
+        run: >
+          pipenv run python -m pytest tests/test_setup_external_storage.py
+          --test-bucket $DEV_INPUT_BUCKET
+          --test-synapse-folder-id syn51758510
+          --namespace $NAMESPACE
+          --test-sts-permission read_only
+          -v
+
+          pipenv run python -m pytest tests/test_setup_external_storage.py
+          --test-bucket $DEV_PROCESSED_BUCKET
+          --test-synapse-folder-id syn51084525
+          --namespace $NAMESPACE/parquet
+          --test-sts-permission read_write
+          -v
+
+
+  pytest-docker:
+    name: Build and push testing docker images to the pytest ECR repository.
+    needs: pre-commit
+    runs-on: ubuntu-latest
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - tag_name: aws_glue_3
+            dockerfile: tests/Dockerfile.aws_glue_3
+          - tag_name: aws_glue_4
+            dockerfile: tests/Dockerfile.aws_glue_4
+    environment: develop
+    steps:
+      - name: Assume AWS role
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          aws-region: "us-east-1"
+          # unmasking of the AWS account ID allows the acct id to pass through outputs
+          mask-aws-account-id: "no"
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Get ECR secret names
+        id: ecr
+        run: |
+          usernameKey=docker_username_$(echo ${{ steps.login-ecr.outputs.registry }} | tr '.-' _)
+          echo "username-key=$usernameKey" >> $GITHUB_OUTPUT
+          passwordKey=docker_password_$(echo ${{ steps.login-ecr.outputs.registry }} | tr '.-' _)
+          echo "password-key=$passwordKey" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push to ECR
+        id: docker-build-push
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/pytest:${{ github.ref_name }}_${{ matrix.tag_name }}
+          file: ${{ matrix.dockerfile }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
+    outputs:
+      ecr-registry: ${{ steps.login-ecr.outputs.registry }}
+      ecr-username: ${{ steps.login-ecr.outputs[steps.ecr.outputs.username-key] }}
+      ecr-password: ${{ steps.login-ecr.outputs[steps.ecr.outputs.password-key] }}
+
+
+  glue-unit-tests:
+    name: Run Pytest unit tests for AWS glue
+    needs: pytest-docker
+    environment: develop
+    runs-on: ubuntu-latest
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+          tag_name:
+            ["aws_glue_3", "aws_glue_4"]
+    container:
+      image: ${{ needs.pytest-docker.outputs.ecr-registry }}/pytest:${{ github.ref_name }}_${{ matrix.tag_name }}
+      credentials:
+        username: ${{ needs.pytest-docker.outputs.ecr-username }}
+        password: ${{ needs.pytest-docker.outputs.ecr-password }}
+      env:
+        DISABLE_SSL: true
+      options: "--user root"
+    steps:
+      - name: Assume AWS role
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          aws-region: "us-east-1"
+      - uses: actions/checkout@v3
+      - run: chown -R glue_user $GITHUB_WORKSPACE
+      - run: su - glue_user --command "aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID"
+      - run: su - glue_user --command "aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY"
+      - run: su - glue_user --command "aws configure set aws_session_token $AWS_SESSION_TOKEN"
+      - run: su - glue_user --command "aws configure set region $AWS_REGION"
+
+      - name: Set namespace for non-default branch or for tag
+        if: github.ref_name != 'main'
+        run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
+
+      - name: Run Pytest unit tests under AWS 3.0
+        if: matrix.tag_name == 'aws_glue_3'
+        run: |
+          su - glue_user --command "cd $GITHUB_WORKSPACE && python3 -m pytest tests/test_s3_to_json.py -v"
+          su - glue_user --command "cd $GITHUB_WORKSPACE && python3 -m pytest tests/test_compare_parquet_datasets.py -v"
+
+      - name: Run Pytest unit tests under AWS 4.0
+        if: matrix.tag_name == 'aws_glue_4'
+        run: >
+          su - glue_user --command "cd $GITHUB_WORKSPACE &&
+          python3 -m pytest tests/test_json_to_parquet.py --namespace $NAMESPACE -v"
 
 
   sceptre-deploy-develop:
     name: Deploys branch using sceptre
     runs-on: ubuntu-latest
-    needs: [pre-commit, upload-files]
+    needs: [upload-files, nonglue-unit-tests, glue-unit-tests]
     environment: develop
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
@@ -88,10 +245,54 @@ jobs:
           Payload: '{"RequestType": "Create"}'
           LogType: Tail
 
+
+  integration-test-develop:
+    name: Triggers ETL workflow with S3 test files
+    runs-on: ubuntu-latest
+    needs: sceptre-deploy-develop
+    environment: develop
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Setup code, pipenv, aws
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
+        with:
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: integration-test-${{ github.run_id }}
+          python_version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set namespace for non-default branch or for tag
+        if: github.ref_name != 'main'
+        run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
+
+      - name: generate test events
+        run: >
+          pipenv run python src/lambda_function/s3_to_glue/events/generate_test_event.py
+          --input-bucket $DEV_INPUT_BUCKET
+          --input-key-prefix $NAMESPACE
+          --output-directory ./src/lambda_function/s3_to_glue/events/
+
+      - name: Setup sam
+        uses: aws-actions/setup-sam@v2
+
+      - name: sam build lambda
+        run: >
+          sam build
+          -s src/lambda_function/s3_to_glue/
+          -t src/lambda_function/s3_to_glue/template.yaml
+
+      - name: Invoke Lambda
+        run: |
+          cd src/lambda_function/s3_to_glue/
+          sam local invoke -e events/records.json --parameter-overrides "PrimaryWorkflowName=$NAMESPACE-PrimaryWorkflow"
+
+
   sceptre-deploy-staging:
     name: Deploys to staging of prod using sceptre
     runs-on: ubuntu-latest
-    needs: [pre-commit, upload-files, sceptre-deploy-develop]
+    needs: integration-test-develop
     if: github.ref_name == 'main'
     environment: prod
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.

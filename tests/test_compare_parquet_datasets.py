@@ -298,7 +298,7 @@ def test_that_compare_row_diffs_returns_df_if_columns_are_not_diff(
     main_rows = compare_parquet.compare_row_diffs(compare, namespace="main")
     assert staging_rows.empty
     assert_frame_equal(
-        main_rows.reset_index(drop=True),
+        main_rows.sort_values(by='LogId').reset_index(drop=True),
         pd.DataFrame(
             {
                 "LogId": [
@@ -316,7 +316,7 @@ def test_that_compare_row_diffs_returns_df_if_columns_are_not_diff(
                 "ActiveDuration": ["2256000", "2208000"],
                 "Calories": ["473", "478"],
             }
-        ).reset_index(drop=True),
+        ).sort_values(by='LogId').reset_index(drop=True),
     )
 
 
