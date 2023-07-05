@@ -105,6 +105,7 @@ class TestS3ToJsonS3:
                 dataset_identifier="HealthKitV2Samples",
                 metadata=sample_metadata["Metadata"],
                 workflow_run_properties=workflow_run_properties,
+                delete_upon_successful_upload=False,
             )
 
             with open(output_file, "r") as f_out:
@@ -120,6 +121,33 @@ class TestS3ToJsonS3:
                         == metadata["export_end_date"]
                     )
                     break
+
+    def test_write_file_to_json_dataset_delete_local_copy(self, s3_obj, namespace, monkeypatch):
+        monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
+        sample_metadata = {
+            "Metadata": {
+                "type": "HealthKitV2Samples",
+                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
+                "subtype": "Weight",
+            }
+        }
+        workflow_run_properties = {
+            "namespace": namespace,
+            "json_prefix": "raw-json",
+            "json_bucket": "json-bucket",
+        }
+        with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
+            output_file = s3_to_json.write_file_to_json_dataset(
+                z=z,
+                json_path="HealthKitV2Samples_Weight_20230112-20230114.json",
+                dataset_identifier="HealthKitV2Samples",
+                metadata=sample_metadata["Metadata"],
+                workflow_run_properties=workflow_run_properties,
+                delete_upon_successful_upload=True,
+            )
+
+        assert not os.path.exists(output_file)
 
     def test_write_symptom_log_file_to_json_dataset(self, s3_obj, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
@@ -142,6 +170,7 @@ class TestS3ToJsonS3:
                 dataset_identifier="SymptomLog",
                 metadata=sample_metadata["Metadata"],
                 workflow_run_properties=workflow_run_properties,
+                delete_upon_successful_upload=False,
             )
 
             with open(output_file, "r") as f_out:
@@ -179,6 +208,7 @@ class TestS3ToJsonS3:
                 dataset_identifier="EnrolledParticipants",
                 metadata=sample_metadata["Metadata"],
                 workflow_run_properties=workflow_run_properties,
+                delete_upon_successful_upload=False,
             )
 
             with open(output_file, "r") as f_out:
@@ -218,6 +248,7 @@ class TestS3ToJsonS3:
                 dataset_identifier="FitbitDevices",
                 metadata=sample_metadata["Metadata"],
                 workflow_run_properties=workflow_run_properties,
+                delete_upon_successful_upload=False,
             )
 
             with open(output_file, "r") as f_out:
