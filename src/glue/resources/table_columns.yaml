@@ -3,6 +3,8 @@ tables:
     columns:
       - Name: ParticipantIdentifier
         Type: string
+      - Name: ParticipantID
+        Type: string
       - Name: GlobalKey
         Type: string
       - Name: EmailAddress
@@ -19,12 +21,14 @@ tables:
         Type: string
       - Name: PostalCode
         Type: string
+      - Name: PreferredLanguage
+        Type: string
       - Name: EnrollmentDate
         Type: string
       - Name: CustomFields
-        Type: struct<AppleHealthEnabled:string,AppleHealthRecordsEnabled:string,GoogleFitEnabled:string,Reminder1Enabled:string,Reminder2Enabled:string,ReminderTime1:string,ReminderTime2:string,SkipConsent:string,Symptoms:array<struct<id:string,name:string,color:string,severityTracking:string,ParticipantIdentifier:string>>,Treatments:string>
+        Type: struct<EhrConnected:string,EhrConnectedDate:string,SymptomLogSetupDate:string,DevicesConnected:string,AppleHealthRecordsReceived:string,DeviceOrderStatus:string,DeviceOrderDate:string,InfectionFirstReportedDate:string,ForceSendInvitation:string,ForceSync:string,SelfEnrolled:string,AppDownloadDate:string,DevicesConnectedDate:string,HasOutstandingSurveys:string,ProjectCode:string,Site:string,DateOfBirthVerified:string,DeviceEligible:string,InfectionsReported:string,AppDownloaded:string,AppleHealthEnabled:string,AppleHealthRecordsEnabled:string,GoogleFitEnabled:string,Reminder1Enabled:string,Reminder2Enabled:string,ReminderTime1:string,ReminderTime2:string,SkipConsent:string,Symptoms:array<struct<id:string,name:string,color:string,severityTracking:string,inactive:boolean>>,Treatments:array<struct<id:string,name:string,color:string,inactive:boolean>>>
       - Name: EventDates
-        Type: string
+        Type: struct<AppDownloadDate:string,DevicesConnectedDate:string,EhrConnectedDate:string,SymptomLogSetupDate:string,InfectionFirstReportedDate:string>
       - Name: UtcOffset
         Type: string
       - Name: TimeZone
@@ -38,6 +42,10 @@ tables:
       - Name: HealthKitStatisticKey
         Type: string
       - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: Type
         Type: string
       - Name: StartDate
         Type: string
@@ -59,6 +67,8 @@ tables:
         Type: string
       - Name: ParticipantIdentifier
         Type: string
+      - Name: ParticipantID
+        Type: string
       - Name: Type
         Type: string
       - Name: StartDate
@@ -74,7 +84,7 @@ tables:
       - Name: Device
         Type: struct<Name:string,Model:string,Manufacturer:string,HardwareVersion:string,SoftwareVersion:string,FirmwareVersion:string,LocalIdentifier:string,FDAIdentifier:string>
       - Name: Metadata
-        Type: struct<HKWasUserEntered:string,HKAlgorithmVersion:string,HKMetadataKeyHeartRateMotionContext:string,HKDateOfEarliestDataUsedForEstimate:string,HKMetadataKeyAppleDeviceCalibrated:string,HKTimeZone:string,HKMetadataKeySyncVersion:string,HKVO2MaxTestType:string,HKMetadataKeySyncIdentifier:string,HKMetadataKeyDevicePlacementSide:string>
+        Type: struct<HKDeviceSerialNumber:string,WasFutureDated:string,HKBloodGlucoseMealTime:string,HKExternalUUID:string,originalunit:string,measurement:string,ModifiedDate:string,WithingsUserIdentifier:string,WithingsLink:string,sessionId:string,HKBodyTemperatureSensorLocation:string,timeEstimate:string,HKSwimmingStrokeStyle:string,HKDeviceManufacturerName:string,HealthMateAppVersion:string,version:string,HKWasUserEntered:string,HKAlgorithmVersion:string,HKMetadataKeyHeartRateMotionContext:string,HKDateOfEarliestDataUsedForEstimate:string,HKMetadataKeyAppleDeviceCalibrated:string,HKTimeZone:string,HKMetadataKeySyncVersion:string,HKVO2MaxTestType:string,HKMetadataKeySyncIdentifier:string,HKMetadataKeyDevicePlacementSide:string>
       - Name: InsertedDate
         Type: string
       - Name: export_start_date
@@ -87,6 +97,8 @@ tables:
         Type: string
       - Name: ParticipantIdentifier
         Type: string
+      - Name: ParticipantID
+        Type: string
       - Name: DeletedDate
         Type: string
       - Name: export_start_date
@@ -98,6 +110,8 @@ tables:
       - Name: HealthKitActivitySummaryKey
         Type: string
       - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
         Type: string
       - Name: StartDate
         Type: string
@@ -126,6 +140,8 @@ tables:
       - Name: HealthKitECGSampleKey
         Type: string
       - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
         Type: string
       - Name: StartDate
         Type: string
@@ -161,20 +177,22 @@ tables:
         Type: string
       - Name: ParticipantIdentifier
         Type: string
+      - Name: ParticipantID
+        Type: string
       - Name: StartDate
         Type: string
       - Name: Date
         Type: string
       - Name: Events
-        Type: array<struct<Type:string,Date:string,Metadata:struct<HKSwimmingStrokeStyle:string,_HKPrivateWorkoutSegmentEventSubtype:string,_HKPrivateMetadataSplitMeasuringSystem:string,_HKPrivateMetadataIsPartialSplit:string,_HKPrivateWorkoutMarkerEventSubtype:string,_HKPrivateWorkoutSegmentActiveEnergyBurn:string,_HKPrivateWorkoutSegmentDuration:string,_HKPrivateWorkoutSegmentDistance:string,_HKPrivateWorkoutSegmentIndex:string>,EndDate:string>>
+        Type: array<struct<ParticipantID:string,Type:string,Date:string,Metadata:struct<HKSwimmingStrokeStyle:string,_HKPrivateWorkoutSegmentEventSubtype:string,_HKPrivateMetadataSplitMeasuringSystem:string,_HKPrivateMetadataIsPartialSplit:string,_HKPrivateWorkoutMarkerEventSubtype:string,_HKPrivateWorkoutSegmentActiveEnergyBurn:string,_HKPrivateWorkoutSegmentDuration:string,_HKPrivateWorkoutSegmentDistance:string,_HKPrivateWorkoutSegmentIndex:string,IntervalName:string,HKTimeZone:string,HeartRateEnd:string,HeartRateBegin:string,ActiveCal:string,IntervalColorName:string,IntervalColor:string,HKSWOLFScore:string,TachyMonEvent_startAvgHR:string,TachyMonEvent_eventAvgHR:string,TachyMonEvent_maxHR:string,TachyMonEvent_alertLevel1:string,TachyMonEvent_alertLevel2:string,TachyMonEvent_minHR:string,TachyMonEvent_alertLevelAndDirection:string>,EndDate:string>>
       - Name: Summary
-        Type: struct<ActivityType:string,Duration:double,TotalDistance:double,TotalEnergyBurned:double,TotalSwimmingStrokeCount:double>
+        Type: struct<ActivityType:string,Duration:double,TotalDistance:double,TotalEnergyBurned:double,TotalSwimmingStrokeCount:double,TotalFlightsClimbed:int>
       - Name: Source
         Type: struct<Identifier:string,Name:string,Version:string,OperatingSystemVersion:string,ProductType:string>
       - Name: Device
         Type: struct<Name:string,Model:string,Manufacturer:string,HardwareVersion:string,SoftwareVersion:string,FirmwareVersion:string,LocalIdentifier:string,FDAIdentifier:string>
       - Name: Metadata
-        Type: struct<HKWasUserEntered:string,HKGroupFitness:string,HKWorkoutBrandName:string,HKTimeZone:string,WatchData:string,HKIndoorWorkout:string,HKSwimmingLocationType:string>
+        Type: struct<HKWasUserEntered:string,HKGroupFitness:string,HKWorkoutBrandName:string,HKTimeZone:string,WatchData:string,HKIndoorWorkout:string,HKSwimmingLocationType:string,HKMetadataKeySyncIdentifier:string,HKCoachedWorkout:string,HKMetadataKeySyncVersion:string,HKExternalUUID:string,WithingsLink:string,ModifiedDate:string,HealthMateAppVersion:string,WithingsUserIdentifier:string,ExerciseIdentifier:string,calorie:string,duration:string,secret:string,WorkoutName:string,Class:string,Coach:string,SplatPoints:string,WorkoutUUID:string,trackerMetadata:string,uuid:string,colorname:string,workoutlength:string,workoutname:string,symbolname:string,location:string,weathersymbol:string,HKWeatherCondition:string,intervaltracking:string,workouttracking:string,WHOOPStrain:string,SWMetadataKeyCustomWorkoutTitle:string,SWMetadataKeyUniqueID:string,SWMetadataKeyYYYYMMDD:string,SWMetadataKeySetsCompleted:string,SWMetadataKeyCustomWorkoutID:string,SWMetadataKeyDifficultyLevel:string>
       - Name: InsertedDate
         Type: string
       - Name: export_start_date
@@ -197,6 +215,8 @@ tables:
         Type: string
       - Name: ParticipantIdentifier
         Type: string
+      - Name: ParticipantID
+        Type: string
       - Name: StartDate
         Type: string
       - Name: Metadata
@@ -208,6 +228,8 @@ tables:
   FitbitActivityLogs:
     columns:
       - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
         Type: string
       - Name: StartDate
         Type: string
@@ -255,6 +277,8 @@ tables:
     columns:
       - Name: ParticipantIdentifier
         Type: string
+      - Name: ParticipantID
+        Type: string
       - Name: Date
         Type: string
       - Name: Device
@@ -270,6 +294,8 @@ tables:
   FitbitDailyData:
     columns:
       - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
         Type: string
       - Name: Date
         Type: string
@@ -343,8 +369,28 @@ tables:
         Type: string
       - Name: DateTime
         Type: string
+      - Name: Level
+        Type: int
       - Name: Value
         Type: string
+      - Name: Mets
+        Type: double
+      - Name: RMSSD
+        Type: double
+      - Name: Coverage
+        Type: double
+      - Name: Hf
+        Type: double
+      - Name: Lf
+        Type: double
+      - Name: DeepSleepSummaryBreathRate
+        Type: double
+      - Name: RemSleepSummaryBreathRate
+        Type: double
+      - Name: FullSleepSummaryBreathRate
+        Type: double
+      - Name: LightSleepSummaryBreathRate
+        Type: double
       - Name: InsertedDate
         Type: string
       - Name: export_start_date
@@ -354,6 +400,8 @@ tables:
   FitbitRestingHeartRates:
     columns:
       - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
         Type: string
       - Name: Date
         Type: string
@@ -366,6 +414,8 @@ tables:
   FitbitSleepLogs:
     columns:
       - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
         Type: string
       - Name: StartDate
         Type: string
@@ -417,6 +467,8 @@ tables:
         Type: string
       - Name: ParticipantIdentifier
         Type: string
+      - Name: ParticipantID
+        Type: string
       - Name: Type
         Type: string
       - Name: WindowStart
@@ -447,6 +499,8 @@ tables:
         Type: string
       - Name: OriginalDataSourceDeviceUid
         Type: string
+      - Name: OriginalDataSourceAppPackageName
+        Type: string
       - Name: export_start_date
         Type: string
       - Name: export_end_date
@@ -462,7 +516,7 @@ tables:
       - Name: Date
         Type: string
       - Name: Value
-        Type: string
+        Type: struct<symptoms:array<struct<id:string,severity:int>>,treatments:array<struct<id:string>>,notes:string,overallFeeling:int,icon:string>
       - Name: Properties
         Type: string
       - Name: InsertedDate
