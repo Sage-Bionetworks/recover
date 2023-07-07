@@ -21,7 +21,8 @@ def write_file_to_json_dataset(
         json_path: str,
         dataset_identifier: str,
         metadata: dict,
-        workflow_run_properties: dict) -> str:
+        workflow_run_properties: dict,
+        delete_upon_successful_upload: bool=True) -> str:
     """
     Write a JSON from a zipfile to a JSON dataset.
 
@@ -34,6 +35,9 @@ def write_file_to_json_dataset(
         dataset_identifier (str): The data type of `json_path`.
         metadata (dict): Metadata derived from the file basename.
         workflow_run_properties (dict): The workflow arguments
+        delete_upon_successful_upload (bool): Whether to delete the local
+            copy of the JSON file after uploading to S3. Set to False
+            during testing.
 
     Returns:
         output_path (str) The local path the file was written to.
@@ -121,6 +125,8 @@ def write_file_to_json_dataset(
                 Key = s3_output_key,
                 Metadata = s3_metadata)
         logger.debug("S3 Put object response: %s", json.dumps(response))
+    if delete_upon_successful_upload:
+        os.remove(output_path)
     return output_path
 
 def get_metadata(basename: str) -> dict:
