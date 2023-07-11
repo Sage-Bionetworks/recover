@@ -1,9 +1,5 @@
 name: upload-and-deploy-to-prod-main
 
-description: >-
-  Upload artifacts and deploy stacks to main when a new tag is pushed.
-  Tags must be formatted using semantic versioning.
-
 on:
   push:
     tags:
