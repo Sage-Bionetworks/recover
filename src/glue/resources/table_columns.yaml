@@ -525,3 +525,649 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+  GarminActivityDetailsSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: ActivityId
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: Summary
+        Type: struct<ActivityName:string,ActivityId:string,StartTimeInSeconds:int,StartTimeOffsetInSeconds:int,ActivityType:string,DurationInSeconds:int,AverageHeartRateInBeatsPerMinute:int,ActiveKilocalories:int,DeviceName:string,MaxHeartRateInBeatsPerMinute:int,AverageSpeedInMetersPerSecond:double,AveragePaceInMinutesPerKilometer:double,AverageRunCadenceInStepsPerMinute:double,AverageBikeCadenceInRoundsPerMinute:double,AverageSwimCadenceInStrokesPerMinute:double,MaxSpeedInMetersPerSecond:double,MaxPaceInMinutesPerKilometer:double,MaxRunCadenceInStepsPerMinute:double,MaxBikeCadenceInRoundsPerMinute:double,TotalElevationGainInMeters:double,TotalElevationLossInMeters:double,ActiveKilocalories:int,DistanceInMeters:double,Steps:int,NumberOfActiveLengths:int>
+      - Name: Samples
+        Type: array<struct<StartTimeInSeconds:int,TimerDurationInSeconds:int,ClockDurationInSeconds:int,MovingDurationInSeconds:int,HeartRate:int,AirTemperatureCelsius:int>>
+      - Name: Laps
+        Type: array<struct<StartTimeInSeconds:int>>
+      - Name: IsParent
+        Type: boolean
+      - Name: ParentSummaryId
+        Type: string
+      - Name: Manual
+        Type: boolean
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminActivitySummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: ActivityId
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: ActivityType
+        Type: string
+      - Name: AverageBikeCadenceInRoundsPerMinute
+        Type: double
+      - Name: AverageHeartRateInBeatsPerMinute
+        Type: double
+      - Name: AverageRunCadenceInStepsPerMinute
+        Type: double
+      - Name: AverageSpeedInMetersPerSecond
+        Type: double
+      - Name: AverageSwimCadenceInStrokesPerMinute
+        Type: double
+      - Name: AveragePaceInMinutesPerKilometer
+        Type: double
+      - Name: ActiveKilocalories
+        Type: int
+      - Name: DeviceName
+        Type: string
+      - Name: DistanceInMeters
+        Type: double
+      - Name: MaxBikeCadenceInRoundsPerMinute
+        Type: int
+      - Name: MaxHeartRateInBeatsPerMinute
+        Type: int
+      - Name: MaxPaceInMinutesPerKilometer
+        Type: double
+      - Name: MaxRunCadenceInStepsPerMinute
+        Type: int
+      - Name: MaxSpeedInMetersPerSecond
+        Type: double
+      - Name: NumberOfActiveLengths
+        Type: int
+      - Name: StartingLatitudeInDegree
+        Type: double
+      - Name: StartingLongitudeInDegree
+        Type: double
+      - Name: Steps
+        Type: int
+      - Name: StepsGoal
+        Type: int
+      - Name: TotalElevationGainInMeters
+        Type: double
+      - Name: TotalElevationLossInMeters
+        Type: double
+      - Name: IsParent
+        Type: boolean
+      - Name: ParentSummaryId
+        Type: string
+      - Name: Manual
+        Type: boolean
+      - Name: CalendarDate
+        Type: string
+      - Name: BmrKilocalories
+        Type: int
+      - Name: ActiveTimeInSeconds
+        Type: int
+      - Name: ModerateIntensityDurationInSeconds
+        Type: int
+      - Name: VigorousIntensityDurationInSeconds
+        Type: int
+      - Name: IntensityDurationGoalInSeconds
+        Type: int
+      - Name: FloorsClimbed
+        Type: int
+      - Name: FloorsClimbedGoal
+        Type: int
+      - Name: AverageStressLevel
+        Type: int
+      - Name: MaxStressLevel
+        Type: int
+      - Name: StressQualifier
+        Type: string
+      - Name: RestStressDurationInSeconds
+        Type: int
+      - Name: ActivityStressDurationInSeconds
+        Type: int
+      - Name: LowStressDurationInSeconds
+        Type: int
+      - Name: MediumStressDurationInSeconds
+        Type: int
+      - Name: HighStressDurationInSeconds
+        Type: int
+      - Name: MinHeartRateInBeatsPerMinute
+        Type: int
+      - Name: RestingHeartRateInBeatsPerMinute
+        Type: int
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminBloodPressureSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: MeasurementTimeInSeconds
+        Type: int
+      - Name: MeasurementTimeOffsetInSeconds
+        Type: int
+      - Name: Systolic
+        Type: int
+      - Name: Diastolic
+        Type: int
+      - Name: Pulse
+        Type: int
+      - Name: SourceType
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminBodyCompositionSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: MeasurementTimeInSeconds
+        Type: int
+      - Name: MeasurementTimeOffsetInSeconds
+        Type: int
+      - Name: MuscleMassInGrams
+        Type: int
+      - Name: BoneMassInGrams
+        Type: int
+      - Name: BodyWaterInPercent
+        Type: double
+      - Name: BodyFatInPercent
+        Type: double
+      - Name: BodyMassIndex
+        Type: double
+      - Name: WeightInGrams
+        Type: int
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminDailySummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: CalendarDate
+        Type: string
+      - Name: ActiveKilocalories
+        Type: int
+      - Name: BmrKilocalories
+        Type: int
+      - Name: Steps
+        Type: int
+      - Name: DistanceInMeters
+        Type: double
+      - Name: ActiveTimeInSeconds
+        Type: int
+      - Name: ModerateIntensityDurationInSeconds
+        Type: int
+      - Name: VigorousIntensityDurationInSeconds
+        Type: int
+      - Name: FloorsClimbed
+        Type: int
+      - Name: MinHeartRateInBeatsPerMinute
+        Type: int
+      - Name: MaxHeartRateInBeatsPerMinute
+        Type: int
+      - Name: AverageHeartRateInBeatsPerMinute
+        Type: double
+      - Name: RestingHeartRateInBeatsPerMinute
+        Type: int
+      - Name: StepsGoal
+        Type: int
+      - Name: IntensityDurationGoalInSeconds
+        Type: int
+      - Name: FloorsClimbedGoal
+        Type: int
+      - Name: AverageStressLevel
+        Type: double
+      - Name: MaxStressLevel
+        Type: int
+      - Name: StressDurationInSeconds
+        Type: int
+      - Name: RestStressDurationInSeconds
+        Type: int
+      - Name: ActivityStressDurationInSeconds
+        Type: int
+      - Name: LowStressDurationInSeconds
+        Type: int
+      - Name: MediumStressDurationInSeconds
+        Type: int
+      - Name: HighStressDurationInSeconds
+        Type: int
+      - Name: StressQualifier
+        Type: string
+      - Name: TimeOffsetHeartRateSamples
+        Type: array<struct<OffsetInSeconds:int,HeartRate:int>>
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminEpochSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: ActivityType
+        Type: string
+      - Name: ActiveTimeInSeconds
+        Type: int
+      - Name: Steps
+        Type: int
+      - Name: DistanceInMeters
+        Type: double
+      - Name: ActiveKilocalories
+        Type: int
+      - Name: Met
+        Type: double
+      - Name: Intensity
+        Type: string
+      - Name: MeanMotionIntensity
+        Type: double
+      - Name: MaxMotionIntensity
+        Type: double
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminHealthSnapshotSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: CalendarDate
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: Summaries
+        Type: array<struct<SummaryType:string,MinValue:double,MaxValue:double,AvgValue:double,EpochSummaries:array<struct<OffsetInSeconds:int,Value:double>>>>
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminHrvSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: CalendarDate
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: LastNightAvg
+        Type: double
+      - Name: LastNight5MinHigh
+        Type: double
+      - Name: HrvValues
+        Type: array<struct<OffsetInSeconds:int,Hrv:int>>
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminManuallyUpdatedActivitySummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: ActivityId
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: ActivityType
+        Type: string
+      - Name: ActivityName
+        Type: string
+      - Name: AverageBikeCadenceInRoundsPerMinute
+        Type: double
+      - Name: AverageHeartRateInBeatsPerMinute
+        Type: double
+      - Name: AverageRunCadenceInStepsPerMinute
+        Type: double
+      - Name: AverageSpeedInMetersPerSecond
+        Type: double
+      - Name: AverageSwimCadenceInStrokesPerMinute
+        Type: double
+      - Name: AveragePaceInMinutesPerKilometer
+        Type: double
+      - Name: ActiveKilocalories
+        Type: double
+      - Name: DeviceName
+        Type: string
+      - Name: DistanceInMeters
+        Type: double
+      - Name: MaxBikeCadenceInRoundsPerMinute
+        Type: int
+      - Name: MaxHeartRateInBeatsPerMinute
+        Type: int
+      - Name: MaxPaceInMinutesPerKilometer
+        Type: double
+      - Name: MaxRunCadenceInStepsPerMinute
+        Type: int
+      - Name: MaxSpeedInMetersPerSecond
+        Type: double
+      - Name: NumberOfActiveLengths
+        Type: double
+      - Name: StartingLatitudeInDegree
+        Type: double
+      - Name: StartingLongitudeInDegree
+        Type: double
+      - Name: Steps
+        Type: int
+      - Name: TotalElevationGainInMeters
+        Type: double
+      - Name: TotalElevationLossInMeters
+        Type: double
+      - Name: IsParent
+        Type: boolean
+      - Name: ParentSummaryId
+        Type: string
+      - Name: Manual
+        Type: boolean
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminMoveIQActivitySummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: ActivityId
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: CalendarDate
+        Type: string
+      - Name: ActivityType
+        Type: string
+      - Name: ActivitySubType
+        Type: string
+      - Name: ActivityName
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminPulseOxSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: CalendarDate
+        Type: string
+      - Name: OnDemand
+        Type: boolean
+      - Name: TimeOffsetSpo2Values
+        Type: array<struct<OffsetInSeconds:int,Spo2Value:int>>
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminRespirationSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: TimeOffsetEpochToBreaths
+        Type: array<struct<OffsetInSeconds:int,BreathsPerEpoch:double>>
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminSleepSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: CalendarDate
+        Type: string
+      - Name: UnmeasurableSleepInSeconds
+        Type: int
+      - Name: DeepSleepDurationInSeconds
+        Type: int
+      - Name: LightSleepDurationInSeconds
+        Type: int
+      - Name: RemSleepInSeconds
+        Type: int
+      - Name: AwakeDurationInSeconds
+        Type: int
+      - Name: Validation
+        Type: string
+      - Name: SleepLevelsMap
+        Type: struct<deep:array<struct<StartTimeInSeconds:int,EndTimeInSeconds:int>>,light:array<struct<StartTimeInSeconds:int,EndTimeInSeconds:int>>,awake:array<struct<StartTimeInSeconds:int,EndTimeInSeconds:int>>,rem:array<struct<StartTimeInSeconds:int,EndTimeInSeconds:int>>>
+      - Name: TimeOffsetSleepSpo2
+        Type: array<struct<OffsetInSeconds:int,Spo2Value:int>>
+      - Name: TimeOffsetSleepRespiration
+        Type: array<struct<OffsetInSeconds:int,BreathsPerEpoch:double>>
+      - Name: OverallSleepScore
+        Type: struct<Value:int,QualifierKey:string>
+      - Name: SleepScores
+        Type: struct<totalDuration:struct<QualifierKey:string>,stress:struct<QualifierKey:string>,awakeCount:struct<QualifierKey:string>,remPercentage:struct<QualifierKey:string>,restlessness:struct<QualifierKey:string>,lightPercentage:struct<QualifierKey:string>,deepPercentage:struct<QualifierKey:string>>
+      - Name: SleepScoreModels
+        Type: array<struct<QualifierKey:string,ScoreType:string,SummaryId:string>>
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminStressDetailSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: InsertedDate
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: CalendarDate
+        Type: string
+      - Name: TimeOffsetStressLevelValues
+        Type: array<struct<OffsetInSeconds:int,StressLevel:int>>
+      - Name: TimeOffsetBodyBatteryValues
+        Type: array<struct<OffsetInSeconds:int,BodyBattery:int>>
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminThirdPartyDailySummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: StartTimeInSeconds
+        Type: int
+      - Name: StartTimeOffsetInSeconds
+        Type: int
+      - Name: DurationInSeconds
+        Type: int
+      - Name: CalendarDate
+        Type: string
+      - Name: ActiveKilocalories
+        Type: int
+      - Name: BmrKilocalories
+        Type: int
+      - Name: Steps
+        Type: int
+      - Name: DistanceInMeters
+        Type: double
+      - Name: ActiveTimeInSeconds
+        Type: int
+      - Name: ModerateIntensityDurationInSeconds
+        Type: int
+      - Name: VigorousIntensityDurationInSeconds
+        Type: int
+      - Name: FloorsClimbed
+        Type: int
+      - Name: MinHeartRateInBeatsPerMinute
+        Type: int
+      - Name: MaxHeartRateInBeatsPerMinute
+        Type: int
+      - Name: AverageHeartRateInBeatsPerMinute
+        Type: double
+      - Name: Source
+        Type: string
+      - Name: TimeOffsetHeartRateSamples
+        Type: array<struct<OffsetInSeconds:int,HeartRate:int>>
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+  GarminUserMetricsSummary:
+    columns:
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: SummaryId
+        Type: string
+      - Name: CalendarDate
+        Type: string
+      - Name: Vo2Max
+        Type: double
+      - Name: Enhanced
+        Type: boolean
+      - Name: FitnessAge
+        Type: int
+      - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string

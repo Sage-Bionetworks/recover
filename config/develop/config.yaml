@@ -1,5 +1,5 @@
 ingestion_bucket_name: recover-dev-ingestion
 input_bucket_name: recover-dev-input-data
-cloudformation_artifact_bucket_name: recover-dev-cloudformation
+template_bucket_name: recover-dev-cloudformation
 intermediate_bucket_name: recover-dev-intermediate-data
 processed_data_bucket_name: recover-dev-processed-data
