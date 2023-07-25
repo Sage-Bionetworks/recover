@@ -105,6 +105,9 @@ def get_table(
     ) -> DynamicFrame:
     """
     Return a table as a DynamicFrame with an unambiguous schema.
+    Duplicate samples are dropped by referencing the `InsertedDate`
+    field, keeping the more recent sample. For any data types which
+    don't have this field, we drop duplicates by referencing `export_end_date`.
 
     Args:
         table_name (str): The name of the Glue table.
@@ -130,11 +133,17 @@ def get_table(
                 table_name=table_name
             )
     )
+    if table.count() == 0:
+        return table
+    field_names = [field.name for field in table.schema().fields]
     spark_df = table.toDF()
+    if "InsertedDate" in field_names:
+        sorted_spark_df = spark_df.sort(spark_df.InsertedDate.desc())
+    else:
+        sorted_spark_df = spark_df.sort(spark_df.export_end_date.desc())
     table = DynamicFrame.fromDF(
             dataframe=(
-                spark_df
-                .sort(spark_df.export_end_date.desc())
+                sorted_spark_df
                 .dropDuplicates(
                     subset=INDEX_FIELD_MAP[table_data_type]
                 )
@@ -428,7 +437,8 @@ def main() -> None:
             database_name=workflow_run_properties["glue_database"],
             glue_context=glue_context
     )
-    table_schema = table.schema()
+    if table.count() == 0:
+        return
     if "healthkit" in table_name:
         table = drop_deleted_healthkit_data(
                 glue_context=glue_context,
@@ -437,7 +447,7 @@ def main() -> None:
         )
 
     # Export new table records to parquet
-    if has_nested_fields(table_schema) and table.count() > 0:
+    if has_nested_fields(table.schema()):
         tables_with_index = {}
         table_relationalized = table.relationalize(
             root_table_name = table_name,
@@ -470,7 +480,7 @@ def main() -> None:
                     workflow_run_id=args["WORKFLOW_RUN_ID"],
                     glue_context=glue_context
             )
-    elif table.count() > 0:
+    else:
         write_table_to_s3(
                 dynamic_frame=table,
                 bucket=workflow_run_properties["parquet_bucket"],
