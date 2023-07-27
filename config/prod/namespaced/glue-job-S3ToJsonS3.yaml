@@ -7,7 +7,7 @@ parameters:
   JobDescription: Sort JSON from ZIP archive into datasets
   JobRole: !stack_output_external glue-job-role::RoleArn
   TempS3Bucket: {{ stack_group_config.intermediate_bucket_name }}
-  S3ScriptBucket: {{ stack_group_config.cloudformation_artifact_bucket_name }}
+  S3ScriptBucket: {{ stack_group_config.template_bucket_name }}
   S3ScriptKey: '{{ stack_group_config.namespace }}/src/glue/jobs/s3_to_json.py'
   GluePythonShellVersion: "{{ stack_group_config.glue_python_shell_python_version }}"
   GlueVersion: "{{ stack_group_config.glue_python_shell_glue_version }}"

@@ -24,6 +24,10 @@ def glue_flat_table_name():
     return "dataset_testflatdatatype"
 
 @pytest.fixture(scope="class")
+def glue_flat_inserted_date_table_name():
+    return "dataset_testflatinserteddatedatatype"
+
+@pytest.fixture(scope="class")
 def glue_deleted_table_name(glue_flat_table_name):
     return f"{glue_flat_table_name}_deleted"
 
@@ -142,6 +146,14 @@ def glue_flat_table_location(glue_database_path, glue_flat_table_name):
     return glue_flat_table_location
 
 @pytest.fixture(scope="class")
+def glue_flat_inserted_date_table_location(glue_database_path, glue_flat_inserted_date_table_name):
+    glue_flat_inserted_date_table_location = os.path.join(
+            glue_database_path,
+            glue_flat_inserted_date_table_name.replace("_", "=", 1)
+        ) + "/"
+    return glue_flat_inserted_date_table_location
+
+@pytest.fixture(scope="class")
 def glue_flat_table(glue_database_name, glue_flat_table_name,
                     glue_flat_table_location):
     glue_client = boto3.client("glue")
@@ -165,6 +177,43 @@ def glue_flat_table(glue_database_name, glue_flat_table_name,
                         },
                         {
                             "Name": "export_end_date",
+                            "Type": "string"
+                        }
+                    ]
+                },
+                "Parameters": {
+                    "classification": "json",
+                    "compressionType": "none",
+                    "typeOfData": "file",
+                }
+            }
+    )
+    return glue_table
+
+@pytest.fixture(scope="class")
+def glue_flat_inserted_date_table(glue_database_name, glue_flat_inserted_date_table_name,
+                    glue_flat_inserted_date_table_location):
+    glue_client = boto3.client("glue")
+    glue_table = glue_client.create_table(
+            DatabaseName=glue_database_name,
+            TableInput={
+                "Name": glue_flat_inserted_date_table_name,
+                "Description": "A table for pytest unit tests.",
+                "Retention": 0,
+                "TableType": "EXTERNAL_TABLE",
+                "StorageDescriptor": {
+                    "Location": glue_flat_inserted_date_table_location,
+                    "InputFormat": "org.apache.hadoop.mapred.TextInputFormat",
+                    "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+                    "Compressed": False,
+                    "StoredAsSubDirectories": False,
+                    "Columns": [
+                        {
+                            "Name": "GlobalKey",
+                            "Type": "string"
+                        },
+                        {
+                            "Name": "InsertedDate",
                             "Type": "string"
                         }
                     ]
@@ -238,17 +287,20 @@ def upload_test_data_to_s3(path, s3_bucket, table_location):
 
 @pytest.fixture()
 def glue_test_data(glue_flat_table_location, glue_nested_table_location,
-                   glue_deleted_table_location, artifact_bucket, datadir):
+                   glue_deleted_table_location, glue_flat_inserted_date_table_location,
+                   artifact_bucket, datadir):
     for root, _, files in os.walk(datadir):
         for basename in files:
-            if "Flat" in basename and "Deleted" not in basename:
+            if "InsertedDate" in basename:
+                this_table_location = glue_flat_inserted_date_table_location
+            elif "Flat" in basename and "Deleted" not in basename:
                 this_table_location=glue_flat_table_location
             elif "Flat" in basename and "Deleted" in basename:
                 this_table_location=glue_deleted_table_location
             elif "Nested" in basename and "Deleted" not in basename:
                 this_table_location=glue_nested_table_location
             else:
-                raise ValueError("Found test data that is neither flat nor nested.")
+                raise ValueError("Found test data with an unknown data type and location.")
             absolute_path = os.path.join(root, basename)
             upload_test_data_to_s3(
                     path=absolute_path,
@@ -298,9 +350,9 @@ def glue_crawler_role(namespace):
 
 @pytest.fixture()
 def glue_crawler(glue_database, glue_database_name, glue_flat_table,
-                 glue_nested_table, glue_deleted_table, glue_flat_table_location,
-                 glue_nested_table_location, glue_deleted_table_location,
-                 glue_crawler_role, namespace, glue_deleted_table_name):
+                 glue_nested_table, glue_deleted_table, glue_flat_inserted_date_table,
+                 glue_flat_table_location, glue_nested_table_location, glue_deleted_table_location,
+                 glue_flat_inserted_date_table_location, glue_crawler_role, namespace):
     glue_client = boto3.client("glue")
     crawler_name = f"{namespace}-pytest-crawler"
     time.sleep(10) # give time for the IAM role trust policy to set in
@@ -313,6 +365,9 @@ def glue_crawler(glue_database, glue_database_name, glue_flat_table,
                 "S3Targets": [
                     {
                         "Path": glue_flat_table_location
+                    },
+                    {
+                        "Path": glue_flat_inserted_date_table_location
                     },
                     {
                         "Path": glue_deleted_table_location
@@ -363,7 +418,9 @@ def glue_context():
 
 @patch(
         "src.glue.jobs.json_to_parquet.INDEX_FIELD_MAP",
-        {"testflatdatatype": ["GlobalKey"], "testnesteddatatype": ["GlobalKey"]}
+        {"testflatdatatype": ["GlobalKey"],
+         "testflatinserteddatedatatype": ["GlobalKey"],
+         "testnesteddatatype": ["GlobalKey"]}
 )
 class TestJsonS3ToParquet:
 
@@ -388,6 +445,16 @@ class TestJsonS3ToParquet:
         )
         assert flat_table.count() == 1
         assert len(flat_table.schema().fields) == 2
+
+    def test_get_table_inserted_date(
+            self, glue_database_name, glue_flat_inserted_date_table_name, glue_context):
+        inserted_date_table = json_to_parquet.get_table(
+                table_name=glue_flat_inserted_date_table_name,
+                database_name=glue_database_name,
+                glue_context=glue_context
+        )
+        assert inserted_date_table.count() == 1
+        assert len(inserted_date_table.schema().fields) == 2
 
     def test_get_table_nested(self, glue_database_name,
                             glue_nested_table_name, glue_context):

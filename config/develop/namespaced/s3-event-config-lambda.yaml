@@ -1,7 +1,7 @@
 template:
   type: sam
   path: src/lambda_function/s3_event_config/template.yaml
-  artifact_bucket_name: {{ stack_group_config.cloudformation_artifact_bucket_name }}
+  artifact_bucket_name: {{ stack_group_config.template_bucket_name }}
   artifact_prefix: '{{ stack_group_config.namespace }}/src/lambda'
 dependencies:
   - develop/namespaced/s3-event-config-lambda-role.yaml
