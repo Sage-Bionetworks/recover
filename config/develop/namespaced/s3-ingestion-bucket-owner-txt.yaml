@@ -1,0 +1,11 @@
+template:
+  type: file
+  path: s3-owner-txt.yaml
+stack_name: "{{ stack_group_config.namespace }}-recover-dev-ingestion-bucket-owner-txt"
+dependencies:
+  - develop/cfn-s3objects-macro.yaml
+  - develop/s3-ingestion.yaml
+parameters:
+  BucketName: !stack_output_external recover-dev-ingestion-bucket::Bucket
+  SynapseIds: "3461799,3455604" # RecoverETL and synapse-service-sysbio-recover-data-storage-01
+  OwnerTxtKeyPrefix: {{ stack_group_config.namespace }}
