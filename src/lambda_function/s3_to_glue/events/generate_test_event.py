@@ -34,13 +34,19 @@ def read_args() -> argparse.Namespace:
     parser.add_argument(
             "--input-key",
             default="main/2023-01-12T22--02--17Z_77fefff8-b0e2-4c1b-b0c5-405554c92368",
-            help="Name of the Synapse dataset containing test data."
+            help="A specific S3 key to generate an event for."
     )
     parser.add_argument(
             "--input-key-prefix",
             help=("Takes precedence over `--input-key`. If you want "
                   "to generate a single event containing all data under a specific "
                   "S3 key prefix, specify that here.")
+    )
+    parser.add_argument(
+            "--input-key-file",
+            help=("Takes precedence over `--input-key` and `--input-key-prefix`. "
+                  "If you want to generate a single event containing all keys within"
+                  "a newline delimited file, specify the path to that file here.")
     )
     parser.add_argument(
             "--output-directory",
@@ -51,7 +57,7 @@ def read_args() -> argparse.Namespace:
     args = parser.parse_args()
     return args
 
-def create_event(bucket: str, key: str, key_prefix: str) -> dict:
+def create_event(bucket: str, key: str, key_prefix: str, key_file: str) -> dict:
     """
     Create an S3 event notification for testing.
 
@@ -66,11 +72,17 @@ def create_event(bucket: str, key: str, key_prefix: str) -> dict:
         key (str): An S3 object key
         key_prefix (str): An S3 key prefix containing S3 objects to include
             in the test event. Takes precedence over `key`.
+        key_file (str): A file path to a newline delimited list of S3 keys to
+            include in the test event. Takes precedence over `key` and `key_prefix`.
 
     Returns:
         dict: An S3 event notification
     """
-    if key_prefix is not None:
+    if key_file is not None:
+        with open(key_file, "r") as key_file_obj:
+            key_file_contents = key_file_obj.read().strip()
+            test_data = key_file_contents.split("\n")
+    elif key_prefix is not None:
         s3_client = boto3.client("s3")
         test_objects = s3_client.list_objects_v2(
                 Bucket=bucket,
@@ -140,10 +152,11 @@ def main() -> None:
     s3_event = create_event(
             bucket=args.input_bucket,
             key=args.input_key,
-            key_prefix=args.input_key_prefix
+            key_prefix=args.input_key_prefix,
+            key_file=args.input_key_file
     )
 
-    if args.input_key_prefix is not None:
+    if args.input_key_file is not None or args.input_key_prefix is not None:
         with open(os.path.join(args.output_directory, MULTI_RECORD_OUTFILE), "w") as outfile:
             json.dump(s3_event, outfile)
             print(f"Event with multiple records written to {outfile.name}.")
