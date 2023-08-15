@@ -349,6 +349,70 @@ class TestS3ToJsonS3:
         # Check that other properties were not affected
         assert transformed_json["Summaries"][0]["Dummy"] == 1
 
+    def test_transform_block_empty_file(self, s3_obj):
+        sample_metadata = {
+            "type": "HealthKitV2Samples",
+            "start_date": datetime.datetime(2022, 1, 12, 0, 0),
+            "end_date": datetime.datetime(2023, 1, 14, 0, 0),
+            "subtype": "Weight",
+        }
+        with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
+            json_path = "HealthKitV2Samples_Weight_20230112-20230114.json"
+            with z.open(json_path, "r") as input_json:
+                transformed_block = s3_to_json.transform_block(
+                    input_json=input_json,
+                    dataset_identifier=sample_metadata["type"],
+                    metadata=sample_metadata,
+                    block_size=2
+                )
+                with pytest.raises(StopIteration):
+                    next(transformed_block)
+
+    def test_transform_block_non_empty_file_block_size(self, s3_obj):
+        sample_metadata = {
+            "type": "FitbitSleepLogs",
+            "start_date": datetime.datetime(2022, 1, 12, 0, 0),
+            "end_date": datetime.datetime(2023, 1, 14, 0, 0),
+        }
+        with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
+            json_path = "FitbitSleepLogs_20230112-20230114.json"
+            with z.open(json_path, "r") as input_json:
+                transformed_block = s3_to_json.transform_block(
+                    input_json=input_json,
+                    dataset_identifier=sample_metadata["type"],
+                    metadata=sample_metadata,
+                    block_size=2
+                )
+                first_block = next(transformed_block)
+                assert len(first_block) == 2
+                assert (
+                        isinstance(first_block[0], dict)
+                        and isinstance(first_block[1], dict)
+                )
+
+    def test_transform_block_non_empty_file_all_blocks(self, s3_obj):
+        sample_metadata = {
+            "type": "FitbitSleepLogs",
+            "start_date": datetime.datetime(2022, 1, 12, 0, 0),
+            "end_date": datetime.datetime(2023, 1, 14, 0, 0),
+        }
+        with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
+            json_path = "FitbitSleepLogs_20230112-20230114.json"
+            with z.open(json_path, "r") as input_json:
+                record_count = len(input_json.readlines())
+            with z.open(json_path, "r") as input_json:
+                transformed_block = s3_to_json.transform_block(
+                    input_json=input_json,
+                    dataset_identifier=sample_metadata["type"],
+                    metadata=sample_metadata,
+                    block_size=10
+                )
+                counter = 0
+                for block in transformed_block:
+                    counter += len(block)
+                # Should be 12
+                assert counter == record_count
+
     def test_get_output_filename_generic(self):
         sample_metadata = {
                 "type": "FitbitDevices",
