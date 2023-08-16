@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import sys
+import typing
 import zipfile
 import boto3
 from awsglue.utils import getResolvedOptions
@@ -261,6 +262,45 @@ def get_output_filename(metadata: dict) -> str:
         )
     return output_fname
 
+def transform_block(
+        input_json: typing.IO,
+        dataset_identifier: str,
+        metadata: dict,
+        block_size: int=10000
+):
+    """
+    A generator function which yields a block of transformed JSON records.
+
+    This function can be used with `write_file_to_json_dataset`. Some JSON files
+    are too large to have all of their records kept in memory before being written
+    to the resulting transformed NDJSON file. To avoid an OOM error, we do the
+    transformations and write the records in blocks.
+
+    Args:
+        input_json (typing.IO): A file-like object of the JSON to be transformed.
+        dataset_identifier (str): The data type of `input_json`.
+        metadata (dict): Metadata derived from the file basename. See `get_metadata`.
+        block_size (int, optional): The number of records to process in each block.
+            Default is 10000.
+
+    Yields:
+        list: A block of transformed JSON records.
+    """
+    block = []
+    for json_line in input_json:
+        json_obj = json.loads(json_line)
+        json_obj = transform_json(
+                json_obj=json_obj,
+                dataset_identifier=dataset_identifier,
+                metadata=metadata
+        )
+        block.append(json_obj)
+        if len(block) == block_size:
+            yield block
+            block = []
+    if block: # yield final block
+        yield block
+
 def write_file_to_json_dataset(
         z: zipfile.ZipFile,
         json_path: str,
@@ -296,18 +336,18 @@ def write_file_to_json_dataset(
     else:
         s3_metadata["start_date"] = metadata["start_date"].isoformat()
     s3_metadata["end_date"] = metadata["end_date"].isoformat()
-    data = []
-    with z.open(json_path, "r") as p:
-        for json_line in p:
-            json_obj = json.loads(json_line)
-            json_obj = transform_json(
-                    json_obj=json_obj,
-                    dataset_identifier=dataset_identifier,
-                    metadata=metadata
-            )
-            data.append(json_obj)
     output_filename = get_output_filename(metadata=metadata)
     output_path = os.path.join(dataset_identifier, output_filename)
+    data = []
+    with z.open(json_path, "r") as input_json:
+        with open(output_path, "w+") as f_out:
+            for transformed_block in transform_block(
+                    input_json=input_json,
+                    dataset_identifier=dataset_identifier,
+                    metadata=metadata
+            ):
+                for transformed_record in transformed_block:
+                    f_out.write("{}\n".format(json.dumps(transformed_record)))
     s3_output_key = os.path.join(
         workflow_run_properties["namespace"],
         workflow_run_properties["json_prefix"],
@@ -315,9 +355,6 @@ def write_file_to_json_dataset(
         output_filename
     )
     logger.debug("Output Key: %s", s3_output_key)
-    with open(output_path, "w") as f_out:
-        for record in data:
-            f_out.write("{}\n".format(json.dumps(record)))
     with open(output_path, "rb") as f_in:
         response = s3_client.put_object(
                 Body = f_in,
