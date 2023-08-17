@@ -419,8 +419,11 @@ class TestS3ToJsonS3:
                 "start_date": datetime.datetime(2022, 1, 12, 0, 0),
                 "end_date": datetime.datetime(2023, 1, 14, 0, 0),
         }
-        output_filename = s3_to_json.get_output_filename(metadata=sample_metadata)
-        assert output_filename == "FitbitDevices_20220112-20230114.ndjson"
+        output_filename = s3_to_json.get_output_filename(
+                metadata=sample_metadata,
+                part_number=0
+        )
+        assert output_filename == "FitbitDevices_20220112-20230114.part0.ndjson"
 
     def test_get_output_filename_no_start_date(self):
         sample_metadata = {
@@ -428,8 +431,11 @@ class TestS3ToJsonS3:
                 "start_date": None,
                 "end_date": datetime.datetime(2023, 1, 14, 0, 0),
         }
-        output_filename = s3_to_json.get_output_filename(metadata=sample_metadata)
-        assert output_filename == "EnrolledParticipants_20230114.ndjson"
+        output_filename = s3_to_json.get_output_filename(
+                metadata=sample_metadata,
+                part_number=0
+        )
+        assert output_filename == "EnrolledParticipants_20230114.part0.ndjson"
 
     def test_get_output_filename_subtype(self):
         sample_metadata = {
@@ -438,8 +444,11 @@ class TestS3ToJsonS3:
                 "start_date": datetime.datetime(2022, 1, 12, 0, 0),
                 "end_date": datetime.datetime(2023, 1, 14, 0, 0),
         }
-        output_filename = s3_to_json.get_output_filename(metadata=sample_metadata)
-        assert output_filename == "HealthKitV2Samples_Weight_20220112-20230114.ndjson"
+        output_filename = s3_to_json.get_output_filename(
+                metadata=sample_metadata,
+                part_number=0
+        )
+        assert output_filename == "HealthKitV2Samples_Weight_20220112-20230114.part0.ndjson"
 
     def test_write_file_to_json_dataset_delete_local_copy(self, s3_obj, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
@@ -457,7 +466,7 @@ class TestS3ToJsonS3:
             "json_bucket": "json-bucket",
         }
         with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
-            output_file = s3_to_json.write_file_to_json_dataset(
+            output_files = s3_to_json.write_file_to_json_dataset(
                 z=z,
                 json_path="HealthKitV2Samples_Weight_20230112-20230114.json",
                 dataset_identifier="HealthKitV2Samples",
@@ -465,6 +474,7 @@ class TestS3ToJsonS3:
                 workflow_run_properties=workflow_run_properties,
                 delete_upon_successful_upload=True,
             )
+        output_file = output_files[0]
 
         assert not os.path.exists(output_file)
 
@@ -486,7 +496,7 @@ class TestS3ToJsonS3:
             with z.open("FitbitDevices_20230114.json", "r") as fitbit_data:
                 input_line_cnt = len(fitbit_data.readlines())
 
-            output_file = s3_to_json.write_file_to_json_dataset(
+            output_files = s3_to_json.write_file_to_json_dataset(
                 z=z,
                 json_path="FitbitDevices_20230114.json",
                 dataset_identifier="FitbitDevices",
@@ -494,6 +504,7 @@ class TestS3ToJsonS3:
                 workflow_run_properties=workflow_run_properties,
                 delete_upon_successful_upload=False,
             )
+            output_file = output_files[0]
 
             with open(output_file, "r") as f_out:
                 output_line_cnt = 0
@@ -507,6 +518,69 @@ class TestS3ToJsonS3:
                     output_line_cnt += 1
             # gets line count of input json and exported json and checks the two
             assert input_line_cnt == output_line_cnt
+            os.remove(output_file)
+
+    def test_write_file_to_json_dataset_multiple_parts(self, s3_obj, namespace, monkeypatch):
+        monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
+        sample_metadata = {
+            "type": "FitbitIntradayCombined",
+            "start_date": datetime.datetime(2022, 1, 12, 0, 0),
+            "end_date": datetime.datetime(2023, 1, 14, 0, 0)
+        }
+        workflow_run_properties = {
+            "namespace": namespace,
+            "json_prefix": "raw-json",
+            "json_bucket": "json-bucket",
+        }
+        with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
+            json_path = "FitbitIntradayCombined_20230112-20230114.json"
+            with z.open(json_path, "r") as fitbit_data:
+                input_line_cnt = len(fitbit_data.readlines())
+            output_files = s3_to_json.write_file_to_json_dataset(
+                z=z,
+                json_path=json_path,
+                dataset_identifier=sample_metadata["type"],
+                metadata=sample_metadata,
+                workflow_run_properties=workflow_run_properties,
+                delete_upon_successful_upload=False,
+                file_size_limit=1e6
+            )
+            output_line_count = 0
+            for output_file in output_files:
+                with open(output_file, "r") as f_out:
+                    for json_line in f_out:
+                        output_line_count += 1
+                os.remove(output_file)
+            assert input_line_cnt == output_line_count
+
+    def test_get_part_path_no_touch(self):
+        sample_metadata = {
+                "type": "FitbitDevices",
+                "start_date": None,
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
+        }
+        part_path = s3_to_json.get_part_path(
+                metadata=sample_metadata,
+                part_number=0,
+                dataset_identifier=sample_metadata["type"],
+                touch=False
+        )
+        assert part_path == "FitbitDevices/FitbitDevices_20230114.part0.ndjson"
+
+    def test_get_part_path_touch(self):
+        sample_metadata = {
+                "type": "FitbitDevices",
+                "start_date": None,
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
+        }
+        part_path = s3_to_json.get_part_path(
+                metadata=sample_metadata,
+                part_number=0,
+                dataset_identifier=sample_metadata["type"],
+                touch=True
+        )
+        assert os.path.exists(part_path)
+        os.remove(part_path)
 
     def test_get_metadata_startdate_enddate(self, json_file_basenames_dict):
         basename = json_file_basenames_dict["HealthKitV2Samples_Deleted"]
