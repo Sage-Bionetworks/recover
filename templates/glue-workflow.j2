@@ -53,7 +53,8 @@ Resources:
   {% set datasets = [] %}
   {% for v in sceptre_user_data.dataset_schemas.tables.keys() if not "Deleted" in v %}
     {% set dataset = {} %}
-    {% do dataset.update({'table_name': 'dataset_' + v.lower()})%}
+    {% do dataset.update({'data_type': v}) %}
+    {% do dataset.update({'table_name': 'dataset_' + v.lower()}) %}
     {% do dataset.update({'stackname_prefix': '{}'.format(v.replace('_',''))}) %}
     {% do datasets.append(dataset) %}
   {% endfor %}
@@ -88,17 +89,105 @@ Resources:
     Properties:
       Name: !Sub "${Namespace}-S3ToJsonCompleteTrigger"
       Actions:
-        {% for dataset in datasets %}
+        {% for dataset in datasets if not "HealthKit" in dataset["data_type"] and not "Fitbit" in dataset["data_type"] and not "Google" in dataset["data_type"] and not "Garmin" in dataset["data_type"] %}
         - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
           Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
         {% endfor %}
-      Description: This trigger runs after completion of the S3 to JSON job.
+      Description: This trigger kicks off every JSON to Parquet job which is not associated with a device and runs after completion of the S3 to JSON job.
       Type: CONDITIONAL
       Predicate:
         Conditions:
         - JobName: !Ref S3ToJsonJobName
           State: SUCCEEDED
           LogicalOperator: EQUALS
+      StartOnCreation: true
+      WorkflowName: !Ref PrimaryWorkflow
+
+  HealthKitTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub "${Namespace}-HealthKitTrigger"
+      Actions:
+        {% for dataset in datasets if "HealthKit" in dataset["data_type"] %}
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
+          Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
+        {% endfor %}
+      Description: This trigger kicks off every JSON to Parquet job which is associated with a HealthKit data type.
+      Type: CONDITIONAL
+      Predicate:
+        Conditions:
+          {% for dataset in datasets if not "HealthKit" in dataset["data_type"] and not "Fitbit" in dataset["data_type"] and not "Google" in dataset["data_type"] and not "Garmin" in dataset["data_type"] %}
+          - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
+            State: SUCCEEDED
+            LogicalOperator: EQUALS
+          {% endfor %}
+        Logical: AND
+      StartOnCreation: true
+      WorkflowName: !Ref PrimaryWorkflow
+
+  FitbitTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub "${Namespace}-FitbitTrigger"
+      Actions:
+        {% for dataset in datasets if "Fitbit" in dataset["data_type"] %}
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
+          Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
+        {% endfor %}
+      Description: This trigger kicks off every JSON to Parquet job which is associated with a Fitbit data type.
+      Type: CONDITIONAL
+      Predicate:
+        Conditions:
+          {% for dataset in datasets if "HealthKit" in dataset["data_type"] %}
+          - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
+            State: SUCCEEDED
+            LogicalOperator: EQUALS
+          {% endfor %}
+        Logical: AND
+      StartOnCreation: true
+      WorkflowName: !Ref PrimaryWorkflow
+
+  GoogleTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub "${Namespace}-GoogleTrigger"
+      Actions:
+        {% for dataset in datasets if "Google" in dataset["data_type"] %}
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
+          Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
+        {% endfor %}
+      Description: This trigger kicks off every JSON to Parquet job which is associated with a Google data type.
+      Type: CONDITIONAL
+      Predicate:
+        Conditions:
+          {% for dataset in datasets if "Fitbit" in dataset["data_type"] %}
+          - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
+            State: SUCCEEDED
+            LogicalOperator: EQUALS
+          {% endfor %}
+        Logical: AND
+      StartOnCreation: true
+      WorkflowName: !Ref PrimaryWorkflow
+
+  GarminTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub "${Namespace}-GarminTrigger"
+      Actions:
+        {% for dataset in datasets if "Garmin" in dataset["data_type"] %}
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
+          Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
+        {% endfor %}
+      Description: This trigger kicks off every JSON to Parquet job which is associated with a Garmin data type.
+      Type: CONDITIONAL
+      Predicate:
+        Conditions:
+          {% for dataset in datasets if "Google" in dataset["data_type"] %}
+          - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
+            State: SUCCEEDED
+            LogicalOperator: EQUALS
+          {% endfor %}
+        Logical: AND
       StartOnCreation: true
       WorkflowName: !Ref PrimaryWorkflow
 
@@ -121,7 +210,7 @@ Resources:
       Type: CONDITIONAL
       Predicate:
         Conditions:
-          {% for dataset in datasets %}
+          {% for dataset in datasets if "Garmin" in dataset["data_type"] %}
           - JobName: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
             State: SUCCEEDED
             LogicalOperator: EQUALS
