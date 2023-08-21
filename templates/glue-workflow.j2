@@ -1,6 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: The primary workflow for processing RECOVER data
+Description: >-
+    The primary workflow for processing RECOVER data. An outline of the workflow is below:
+
+    S3 to JSON ->
+    (JSON to Parquet) EnrolledParticipants and SymptomLog ->
+    (JSON to Parquet) HealthKit ->
+    (JSON to Parquet) Fitbit ->
+    (JSON to Parquet) Google ->
+    (JSON to Parquet) Garmin ->
+    CompareParquetJob
 
 Parameters:
 
