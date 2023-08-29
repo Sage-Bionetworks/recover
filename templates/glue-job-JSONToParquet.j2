@@ -27,10 +27,19 @@ Parameters:
     Type: String
     Description: The bucket key where the script file is located.
 
-  NumberOfWorkers:
+  DefaultNumberOfWorkers:
     Type: Number
-    Description: How many DPUs to allot to this job.
+    Description: >-
+        How many DPUs to allot to this job. This parameter is not used for types
+        FitbitIntradayCombined and HealthKitV2Samples.
     Default: 1
+
+  LargeJobNumberOfWorkers:
+    Type: Number
+    Description: >-
+        How many DPUs to allot to this job. This parameter overrides `DefaultNumberOfWorkers`
+        for data types FitbitIntradayCombined and HealthKitV2Samples.
+    Default: 4
 
   MaxRetries:
     Type: Number
@@ -82,7 +91,11 @@ Resources:
       GlueVersion: !Ref GlueVersion
       MaxRetries: !Ref MaxRetries
       Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
-      NumberOfWorkers: !Ref NumberOfWorkers
+      {% if dataset["type"] == "HealthKitV2Samples" or dataset["type"] == "FitbitIntradayCombined" -%}
+      NumberOfWorkers: !Ref LargeJobNumberOfWorkers
+      {% else -%}
+      NumberOfWorkers: !Ref DefaultNumberOfWorkers
+      {%- endif %}
       Role: !Ref JobRole
       Timeout: !Ref TimeoutInMinutes
       WorkerType: Standard
