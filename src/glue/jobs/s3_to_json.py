@@ -308,6 +308,7 @@ def write_file_to_json_dataset(
         z: zipfile.ZipFile,
         json_path: str,
         dataset_identifier: str,
+        cohort: str,
         metadata: dict,
         workflow_run_properties: dict,
         delete_upon_successful_upload: bool=True,
@@ -325,6 +326,7 @@ def write_file_to_json_dataset(
         z (zipfile.Zipfile): The zip archive as provided by the data provider.
         json_path (str): A JSON path relative to the root of `z`.
         dataset_identifier (str): The data type of `json_path`.
+        cohort (str): The cohort which this data associates with.
         metadata (dict): Metadata derived from the file basename.
         workflow_run_properties (dict): The workflow arguments
         delete_upon_successful_upload (bool): Whether to delete the local
@@ -337,7 +339,9 @@ def write_file_to_json_dataset(
         list: A list of files uploaded to S3
     """
     s3_client = boto3.client("s3")
-    os.makedirs(dataset_identifier, exist_ok=True)
+    part_dir = os.path.join(
+            f"dataset={dataset_identifier}", f"cohort={cohort}")
+    os.makedirs(part_dir, exist_ok=True)
     s3_metadata = metadata.copy()
     if s3_metadata["start_date"] is None:
         s3_metadata.pop("start_date")
@@ -348,7 +352,7 @@ def write_file_to_json_dataset(
     output_path = get_part_path(
             metadata=metadata,
             part_number=part_number,
-            dataset_identifier=dataset_identifier,
+            part_dir=part_dir,
             touch=True
     )
     with z.open(json_path, "r") as input_json:
@@ -365,20 +369,19 @@ def write_file_to_json_dataset(
                 current_output_path = get_part_path(
                         metadata=metadata,
                         part_number=part_number,
-                        dataset_identifier=dataset_identifier,
+                        part_dir=part_dir,
                         touch=True
                 )
             with open(current_output_path, "a") as f_out:
                 for transformed_record in transformed_block:
                     f_out.write("{}\n".format(json.dumps(transformed_record)))
     uploaded_files = []
-    for part_file in os.listdir(dataset_identifier):
-        output_path = os.path.join(dataset_identifier, part_file)
+    for part_file in os.listdir(part_dir):
+        output_path = os.path.join(part_dir, part_file)
         s3_output_key = os.path.join(
             workflow_run_properties["namespace"],
             workflow_run_properties["json_prefix"],
-            f"dataset={dataset_identifier}",
-            part_file
+            output_path
         )
         logger.debug(
                 "Uploading %s to %s",
@@ -398,7 +401,11 @@ def write_file_to_json_dataset(
             os.remove(output_path)
     return uploaded_files
 
-def get_part_path(metadata: dict, part_number: int, dataset_identifier: str, touch: bool):
+def get_part_path(
+        metadata: dict,
+        part_number: int,
+        part_dir: str,
+        touch: bool,):
     """
     A helper function for `write_file_to_json_dataset`
 
@@ -408,7 +415,7 @@ def get_part_path(metadata: dict, part_number: int, dataset_identifier: str, tou
     Args:
         metadata (dict): Metadata derived from the file basename.
         part_number (int): Which part we need a file name for.
-        dataset_identifier (str): The data type of `json_path`.
+        part_dir (str): The directory to which we write the part file.
         touch (bool): Whether to create an empty file at the part path
 
     Returns:
@@ -422,8 +429,9 @@ def get_part_path(metadata: dict, part_number: int, dataset_identifier: str, tou
             metadata=metadata,
             part_number=part_number
     )
-    output_path = os.path.join(dataset_identifier, output_filename)
+    output_path = os.path.join(part_dir, output_filename)
     if touch:
+        os.makedirs(part_dir, exist_ok=True)
         with open(output_path, "x") as initial_file:
             # create file
             pass
@@ -478,6 +486,7 @@ def get_metadata(basename: str) -> dict:
 
 def process_record(
         s3_obj: dict,
+        cohort: str,
         workflow_run_properties: dict) -> None:
     """
     Write the contents of a .zip archive stored on S3 to their respective
@@ -488,6 +497,7 @@ def process_record(
 
     Args:
         s3_obj (dict): An S3 object as returned by `boto3.get_object`.
+        cohort (str): The cohort which this data associates with.
         workflow_run_properties (dict): The workflow arguments
 
     Returns:
@@ -511,6 +521,7 @@ def process_record(
                     z=z,
                     json_path=json_path,
                     dataset_identifier=dataset_identifier,
+                    cohort=cohort,
                     metadata=metadata,
                     workflow_run_properties=workflow_run_properties)
 
@@ -544,8 +555,21 @@ def main() -> None:
                 Key = message["source_key"]
         )
         s3_obj["Body"] = s3_obj["Body"].read()
+        cohort = None
+        if "adults_v1" in message["source_key"]:
+            cohort = "adults_v1"
+        elif "pediatric_v1" in message["source_key"]:
+            cohort = "pediatric_v1"
+        else:
+            logger.warning(
+                    "Could not determine the cohort of object at %s"
+                    "This file will not be written to a JSON dataset.",
+                    f"s3://{message['source_bucket']}/{message['source_key']}. "
+            )
+            continue
         process_record(
                 s3_obj=s3_obj,
+                cohort=cohort,
                 workflow_run_properties=workflow_run_properties
         )
 

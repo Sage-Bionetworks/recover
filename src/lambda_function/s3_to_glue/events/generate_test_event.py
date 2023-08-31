@@ -88,7 +88,10 @@ def create_event(bucket: str, key: str, key_prefix: str, key_file: str) -> dict:
                 Bucket=bucket,
                 Prefix=key_prefix
         )
-        test_data = [obj["Key"] for obj in test_objects["Contents"]]
+        test_data = [
+                obj["Key"] for obj in test_objects["Contents"]
+                if not obj["Key"].endswith("/")
+        ]
     else:
         test_data = [key]
     s3_event = {
