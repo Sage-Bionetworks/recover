@@ -27,6 +27,7 @@ Resources:
   {% do dataset.update({'table_name': 'dataset_' + v.lower()})%}
   {% set schema = sceptre_user_data.dataset_schemas.tables[v] %}
   {% do dataset.update({'columns': schema['columns']}) %}
+  {% do dataset.update({'partition_keys': schema['partition_keys']}) %}
   {% do dataset.update({'stackname_prefix': '{}'.format(v.replace('_',''))}) %}
   {% do datasets.append(dataset) %}
   {% endfor %}
@@ -53,6 +54,7 @@ Resources:
           compressionType: none
           typeOfData: file
         Retention: 0
+        PartitionKeys: {{ dataset.partition_keys }}
         StorageDescriptor:
           Columns: {{ dataset.columns }}
           Compressed: false

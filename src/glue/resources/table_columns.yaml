@@ -37,6 +37,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   HealthKitV2Statistics:
     columns:
       - Name: HealthKitStatisticKey
@@ -60,6 +63,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   HealthKitV2Samples:
     columns:
@@ -91,6 +97,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   HealthKitV2Samples_Deleted:
     columns:
       - Name: HealthKitSampleKey
@@ -104,6 +113,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   HealthKitV2ActivitySummaries:
     columns:
@@ -134,6 +146,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   HealthKitV2Electrocardiogram:
     columns:
@@ -171,6 +186,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   HealthKitV2Workouts:
     columns:
       - Name: HealthKitWorkoutKey
@@ -199,6 +217,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   HealthKitV2Heartbeat:
     columns:
       - Name: HealthKitHeartbeatSampleKey
@@ -224,6 +245,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   FitbitActivityLogs:
     columns:
@@ -273,6 +297,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   FitbitDevices:
     columns:
       - Name: ParticipantIdentifier
@@ -290,6 +317,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   FitbitDailyData:
     columns:
@@ -359,6 +389,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   FitbitIntradayCombined:
     columns:
       - Name: ParticipantID
@@ -397,6 +430,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   FitbitRestingHeartRates:
     columns:
       - Name: ParticipantIdentifier
@@ -410,6 +446,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   FitbitSleepLogs:
     columns:
@@ -461,6 +500,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   GoogleFitSamples:
     columns:
       - Name: GoogleFitSampleKey
@@ -505,6 +547,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   SymptomLog:
     columns:
       - Name: DatapointKey
@@ -524,6 +569,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   GarminActivityDetailsSummary:
     columns:
@@ -552,6 +600,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   GarminActivitySummary:
     columns:
@@ -661,6 +712,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   GarminBloodPressureSummary:
     columns:
       - Name: ParticipantIdentifier
@@ -686,6 +740,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   GarminBodyCompositionSummary:
     columns:
@@ -716,6 +773,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   GarminDailySummary:
     columns:
@@ -789,6 +849,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   GarminEpochSummary:
     columns:
       - Name: ParticipantIdentifier
@@ -827,6 +890,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   GarminHealthSnapshotSummary:
     columns:
       - Name: ParticipantIdentifier
@@ -850,6 +916,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   GarminHrvSummary:
     columns:
@@ -878,6 +947,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   GarminManuallyUpdatedActivitySummary:
     columns:
@@ -951,6 +1023,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   GarminMoveIQActivitySummary:
     columns:
       - Name: ParticipantIdentifier
@@ -981,6 +1056,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   GarminPulseOxSummary:
     columns:
       - Name: ParticipantIdentifier
@@ -1007,6 +1085,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   GarminRespirationSummary:
     columns:
       - Name: ParticipantIdentifier
@@ -1028,6 +1109,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   GarminSleepSummary:
     columns:
@@ -1075,6 +1159,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   GarminStressDetailSummary:
     columns:
       - Name: ParticipantIdentifier
@@ -1100,6 +1187,9 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
   GarminThirdPartyDailySummary:
     columns:
@@ -1149,6 +1239,9 @@ tables:
         Type: string
       - Name: export_end_date
         Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   GarminUserMetricsSummary:
     columns:
       - Name: ParticipantIdentifier
@@ -1170,4 +1263,7 @@ tables:
       - Name: export_start_date
         Type: string
       - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
         Type: string
