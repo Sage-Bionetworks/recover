@@ -2,8 +2,8 @@ template:
   path: sqs-queue.yaml
 parameters:
   MessageRetentionPeriod: '86400'
-  ReceiveMessageWaitTimeSeconds: 20
-  VisibilityTimeout: 120
+  ReceiveMessageWaitTimeSeconds: '20'
+  VisibilityTimeout: '120'
   S3SourceBucketArn: !stack_output_external recover-dev-input-bucket::BucketArn
 dependencies:
   - develop/namespaced/s3-to-glue-lambda.yaml
