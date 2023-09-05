@@ -29,7 +29,8 @@ def lambda_handler(event, context):
         logger.info(f'Request Type: {event["RequestType"]}')
         add_notification(
             s3,
-            lambda_arn=os.environ["S3_TO_GLUE_FUNCTION_ARN"],
+            destination_arn=os.environ["S3_TO_GLUE_DESTINATION_ARN"],
+            destination_type=os.environ["S3_TO_GLUE_DESTINATION_TYPE"],
             bucket=os.environ["S3_SOURCE_BUCKET_NAME"],
             bucket_key_prefix=os.environ["BUCKET_KEY_PREFIX"],
         )
@@ -41,7 +42,8 @@ def lambda_handler(event, context):
 
 def add_notification(
     s3_client: boto3.client,
-    lambda_arn: str,
+    destination_type : str,
+    destination_arn: str,
     bucket: str,
     bucket_key_prefix: str,
 ):
@@ -49,21 +51,22 @@ def add_notification(
 
     Args:
         s3_client (boto3.client) : s3 client to use for s3 event config
-        lambda_arn (str): Arn of the lambda s3 event config function
+        destination_type (str): String name of the destination type for the configuration
+        destination_arn (str): Arn of the destination's s3 event config
         bucket (str): bucket name of the s3 bucket to add the config to
         bucket_key_prefix (str): bucket key prefix for where to look for s3 object notifications
     """
     s3_client.put_bucket_notification_configuration(
         Bucket=bucket,
         NotificationConfiguration={
-            "LambdaFunctionConfigurations": [
+            f"{destination_type}Configurations": [
                 {
-                    "LambdaFunctionArn": lambda_arn,
+                    f"{destination_type}Arn": destination_arn,
                     "Events": ["s3:ObjectCreated:*"],
                     "Filter": {
                         "Key": {
                             "FilterRules": [
-                                {"Name": "prefix", "Value": bucket_key_prefix}
+                                {"Name": "prefix", "Value": f"{bucket_key_prefix}/"}
                             ]
                         }
                     },
