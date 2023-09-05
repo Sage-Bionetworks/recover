@@ -96,6 +96,7 @@ def transform_object_to_array_of_objects(
 def transform_json(
         json_obj: dict,
         dataset_identifier: str,
+        cohort: str,
         metadata: dict,) -> dict:
     """
     Perform the following transformations:
@@ -103,6 +104,7 @@ def transform_json(
     For every JSON:
         - Add an export_start_date property (may be None)
         - Add an export_end_date property (may be None)
+        - Add a cohort property
 
     For JSON whose data types have a subtype:
         - Add subtype as "Type" property
@@ -120,6 +122,7 @@ def transform_json(
     Args:
         json_obj (str): A JSON object sourced from the JSON file of this data type.
         dataset_identifier (str): The data type of `json_obj`.
+        cohort (str): The cohort which this data associates with.
         metadata (dict): Metadata derived from the file basename.
 
     Returns:
@@ -130,6 +133,7 @@ def transform_json(
     else:
         json_obj["export_start_date"] = None
     json_obj["export_end_date"] = metadata.get("end_date").isoformat()
+    json_obj["cohort"] = cohort
     if dataset_identifier in DATA_TYPES_WITH_SUBTYPE:
         # This puts the `Type` property back where Apple intended it to be
         json_obj["Type"] = metadata["subtype"]
@@ -269,6 +273,7 @@ def get_output_filename(metadata: dict, part_number: int) -> str:
 def transform_block(
         input_json: typing.IO,
         dataset_identifier: str,
+        cohort: str,
         metadata: dict,
         block_size: int=10000):
     """
@@ -283,6 +288,7 @@ def transform_block(
         input_json (typing.IO): A file-like object of the JSON to be transformed.
         dataset_identifier (str): The data type of `input_json`.
         metadata (dict): Metadata derived from the file basename. See `get_metadata`.
+        cohort (str): The cohort which this data associates with.
         block_size (int, optional): The number of records to process in each block.
             Default is 10000.
 
@@ -295,6 +301,7 @@ def transform_block(
         json_obj = transform_json(
                 json_obj=json_obj,
                 dataset_identifier=dataset_identifier,
+                cohort=cohort,
                 metadata=metadata
         )
         block.append(json_obj)
@@ -360,6 +367,7 @@ def write_file_to_json_dataset(
         for transformed_block in transform_block(
                 input_json=input_json,
                 dataset_identifier=dataset_identifier,
+                cohort=cohort,
                 metadata=metadata
         ):
             current_file_size = os.path.getsize(current_output_path)

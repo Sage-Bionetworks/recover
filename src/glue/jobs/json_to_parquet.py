@@ -125,6 +125,7 @@ def get_table(
             glue_context.create_dynamic_frame.from_catalog(
                  database=database_name,
                  table_name=table_name,
+                 additional_options={"groupFiles": "inPartition"},
                  transformation_ctx="create_dynamic_frame"
             )
             .resolveChoice(
@@ -322,7 +323,8 @@ def write_table_to_s3(
             frame = dynamic_frame,
             connection_type = "s3",
             connection_options = {
-                "path": s3_write_path
+                "path": s3_write_path,
+                "partitionKeys": ["cohort"]
             },
             format = "parquet",
             transformation_ctx="write_dynamic_frame")
@@ -390,8 +392,9 @@ def add_index_to_table(
         logger.info(f"Adding index to {original_field_name}")
         parent_index = (parent_table
                 .select(
-                    [selectable_original_field_name] + INDEX_FIELD_MAP[table_data_type])
-                .distinct())
+                    ([selectable_original_field_name, "cohort"]
+                     + INDEX_FIELD_MAP[table_data_type])
+                ).distinct())
         this_index = parent_index.withColumnRenamed(original_field_name, "id")
         df_with_index = this_table.join(
                 this_index,
