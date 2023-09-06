@@ -19,8 +19,13 @@ from awsglue.utils import getResolvedOptions
 
 DATA_TYPES_WITH_SUBTYPE = ["HealthKitV2Samples", "HealthKitV2Statistics"]
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(levelname)s:%(name)s:%(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 def transform_object_to_array_of_objects(
         json_obj_to_replace: dict,
@@ -373,7 +378,6 @@ def write_file_to_json_dataset(
             current_file_size = os.path.getsize(current_output_path)
             if current_file_size > file_size_limit:
                 part_number += 1
-                print(f"!!! File is too large, creating new part {part_number}")
                 current_output_path = get_part_path(
                         metadata=metadata,
                         part_number=part_number,

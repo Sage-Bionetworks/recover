@@ -122,6 +122,7 @@ class TestS3ToJsonS3:
         transformed_json = s3_to_json.transform_json(
                 json_obj={},
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -133,6 +134,7 @@ class TestS3ToJsonS3:
             sample_metadata["end_date"].isoformat()
             == transformed_json["export_end_date"]
         )
+        assert transformed_json["cohort"] == "adults_v1"
 
     def test_transform_json_with_subtype(self):
         sample_metadata = {
@@ -144,6 +146,7 @@ class TestS3ToJsonS3:
         transformed_json = s3_to_json.transform_json(
                 json_obj={},
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -167,6 +170,7 @@ class TestS3ToJsonS3:
         transformed_json = s3_to_json.transform_json(
                 json_obj={"Value": json.dumps(transformed_value)},
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -194,6 +198,7 @@ class TestS3ToJsonS3:
                     }
                 },
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -225,6 +230,7 @@ class TestS3ToJsonS3:
                     }
                 },
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -266,6 +272,7 @@ class TestS3ToJsonS3:
         transformed_json = s3_to_json.transform_json(
                 json_obj={"TimeOffsetHeartRateSamples": time_offset_heartrate_samples},
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -322,6 +329,7 @@ class TestS3ToJsonS3:
                     ]
                 },
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -363,6 +371,7 @@ class TestS3ToJsonS3:
                 transformed_block = s3_to_json.transform_block(
                     input_json=input_json,
                     dataset_identifier=sample_metadata["type"],
+                    cohort="adults_v1",
                     metadata=sample_metadata,
                     block_size=2
                 )
@@ -381,6 +390,7 @@ class TestS3ToJsonS3:
                 transformed_block = s3_to_json.transform_block(
                     input_json=input_json,
                     dataset_identifier=sample_metadata["type"],
+                    cohort="adults_v1",
                     metadata=sample_metadata,
                     block_size=2
                 )
@@ -405,6 +415,7 @@ class TestS3ToJsonS3:
                 transformed_block = s3_to_json.transform_block(
                     input_json=input_json,
                     dataset_identifier=sample_metadata["type"],
+                    cohort="adults_v1",
                     metadata=sample_metadata,
                     block_size=10
                 )
