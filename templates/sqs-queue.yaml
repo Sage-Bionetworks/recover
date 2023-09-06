@@ -46,6 +46,7 @@ Resources:
         - Sid: Send_Permission
           Effect: Allow
           Principal:
+            Service: s3.amazonaws.com
             AWS: !Sub '${AWS::AccountId}'
           Action:
           - SQS:SendMessage
