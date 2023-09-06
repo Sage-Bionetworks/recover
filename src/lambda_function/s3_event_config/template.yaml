@@ -18,6 +18,9 @@ Parameters:
   S3ToGlueDestinationType:
     Type: String
     Description: The S3 Event Config Destination Type
+    AllowedValues:
+      - "Queue"
+      - "LambdaFunction"
 
   S3EventConfigRoleArn:
     Type: String
