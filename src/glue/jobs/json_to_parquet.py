@@ -1,14 +1,13 @@
 """
 This script runs as a Glue job and converts a collection of JSON files
 (whose schema is defined by a Glue table), to a parquet dataset partitioned by
-assessmentid / year / month / day. Additionally, if the table has nested data,
+cohort. Additionally, if the table has nested data,
 it will be separated into its own dataset with a predictable name. For example,
-the info table (derived from info.json) has a field called "files" which is an
-array of objects. We will write out two parquet datasets in this case, an `info`
-dataset and an `info_files` dataset.
+the healthkitv2heartbeat data type has a field called "SubSamples" which is an
+array of objects. We will write out two parquet datasets in this case, a `healthkitv2heartbeat`
+dataset and an `healthkitv2heartbeat_subsamples` dataset.
 
-Before writing our tables to parquet datasets, we add the recordid,
-assessmentid, year, month, and day to each record in each table.
+
 """
 
 import os
@@ -108,6 +107,8 @@ def get_table(
     Duplicate samples are dropped by referencing the `InsertedDate`
     field, keeping the more recent sample. For any data types which
     don't have this field, we drop duplicates by referencing `export_end_date`.
+    Additionally, we drop any superfluous partition_* fields which are
+    added by Glue.
 
     Args:
         table_name (str): The name of the Glue table.
@@ -136,9 +137,11 @@ def get_table(
     )
     if table.count() == 0:
         return table
-    field_names = [field.name for field in table.schema().fields]
     spark_df = table.toDF()
-    if "InsertedDate" in field_names:
+    for c in spark_df.columns:
+        if "partition_" in c: # superfluous field added by Glue
+            spark_df = spark_df.drop(c)
+    if "InsertedDate" in spark_df.columns:
         sorted_spark_df = spark_df.sort(spark_df.InsertedDate.desc())
     else:
         sorted_spark_df = spark_df.sort(spark_df.export_end_date.desc())
