@@ -25,6 +25,32 @@ Parameters:
     Description: Python version to use for this lambda function
     Default: "3.9"
 
+  LambdaTriggerSchedule:
+    Description: >
+      Schedule to execute the lambda function to poll the SQS queue for messages
+    Type: String
+    Default: cron(59 23 * * ? *)
+
+  SQSQueueVisibilityTimeout:
+    Type: Number
+    Default: 120
+    Description: >-
+      How long our lambda has to submit the messages to Glue and
+      delete the message from the SQS queue
+
+  MaxNumberOfMessagesToReceive:
+    Type: Number
+    Default: 10
+    Description: >-
+      The maximum number of messages our lambda can receive from
+      the SQS queue per call
+
+  WaitTimeForMessages:
+    Type: Number
+    Default: 5
+    Description: >-
+      The amount of time in seconds to poll for messages per call
+
 
 Resources:
   S3ToGlueFunction:
@@ -39,16 +65,14 @@ Resources:
       Environment:
         Variables:
           PRIMARY_WORKFLOW_NAME: !Ref PrimaryWorkflowName
-
-  LambdaInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt S3ToGlueFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: s3.amazonaws.com
-      SourceAccount: !Ref 'AWS::AccountId'
-      SourceArn: !Sub 'arn:aws:s3:::${S3SourceBucketName}'
-
+          VISIBILITY_TIMEOUT: !Ref SQSQueueVisibilityTimeout
+          MAX_NUMBER_OF_MESSAGES_TO_RECEIVE: !Ref MaxNumberOfMessagesToReceive
+          WAIT_TIME_FOR_MESSAGES:  !Ref WaitTimeForMessages
+      Events:
+        DailyTrigger:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref LambdaTriggerSchedule
 
 Outputs:
   S3ToGlueFunctionArn:
