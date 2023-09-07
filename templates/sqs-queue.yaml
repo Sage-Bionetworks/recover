@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  Creates an SQS queue that gets S3 notifications
+
+Parameters:
+
+  MessageRetentionPeriod:
+    Type: Number
+    Default: 1209600
+    Description: How long to retain messages in the primary queue.
+
+  ReceiveMessageWaitTimeSeconds:
+    Type: Number
+    Default: 20
+    Description: The delay between SQS receiving a message and making it available for others to poll
+
+  VisibilityTimeout:
+    Type: Number
+    Default: 120
+    Description: >-
+      How long our lambda has to submit the messages to Glue and
+      delete the message from the SQS queue
+
+  S3SourceBucketArn:
+    Type: String
+    Description: Arn of the S3 bucket where source data are stored.
+
+Resources:
+
+  PrimaryQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      DelaySeconds: 0
+      MessageRetentionPeriod: !Ref MessageRetentionPeriod
+      QueueName: !Sub '${AWS::StackName}-Queue'
+      ReceiveMessageWaitTimeSeconds: !Ref ReceiveMessageWaitTimeSeconds
+      VisibilityTimeout: !Ref VisibilityTimeout
+
+  PrimaryQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: Send_Permission
+          Effect: Allow
+          Principal:
+            Service: s3.amazonaws.com
+            AWS: !Sub '${AWS::AccountId}'
+          Action:
+          - SQS:SendMessage
+          Resource: !GetAtt PrimaryQueue.Arn
+          Condition:
+            ArnLike:
+              "aws:SourceArn": !Ref S3SourceBucketArn
+      Queues:
+      - !Ref PrimaryQueue
+
+Outputs:
+
+  PrimaryQueueArn:
+    Value: !GetAtt PrimaryQueue.Arn
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-PrimaryQueueArn'
+
+  PrimaryQueueUrl:
+    Value: !Ref PrimaryQueue
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-PrimaryQueueUrl'

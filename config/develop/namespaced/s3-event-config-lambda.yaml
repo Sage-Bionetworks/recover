@@ -10,6 +10,7 @@ stack_name: '{{ stack_group_config.namespace }}-lambda-S3EventConfig'
 stack_tags: {{ stack_group_config.default_stack_tags }}
 parameters:
   Namespace: {{ stack_group_config.namespace }}
-  S3ToGlueFunctionArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-S3ToGlue::S3ToGlueFunctionArn"
+  S3ToGlueDestinationArn: !stack_output_external "{{ stack_group_config.namespace }}-sqs-S3ToLambda::PrimaryQueueArn"
+  S3ToGlueDestinationType: "Queue"
   S3EventConfigRoleArn: !stack_output_external "{{ stack_group_config.namespace }}-s3-event-config-lambda-role::RoleArn"
   S3SourceBucketName: {{ stack_group_config.input_bucket_name }}

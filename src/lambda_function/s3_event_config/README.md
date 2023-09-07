@@ -4,8 +4,13 @@ The s3_event_config lambda is triggered by a github action during deployment or 
 
 It will then put a S3 event notification configuration into
 the input data bucket which allows the input data bucket to
-trigger the S3 to JSON lambda with S3 new object notifications whenever new objects are added
+trigger a specific destination type with S3 new object notifications whenever new objects are added
 to it and eventually lead to the start of the S3-to-JSON workflow.
+
+Currently **only** the following destination types are supported:
+
+- Lambda Function
+- SQS queue
 
 ## Event format
 
@@ -22,6 +27,8 @@ Where the allowed RequestType values are:
 - "Create"
 - "Update"
 - "Delete"
+
+You can test the lambda by going to the AWS console for the lambda function, pasting the above sample event in and triggering the function. Any updates should then be visible in the input bucket's event config to confirm it was successful.
 
 ## Launching Lambda stack in AWS
 
