@@ -79,7 +79,8 @@ def submit_s3_to_json_workflow(objects_info: list[dict[str, str]], workflow_name
 
 def lambda_handler(event, context) -> None:
     """This main lambda function will be triggered by a
-        cloudwatch scheduler
+        cloudwatch scheduler and will poll the SQS queue for
+        all available messages
 
     Args:
         event (json): CloudWatch scheduled trigger event

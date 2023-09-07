@@ -7,9 +7,9 @@ Description: >
 
 Parameters:
 
-  S3SourceBucketName:
+  SQSQueueName:
     Type: String
-    Description: Name of the S3 bucket where source data are stored.
+    Description: Name of the SQS queue where the messages for the source data are stored
 
   S3ToGlueRoleArn:
     Type: String
@@ -68,6 +68,7 @@ Resources:
           VISIBILITY_TIMEOUT: !Ref SQSQueueVisibilityTimeout
           MAX_NUMBER_OF_MESSAGES_TO_RECEIVE: !Ref MaxNumberOfMessagesToReceive
           WAIT_TIME_FOR_MESSAGES:  !Ref WaitTimeForMessages
+          SQS_QUEUE_NAME: !Ref SQSQueueName
       Events:
         DailyTrigger:
           Type: Schedule
