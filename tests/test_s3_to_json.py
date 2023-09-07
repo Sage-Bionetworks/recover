@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import shutil
 import zipfile
 import datetime
 from dateutil.tz import tzutc
@@ -121,6 +122,7 @@ class TestS3ToJsonS3:
         transformed_json = s3_to_json.transform_json(
                 json_obj={},
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -132,6 +134,7 @@ class TestS3ToJsonS3:
             sample_metadata["end_date"].isoformat()
             == transformed_json["export_end_date"]
         )
+        assert transformed_json["cohort"] == "adults_v1"
 
     def test_transform_json_with_subtype(self):
         sample_metadata = {
@@ -143,6 +146,7 @@ class TestS3ToJsonS3:
         transformed_json = s3_to_json.transform_json(
                 json_obj={},
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -166,6 +170,7 @@ class TestS3ToJsonS3:
         transformed_json = s3_to_json.transform_json(
                 json_obj={"Value": json.dumps(transformed_value)},
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -193,6 +198,7 @@ class TestS3ToJsonS3:
                     }
                 },
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -224,6 +230,7 @@ class TestS3ToJsonS3:
                     }
                 },
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -265,6 +272,7 @@ class TestS3ToJsonS3:
         transformed_json = s3_to_json.transform_json(
                 json_obj={"TimeOffsetHeartRateSamples": time_offset_heartrate_samples},
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -321,6 +329,7 @@ class TestS3ToJsonS3:
                     ]
                 },
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -362,6 +371,7 @@ class TestS3ToJsonS3:
                 transformed_block = s3_to_json.transform_block(
                     input_json=input_json,
                     dataset_identifier=sample_metadata["type"],
+                    cohort="adults_v1",
                     metadata=sample_metadata,
                     block_size=2
                 )
@@ -380,6 +390,7 @@ class TestS3ToJsonS3:
                 transformed_block = s3_to_json.transform_block(
                     input_json=input_json,
                     dataset_identifier=sample_metadata["type"],
+                    cohort="adults_v1",
                     metadata=sample_metadata,
                     block_size=2
                 )
@@ -404,6 +415,7 @@ class TestS3ToJsonS3:
                 transformed_block = s3_to_json.transform_block(
                     input_json=input_json,
                     dataset_identifier=sample_metadata["type"],
+                    cohort="adults_v1",
                     metadata=sample_metadata,
                     block_size=10
                 )
@@ -453,12 +465,10 @@ class TestS3ToJsonS3:
     def test_write_file_to_json_dataset_delete_local_copy(self, s3_obj, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
         sample_metadata = {
-            "Metadata": {
                 "type": "HealthKitV2Samples",
                 "start_date": datetime.datetime(2022, 1, 12, 0, 0),
                 "end_date": datetime.datetime(2023, 1, 14, 0, 0),
                 "subtype": "Weight",
-            }
         }
         workflow_run_properties = {
             "namespace": namespace,
@@ -470,22 +480,22 @@ class TestS3ToJsonS3:
                 z=z,
                 json_path="HealthKitV2Samples_Weight_20230112-20230114.json",
                 dataset_identifier="HealthKitV2Samples",
-                metadata=sample_metadata["Metadata"],
+                cohort="adults_v1",
+                metadata=sample_metadata,
                 workflow_run_properties=workflow_run_properties,
                 delete_upon_successful_upload=True,
             )
         output_file = output_files[0]
 
         assert not os.path.exists(output_file)
+        shutil.rmtree(f"dataset={sample_metadata['type']}")
 
     def test_write_file_to_json_dataset_record_consistency(self, s3_obj, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
         sample_metadata = {
-            "Metadata": {
                 "type": "FitbitDevices",
                 "start_date": None,
                 "end_date": datetime.datetime(2023, 1, 14, 0, 0)
-            }
         }
         workflow_run_properties = {
             "namespace": namespace,
@@ -499,8 +509,9 @@ class TestS3ToJsonS3:
             output_files = s3_to_json.write_file_to_json_dataset(
                 z=z,
                 json_path="FitbitDevices_20230114.json",
-                dataset_identifier="FitbitDevices",
-                metadata=sample_metadata["Metadata"],
+                dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
+                metadata=sample_metadata,
                 workflow_run_properties=workflow_run_properties,
                 delete_upon_successful_upload=False,
             )
@@ -512,13 +523,13 @@ class TestS3ToJsonS3:
                     metadata = json.loads(json_line)
                     assert metadata["export_start_date"] is None
                     assert (
-                        sample_metadata["Metadata"]["end_date"].isoformat()
+                        sample_metadata["end_date"].isoformat()
                         == metadata["export_end_date"]
                     )
                     output_line_cnt += 1
             # gets line count of input json and exported json and checks the two
             assert input_line_cnt == output_line_cnt
-            os.remove(output_file)
+            shutil.rmtree(f"dataset={sample_metadata['type']}", ignore_errors=True)
 
     def test_write_file_to_json_dataset_multiple_parts(self, s3_obj, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
@@ -540,6 +551,7 @@ class TestS3ToJsonS3:
                 z=z,
                 json_path=json_path,
                 dataset_identifier=sample_metadata["type"],
+                cohort="adults_v1",
                 metadata=sample_metadata,
                 workflow_run_properties=workflow_run_properties,
                 delete_upon_successful_upload=False,
@@ -552,6 +564,7 @@ class TestS3ToJsonS3:
                         output_line_count += 1
                 os.remove(output_file)
             assert input_line_cnt == output_line_count
+            shutil.rmtree(f"dataset={sample_metadata['type']}", ignore_errors=True)
 
     def test_get_part_path_no_touch(self):
         sample_metadata = {
@@ -562,7 +575,7 @@ class TestS3ToJsonS3:
         part_path = s3_to_json.get_part_path(
                 metadata=sample_metadata,
                 part_number=0,
-                dataset_identifier=sample_metadata["type"],
+                part_dir=sample_metadata["type"],
                 touch=False
         )
         assert part_path == "FitbitDevices/FitbitDevices_20230114.part0.ndjson"
@@ -576,11 +589,11 @@ class TestS3ToJsonS3:
         part_path = s3_to_json.get_part_path(
                 metadata=sample_metadata,
                 part_number=0,
-                dataset_identifier=sample_metadata["type"],
+                part_dir=sample_metadata["type"],
                 touch=True
         )
         assert os.path.exists(part_path)
-        os.remove(part_path)
+        shutil.rmtree(sample_metadata["type"], ignore_errors=True)
 
     def test_get_metadata_startdate_enddate(self, json_file_basenames_dict):
         basename = json_file_basenames_dict["HealthKitV2Samples_Deleted"]

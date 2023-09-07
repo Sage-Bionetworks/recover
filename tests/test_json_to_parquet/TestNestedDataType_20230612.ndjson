@@ -1,1 +1,1 @@
-{"GlobalKey": "123456789", "ArrayOfObjectsField": [{"filename": "test.json", "timestamp": "999"}], "ObjectField": {"filename": "test.json", "timestamp": "999"}, "export_end_date": "2023-06-12T00:00:00"}
+{"GlobalKey": "123456789", "ArrayOfObjectsField": [{"filename": "test.json", "timestamp": "999"}], "ObjectField": {"filename": "test.json", "timestamp": "999"}, "export_end_date": "2023-06-12T00:00:00", "cohort": "adults_v1"}
