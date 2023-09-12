@@ -7,9 +7,17 @@ Description: >
 
 Parameters:
 
+  SQSQueueUrl:
+    Type: String
+    Description: URL of the SQS queue where the messages for the source data are stored
+
   SQSQueueName:
     Type: String
     Description: Name of the SQS queue where the messages for the source data are stored
+
+  SQSQueueArn:
+    Type: String
+    Description: Arn of the SQS queue for lambda to poll messages from.
 
   S3ToGlueRoleArn:
     Type: String
@@ -24,12 +32,6 @@ Parameters:
     Type: String
     Description: Python version to use for this lambda function
     Default: "3.9"
-
-  LambdaTriggerSchedule:
-    Description: >
-      Schedule to execute the lambda function to poll the SQS queue for messages
-    Type: String
-    Default: cron(59 23 * * ? *)
 
   SQSQueueVisibilityTimeout:
     Type: Number
@@ -69,11 +71,15 @@ Resources:
           MAX_NUMBER_OF_MESSAGES_TO_RECEIVE: !Ref MaxNumberOfMessagesToReceive
           WAIT_TIME_FOR_MESSAGES:  !Ref WaitTimeForMessages
           SQS_QUEUE_NAME: !Ref SQSQueueName
+          SQS_QUEUE_URL: !Ref SQSQueueUrl
       Events:
-        DailyTrigger:
-          Type: Schedule
+        SQSEvent:
+          Type: SQS
           Properties:
-            Schedule: !Ref LambdaTriggerSchedule
+            BatchSize: 5
+            MaximumBatchingWindowInSeconds: 300
+            Queue: !Ref SQSQueueArn
+
 
 Outputs:
   S3ToGlueFunctionArn:

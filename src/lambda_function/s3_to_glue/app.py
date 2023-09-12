@@ -77,7 +77,7 @@ def submit_s3_to_json_workflow(objects_info: list[dict[str, str]], workflow_name
     )
 
 
-def lambda_handler(event, context) -> None:
+def lambda_handler_archive() -> None:
     """This main lambda function will be triggered by a
         cloudwatch scheduler and will poll the SQS queue for
         all available messages
@@ -157,3 +157,52 @@ def lambda_handler(event, context) -> None:
             return {"statusCode": 0, "body": "No messages exist"}
 
     return {"statusCode": 200, "body": "All messages retrieved and processed."}
+
+
+def lambda_handler(event, context) -> None:
+    """This main lambda function will be triggered by a
+        cloudwatch scheduler and will poll the SQS queue for
+        all available messages
+
+    Args:
+        event (json): CloudWatch scheduled trigger event
+        context: NA
+
+    Raises:
+        Exception: When polling SQS queue on a loop has reached the maximum iteration
+    """
+    # Initialize SQS client
+    sqs = boto3.client("sqs")
+    if "Records" in event:
+        for record in event["Records"]:
+            logger.info(record)
+            s3_event = json.loads(record["body"])
+            s3_objects_info = []
+            bucket_name = s3_event["Records"][0]["s3"]["bucket"]["name"]
+            object_key = s3_event["Records"][0]["s3"]["object"]["key"]
+            object_info = {
+                "source_bucket": bucket_name,
+                "source_key": object_key,
+            }
+            if filter_object_info(object_info) is not None:
+                s3_objects_info.append(object_info)
+
+        if len(s3_objects_info) > 0:
+            logger.info(
+                "Submitting the following files to "
+                f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
+            )
+            submit_s3_to_json_workflow(
+                objects_info=s3_objects_info,
+                workflow_name=os.environ["PRIMARY_WORKFLOW_NAME"],
+            )
+        # Delete the messages from the queue after all events are successfully submitted
+        for record in event["Records"]:
+            receipt_handle = record["receiptHandle"]
+            sqs.delete_message(
+                QueueUrl=os.environ["SQS_QUEUE_URL"], ReceiptHandle=receipt_handle
+            )
+        return {"statusCode": 200, "body": "All messages retrieved and processed."}
+    else:
+        logger.info("No 'Records' key exists in event to be parsed" f"\nEvent: {event}")
+        return {"statusCode": 0, "body": "No messages exist"}
