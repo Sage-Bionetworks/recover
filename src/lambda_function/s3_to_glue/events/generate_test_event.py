@@ -59,7 +59,7 @@ def read_args() -> argparse.Namespace:
 
 def create_event(bucket: str, key: str, key_prefix: str, key_file: str) -> dict:
     """
-    Create an S3 event notification for testing.
+    Create an SQS event wrapping S3 event notification(s) for testing.
 
     This function accepts either an S3 object key or an S3 key prefix that will
     be included in the test event. If an S3 object key is provided, then the test
@@ -76,7 +76,7 @@ def create_event(bucket: str, key: str, key_prefix: str, key_file: str) -> dict:
             include in the test event. Takes precedence over `key` and `key_prefix`.
 
     Returns:
-        dict: An S3 event notification
+        dict: An SQS event wrapping S3 event notifications
     """
     if key_file is not None:
         with open(key_file, "r") as key_file_obj:
@@ -94,10 +94,14 @@ def create_event(bucket: str, key: str, key_prefix: str, key_file: str) -> dict:
         ]
     else:
         test_data = [key]
-    s3_event = {
-            "Records": [create_s3_event_record(bucket=bucket, key=k) for k in test_data]
-    }
-    return s3_event
+    s3_events = [
+            create_s3_event_record(bucket=bucket, key=k) for k in test_data
+    ]
+    sqs_messages = [
+            create_sqs_message(s3_event) for s3_event in s3_events
+    ]
+    sqs_event = {"Records": sqs_messages}
+    return sqs_event
 
 def create_s3_event_record(bucket: str, key: str) -> dict:
     """
@@ -149,10 +153,43 @@ def create_s3_event_record(bucket: str, key: str) -> dict:
     s3_event_record["s3"]["object"]["key"] = key
     return s3_event_record
 
+def create_sqs_message(s3_event_record: dict) -> dict:
+    """
+    Create an SQS message wrapper for an individual S3 event notification.
+
+    See `create_s3_event_record` for creating S3 event notifications.
+
+    Args:
+        s3_event_record (dict): A dictionary formatted as a "Record"
+            object would be in an S3 event notification
+
+    Returns:
+        dict: A dictionary formatted as an SQS message
+    """
+    sqs_event_record = {
+      "messageId": "bf7be842",
+      "receiptHandle": "AQEBLdQhbUa",
+      "body": None,
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1694541052297",
+        "SenderId": "AIDAJHIPRHEMV73VRJEBU",
+        "ApproximateFirstReceiveTimestamp": "1694541052299"
+      },
+      "messageAttributes": {},
+      "md5OfMessageAttributes": None,
+      "md5OfBody": "abdc58591d121b6a0334fb44fd45aceb",
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:aws:sqs:us-east-1:914833433684:mynamespace-sqs-S3ToLambda-Queue",
+      "awsRegion": "us-east-1"
+    }
+    sqs_event_record["body"] = json.dumps({"Records": [s3_event_record]})
+    return sqs_event_record
+
 def main() -> None:
     args = read_args()
     print("Generating mock S3 event...")
-    s3_event = create_event(
+    sqs_event = create_event(
             bucket=args.input_bucket,
             key=args.input_key,
             key_prefix=args.input_key_prefix,
@@ -161,11 +198,11 @@ def main() -> None:
 
     if args.input_key_file is not None or args.input_key_prefix is not None:
         with open(os.path.join(args.output_directory, MULTI_RECORD_OUTFILE), "w") as outfile:
-            json.dump(s3_event, outfile)
+            json.dump(sqs_event, outfile)
             print(f"Event with multiple records written to {outfile.name}.")
     else:
         with open(os.path.join(args.output_directory, SINGLE_RECORD_OUTFILE), "w") as outfile:
-            json.dump(s3_event, outfile)
+            json.dump(sqs_event, outfile)
             print(f"Event with single record written to {outfile.name}.")
     print("Done.")
 
