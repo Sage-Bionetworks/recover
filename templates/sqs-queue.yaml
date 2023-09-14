@@ -36,6 +36,9 @@ Resources:
       QueueName: !Sub '${AWS::StackName}-Queue'
       ReceiveMessageWaitTimeSeconds: !Ref ReceiveMessageWaitTimeSeconds
       VisibilityTimeout: !Ref VisibilityTimeout
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 3
 
   PrimaryQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -56,6 +59,17 @@ Resources:
               "aws:SourceArn": !Ref S3SourceBucketArn
       Queues:
       - !Ref PrimaryQueue
+
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      DelaySeconds: 0
+      MessageRetentionPeriod: 1209600
+      QueueName: !Sub '${AWS::StackName}-DeadLetterQueue'
+      ReceiveMessageWaitTimeSeconds: !Ref ReceiveMessageWaitTimeSeconds
+      RedriveAllowPolicy:
+        redrivePermission: allowAll
+      VisibilityTimeout: !Ref VisibilityTimeout
 
 Outputs:
 
