@@ -1,7 +1,7 @@
 # s3_to_glue lambda
 
-The s3_to_glue lambda is triggered daily by a scheduled event and polls the SQS queue
-for messages of files to submit to a glue workflow. If there are files to submit,
+The s3_to_glue lambda is triggered by a SQS event and polls the SQS queue
+for S3 event messages of files to submit to a glue workflow. If there are files to submit,
 it starts the S3-to-Json workflow.
 
 ## Development
@@ -75,7 +75,7 @@ There are two main stacks involved in the s3 to glue lambda. They are the
 #### Launching in development
 
 1. Create/update the following s3 to glue lambda role [sceptre](https://github.com/Sceptre/sceptre) config file:
-`config/develop/s3-to-glue-lambda-role.yaml`
+`config/develop/namespaced/s3-to-glue-lambda-role.yaml`
 
 2. Create/update the following s3 to glue lambda role [sceptre](https://github.com/Sceptre/sceptre) template file:
 `templates/s3-to-glue-lambda-role.yaml`

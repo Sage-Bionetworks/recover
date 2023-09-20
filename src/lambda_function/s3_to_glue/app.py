@@ -1,7 +1,7 @@
 """
-This Lambda app responds to an S3 event notification and starts a Glue workflow.
+This Lambda app responds to an SQS event notification and starts a Glue workflow.
 The Glue workflow name is set by the environment variable `PRIMARY_WORKFLOW_NAME`.
-Subsequently, the S3 objects which were contained in the event are written as a
+Subsequently, the S3 objects which were contained in the SQS event are written as a
 JSON string to the `messages` workflow run property.
 """
 import os
@@ -77,115 +77,35 @@ def submit_s3_to_json_workflow(objects_info: list[dict[str, str]], workflow_name
     )
 
 
-def lambda_handler_archive() -> None:
-    """This main lambda function will be triggered by a
-        cloudwatch scheduler and will poll the SQS queue for
-        all available messages
-
-    Args:
-        event (json): CloudWatch scheduled trigger event
-        context: NA
-
-    Raises:
-        Exception: When polling SQS queue on a loop has reached the maximum iteration
-    """
-    # Initialize SQS client
-    sqs = boto3.client("sqs")
-
-    # Get the URL of the SQS queue
-    queue_name = os.environ["SQS_QUEUE_NAME"]
-    response = sqs.get_queue_url(QueueName=queue_name)
-    queue_url = response["QueueUrl"]
-
-    has_messages = True
-
-    # maximum iterations for any loop in order to timeout a loop
-    max_iterations = 1000
-    iteration = 0
-    while has_messages:
-        if iteration > max_iterations:
-            raise Exception(
-                f"Polling SQS queue reached maximum iterations of {max_iterations}"
-            )
-        # Receive up to 10 messages at a time
-        # Note that this visibility timeout var overrides the SQS queue's default and
-        # sets a different visibility timeout for these specific messages
-        response = sqs.receive_message(
-            QueueUrl=queue_url,
-            VisibilityTimeout=int(os.environ["VISIBILITY_TIMEOUT"]),
-            MaxNumberOfMessages=int(os.environ["MAX_NUMBER_OF_MESSAGES_TO_RECEIVE"]),
-            WaitTimeSeconds=int(os.environ["WAIT_TIME_FOR_MESSAGES"]),
-        )
-        # Check if messages were received
-        if "Messages" in response:
-            messages = response["Messages"]
-            for message in messages:
-                msg_body = json.loads(message["Body"])
-                s3_objects_info = []
-                # check that records are present per message
-                if "Records" in msg_body:
-                    for record in msg_body["Records"]:
-                        bucket_name = record["s3"]["bucket"]["name"]
-                        object_key = record["s3"]["object"]["key"]
-                        object_info = {
-                            "source_bucket": bucket_name,
-                            "source_key": object_key,
-                        }
-                        if filter_object_info(object_info) is not None:
-                            s3_objects_info.append(object_info)
-                    if len(s3_objects_info) > 0:
-                        logger.info(
-                            "Submitting the following files to "
-                            f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
-                        )
-                        submit_s3_to_json_workflow(
-                            objects_info=s3_objects_info,
-                            workflow_name=os.environ["PRIMARY_WORKFLOW_NAME"],
-                        )
-                else:
-                    logger.info(
-                        "No 'Records' key exists in event to be parsed"
-                        f"\nEvent: {event}"
-                    )
-                # Delete the messages from the queue
-                receipt_handle = message["ReceiptHandle"]
-                sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
-            has_messages = False
-            iteration += 1
-        else:
-            has_messages = False
-            return {"statusCode": 0, "body": "No messages exist"}
-
-    return {"statusCode": 200, "body": "All messages retrieved and processed."}
-
-
 def lambda_handler(event, context) -> None:
     """This main lambda function will be triggered by a
-        cloudwatch scheduler and will poll the SQS queue for
-        all available messages
+        SQS event and will poll the SQS queue for
+        all available S3 event messages
 
     Args:
-        event (json): CloudWatch scheduled trigger event
+        event (json): SQS event
         context: NA
-
-    Raises:
-        Exception: When polling SQS queue on a loop has reached the maximum iteration
     """
     # Initialize SQS client
     sqs = boto3.client("sqs")
+    s3_objects_info = []
     if "Records" in event:
         for record in event["Records"]:
-            logger.info(record)
-            s3_event = json.loads(record["body"])
-            s3_objects_info = []
-            bucket_name = s3_event["Records"][0]["s3"]["bucket"]["name"]
-            object_key = s3_event["Records"][0]["s3"]["object"]["key"]
-            object_info = {
-                "source_bucket": bucket_name,
-                "source_key": object_key,
-            }
-            if filter_object_info(object_info) is not None:
-                s3_objects_info.append(object_info)
+            s3_event_records = json.loads(record["body"])
+            if "Records" in s3_event_records:
+                for s3_event in s3_event_records["Records"]:
+                    bucket_name = s3_event["s3"]["bucket"]["name"]
+                    object_key = s3_event["s3"]["object"]["key"]
+                    object_info = {
+                        "source_bucket": bucket_name,
+                        "source_key": object_key,
+                    }
+                    if filter_object_info(object_info) is not None:
+                        s3_objects_info.append(object_info)
+                    else:
+                        logger.info(
+                            f"Object doesn't meet the S3 event rules to be processed. Skipping\n{object_info}"
+                        )
 
         if len(s3_objects_info) > 0:
             logger.info(

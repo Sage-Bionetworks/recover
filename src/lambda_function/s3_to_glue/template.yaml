@@ -11,10 +11,6 @@ Parameters:
     Type: String
     Description: URL of the SQS queue where the messages for the source data are stored
 
-  SQSQueueName:
-    Type: String
-    Description: Name of the SQS queue where the messages for the source data are stored
-
   SQSQueueArn:
     Type: String
     Description: Arn of the SQS queue for lambda to poll messages from.
@@ -33,26 +29,19 @@ Parameters:
     Description: Python version to use for this lambda function
     Default: "3.9"
 
-  SQSQueueVisibilityTimeout:
-    Type: Number
-    Default: 120
-    Description: >-
-      How long our lambda has to submit the messages to Glue and
-      delete the message from the SQS queue
-
-  MaxNumberOfMessagesToReceive:
+  LambdaBatchSize:
     Type: Number
     Default: 10
     Description: >-
-      The maximum number of messages our lambda can receive from
-      the SQS queue per call
+      The number of S3 messages in a SQS event before lambda processes
+      them in a batch
 
-  WaitTimeForMessages:
+  LambdaMaximumBatchingWindowInSeconds:
     Type: Number
-    Default: 5
+    Default: 300
     Description: >-
-      The amount of time in seconds to poll for messages per call
-
+      The amount of time in seconds before lambda polls for all the messages
+      in the SQS queue and processes them in a batch
 
 Resources:
   S3ToGlueFunction:
@@ -67,17 +56,13 @@ Resources:
       Environment:
         Variables:
           PRIMARY_WORKFLOW_NAME: !Ref PrimaryWorkflowName
-          VISIBILITY_TIMEOUT: !Ref SQSQueueVisibilityTimeout
-          MAX_NUMBER_OF_MESSAGES_TO_RECEIVE: !Ref MaxNumberOfMessagesToReceive
-          WAIT_TIME_FOR_MESSAGES:  !Ref WaitTimeForMessages
-          SQS_QUEUE_NAME: !Ref SQSQueueName
           SQS_QUEUE_URL: !Ref SQSQueueUrl
       Events:
         SQSEvent:
           Type: SQS
           Properties:
-            BatchSize: 5
-            MaximumBatchingWindowInSeconds: 300
+            BatchSize: !Ref LambdaBatchSize
+            MaximumBatchingWindowInSeconds: !Ref LambdaMaximumBatchingWindowInSeconds
             Queue: !Ref SQSQueueArn
 
 
