@@ -77,14 +77,17 @@ def submit_s3_to_json_workflow(objects_info: list[dict[str, str]], workflow_name
     )
 
 
-def lambda_handler(event, context) -> None:
-    """This main lambda function will be triggered by a
-        SQS event and will poll the SQS queue for
-        all available S3 event messages
+def lambda_handler(event, context) -> dict:
+    """
+    This main lambda function will be triggered by a SQS event and will
+    poll the SQS queue for all available S3 event messages
 
     Args:
-        event (json): SQS event
-        context: NA
+        event (json): SQS json event containing S3 events
+        context (object): A context object is passed to your function by Lambda at runtime.
+            This object provides methods and properties that provide information
+            about the invocation, function, and runtime environment.
+            Unused by this lambda function.
     """
     # Initialize SQS client
     sqs = boto3.client("sqs")
@@ -102,10 +105,6 @@ def lambda_handler(event, context) -> None:
                     }
                     if filter_object_info(object_info) is not None:
                         s3_objects_info.append(object_info)
-                    else:
-                        logger.info(
-                            f"Object doesn't meet the S3 event rules to be processed. Skipping\n{object_info}"
-                        )
 
         if len(s3_objects_info) > 0:
             logger.info(
