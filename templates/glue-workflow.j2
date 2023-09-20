@@ -42,6 +42,10 @@ Parameters:
     Description: >-
         Glue database containing Glue tables for use in JSON to Parquet job.
 
+  CrawlerRole:
+    Type: String
+    Description: ARN of the IAM Role the crawler will assume.
+
   S3ToJsonJobName:
     Type: String
     Description: The name of the S3 To JSON Job
@@ -98,17 +102,53 @@ Resources:
     Properties:
       Name: !Sub "${Namespace}-S3ToJsonCompleteTrigger"
       Actions:
-        {% for dataset in datasets if not "HealthKit" in dataset["data_type"] and not "Fitbit" in dataset["data_type"] and not "Google" in dataset["data_type"] and not "Garmin" in dataset["data_type"] %}
-        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
-          Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
-        {% endfor %}
-      Description: This trigger kicks off every JSON to Parquet job which is not associated with a device and runs after completion of the S3 to JSON job.
+        - CrawlerName: !Ref StandardCrawler
+      Description: This trigger starts the crawler.
       Type: CONDITIONAL
       Predicate:
         Conditions:
         - JobName: !Ref S3ToJsonJobName
           State: SUCCEEDED
           LogicalOperator: EQUALS
+      StartOnCreation: true
+      WorkflowName: !Ref PrimaryWorkflow
+
+  StandardCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
+      DatabaseName: !Ref GlueDatabase
+      Name: !Sub ${Namespace}-standard
+      RecrawlPolicy:
+        RecrawlBehavior: CRAWL_EVERYTHING
+      Role: !Ref CrawlerRole
+      SchemaChangePolicy:
+        DeleteBehavior: LOG
+        UpdateBehavior: LOG
+      Targets:
+        CatalogTargets:
+        - DatabaseName: !Ref GlueDatabase
+          Tables:
+          {% for data_type in sceptre_user_data.dataset_schemas.tables.keys() %}
+          - dataset_{{ data_type.lower() }}
+          {% endfor %}
+
+  CrawlerCompleteTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub "${Namespace}-CrawlerCompleteTrigger"
+      Actions:
+        {% for dataset in datasets if not "HealthKit" in dataset["data_type"] and not "Fitbit" in dataset["data_type"] and not "Google" in dataset["data_type"] and not "Garmin" in dataset["data_type"] %}
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"]}}-Job
+          Arguments: {"--glue-table": {{ "{}".format(dataset["table_name"]) }} }
+        {% endfor %}
+      Description: This trigger kicks off every JSON to Parquet job which is not associated with a device and runs after completion of the crawler.
+      Type: CONDITIONAL
+      Predicate:
+        Conditions:
+        - CrawlerName: !Ref StandardCrawler
+          LogicalOperator: EQUALS
+          CrawlState: SUCCEEDED
       StartOnCreation: true
       WorkflowName: !Ref PrimaryWorkflow
 
