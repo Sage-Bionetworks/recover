@@ -462,6 +462,61 @@ class TestS3ToJsonS3:
         )
         assert output_filename == "HealthKitV2Samples_Weight_20220112-20230114.part0.ndjson"
 
+    def test_upload_file_to_json_dataset_delete_local_copy(self, namespace, monkeypatch, shared_datadir):
+        monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
+        sample_metadata = {
+                "type": "HealthKitV2Samples",
+                "subtype": "Weight",
+        }
+        workflow_run_properties = {
+            "namespace": namespace,
+            "json_prefix": "raw-json",
+            "json_bucket": "json-bucket",
+        }
+        original_file_path = os.path.join(shared_datadir, "2023-01-13T21--08--51Z_TESTDATA")
+        temp_dir = f"dataset={sample_metadata['type']}"
+        os.makedirs(temp_dir)
+        new_file_path = shutil.copy(original_file_path, temp_dir)
+        s3_response = s3_to_json._upload_file_to_json_dataset(
+            file_path=new_file_path,
+            s3_metadata=sample_metadata,
+            workflow_run_properties=workflow_run_properties,
+            delete_upon_successful_upload=True,
+        )
+
+        assert not os.path.exists(new_file_path)
+        shutil.rmtree(temp_dir)
+
+    def test_upload_file_to_json_dataset_s3_key(self, namespace, monkeypatch, shared_datadir):
+        monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
+        sample_metadata = {
+                "type": "HealthKitV2Samples",
+                "subtype": "Weight",
+        }
+        workflow_run_properties = {
+            "namespace": namespace,
+            "json_prefix": "raw-json",
+            "json_bucket": "json-bucket",
+        }
+        original_file_path = os.path.join(shared_datadir, "2023-01-13T21--08--51Z_TESTDATA")
+        temp_dir = f"dataset={sample_metadata['type']}"
+        os.makedirs(temp_dir)
+        new_file_path = shutil.copy(original_file_path, temp_dir)
+        s3_key = s3_to_json._upload_file_to_json_dataset(
+            file_path=new_file_path,
+            s3_metadata=sample_metadata,
+            workflow_run_properties=workflow_run_properties,
+            delete_upon_successful_upload=True,
+        )
+
+        correct_s3_key = os.path.join(
+            workflow_run_properties["namespace"],
+            workflow_run_properties["json_prefix"],
+            new_file_path,
+        )
+        assert s3_key == correct_s3_key
+        shutil.rmtree(temp_dir)
+
     def test_write_file_to_json_dataset_delete_local_copy(self, s3_obj, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
         sample_metadata = {

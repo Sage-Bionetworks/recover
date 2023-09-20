@@ -350,7 +350,6 @@ def write_file_to_json_dataset(
     Returns:
         list: A list of files uploaded to S3
     """
-    s3_client = boto3.client("s3")
     part_dir = os.path.join(
             f"dataset={dataset_identifier}", f"cohort={cohort}")
     os.makedirs(part_dir, exist_ok=True)
@@ -361,6 +360,7 @@ def write_file_to_json_dataset(
         s3_metadata["start_date"] = metadata["start_date"].isoformat()
     s3_metadata["end_date"] = metadata["end_date"].isoformat()
     part_number = 0
+    uploaded_files = []
     output_path = get_part_path(
             metadata=metadata,
             part_number=part_number,
@@ -377,6 +377,13 @@ def write_file_to_json_dataset(
         ):
             current_file_size = os.path.getsize(current_output_path)
             if current_file_size > file_size_limit:
+                _upload_file_to_json_dataset(
+                        file_path=current_output_path,
+                        s3_metadata=s3_metadata,
+                        workflow_run_properties=workflow_run_properties,
+                        delete_upon_successful_upload=delete_upon_successful_upload
+                )
+                uploaded_files.append(current_output_path)
                 part_number += 1
                 current_output_path = get_part_path(
                         metadata=metadata,
@@ -387,31 +394,54 @@ def write_file_to_json_dataset(
             with open(current_output_path, "a") as f_out:
                 for transformed_record in transformed_block:
                     f_out.write("{}\n".format(json.dumps(transformed_record)))
-    uploaded_files = []
-    for part_file in os.listdir(part_dir):
-        output_path = os.path.join(part_dir, part_file)
-        s3_output_key = os.path.join(
-            workflow_run_properties["namespace"],
-            workflow_run_properties["json_prefix"],
-            output_path
+        # Upload final block
+        _upload_file_to_json_dataset(
+                file_path=current_output_path,
+                s3_metadata=s3_metadata,
+                workflow_run_properties=workflow_run_properties,
+                delete_upon_successful_upload=delete_upon_successful_upload
         )
-        logger.debug(
-                "Uploading %s to %s",
-                output_path,
-                s3_output_key
-        )
-        with open(output_path, "rb") as f_in:
-            response = s3_client.put_object(
-                    Body = f_in,
-                    Bucket = workflow_run_properties["json_bucket"],
-                    Key = s3_output_key,
-                    Metadata = s3_metadata
-            )
-            uploaded_files.append(output_path)
-            logger.debug("S3 Put object response: %s", json.dumps(response))
-        if delete_upon_successful_upload:
-            os.remove(output_path)
+        uploaded_files.append(current_output_path)
     return uploaded_files
+
+def _upload_file_to_json_dataset(
+        file_path: str,
+        s3_metadata: dict,
+        workflow_run_properties: dict,
+        delete_upon_successful_upload: bool,) -> str:
+    """
+    A helper function for `write_file_to_json_dataset` which handles
+    the actual uploading of the data to S3.
+
+    Args:
+        file_path (str): The path of the JSON file to upload.
+        s3_metadata (dict): S3 Metadata to include on the object.
+        workflow_run_properties (dict): The workflow arguments
+        delete_upon_successful_upload (bool): Whether to delete the local
+            copy of the JSON file after uploading to S3. Set to False
+            during testing.
+
+    Returns:
+        str: The S3 object key of the uploaded file.
+    """
+    s3_client = boto3.client("s3")
+    s3_output_key = os.path.join(
+        workflow_run_properties["namespace"],
+        workflow_run_properties["json_prefix"],
+        file_path
+    )
+    logger.debug("Uploading %s to %s", file_path, s3_output_key)
+    with open(file_path, "rb") as f_in:
+        response = s3_client.put_object(
+                Body = f_in,
+                Bucket = workflow_run_properties["json_bucket"],
+                Key = s3_output_key,
+                Metadata = s3_metadata
+        )
+        logger.debug("S3 Put object response: %s", json.dumps(response))
+    if delete_upon_successful_upload:
+        os.remove(file_path)
+    return s3_output_key
 
 def get_part_path(
         metadata: dict,
