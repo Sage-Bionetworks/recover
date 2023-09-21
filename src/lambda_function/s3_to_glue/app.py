@@ -77,10 +77,12 @@ def submit_s3_to_json_workflow(objects_info: list[dict[str, str]], workflow_name
     )
 
 
-def lambda_handler(event, context) -> dict:
+def lambda_handler(event, context) -> None:
     """
     This main lambda function will be triggered by a SQS event and will
-    poll the SQS queue for all available S3 event messages
+    poll the SQS queue for all available S3 event messages. If the
+    messages were all successfully processed and submitted, lambda will
+    automatically delete the messages from the sqs queue
 
     Args:
         event (json): SQS json event containing S3 events
@@ -89,39 +91,39 @@ def lambda_handler(event, context) -> dict:
             about the invocation, function, and runtime environment.
             Unused by this lambda function.
     """
-    # Initialize SQS client
-    sqs = boto3.client("sqs")
     s3_objects_info = []
-    if "Records" in event:
-        for record in event["Records"]:
-            s3_event_records = json.loads(record["body"])
-            if "Records" in s3_event_records:
-                for s3_event in s3_event_records["Records"]:
-                    bucket_name = s3_event["s3"]["bucket"]["name"]
-                    object_key = s3_event["s3"]["object"]["key"]
-                    object_info = {
-                        "source_bucket": bucket_name,
-                        "source_key": object_key,
-                    }
-                    if filter_object_info(object_info) is not None:
-                        s3_objects_info.append(object_info)
-
-        if len(s3_objects_info) > 0:
+    for record in event["Records"]:
+        s3_event_records = json.loads(record["body"])
+        if "Records" in s3_event_records:
+            for s3_event in s3_event_records["Records"]:
+                bucket_name = s3_event["s3"]["bucket"]["name"]
+                object_key = s3_event["s3"]["object"]["key"]
+                object_info = {
+                    "source_bucket": bucket_name,
+                    "source_key": object_key,
+                }
+                if filter_object_info(object_info) is not None:
+                    s3_objects_info.append(object_info)
+                else:
+                    logger.info(
+                        f"Object doesn't meet the S3 event rules to be processed. Skipping."
+                    )
+        else:
             logger.info(
-                "Submitting the following files to "
-                f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
+                f"No S3 records for this SQS event record:\n{s3_event_records}"
             )
-            submit_s3_to_json_workflow(
-                objects_info=s3_objects_info,
-                workflow_name=os.environ["PRIMARY_WORKFLOW_NAME"],
-            )
-        # Delete the messages from the queue after all events are successfully submitted
-        for record in event["Records"]:
-            receipt_handle = record["receiptHandle"]
-            sqs.delete_message(
-                QueueUrl=os.environ["SQS_QUEUE_URL"], ReceiptHandle=receipt_handle
-            )
-        return {"statusCode": 200, "body": "All messages retrieved and processed."}
+
+    if len(s3_objects_info) > 0:
+        logger.info(
+            "Submitting the following files to "
+            f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
+        )
+        submit_s3_to_json_workflow(
+            objects_info=s3_objects_info,
+            workflow_name=os.environ["PRIMARY_WORKFLOW_NAME"],
+        )
     else:
-        logger.info("No 'Records' key exists in event to be parsed" f"\nEvent: {event}")
-        return {"statusCode": 0, "body": "No messages exist"}
+        logger.info(
+            "NO files were submitted to "
+            f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
+        )
