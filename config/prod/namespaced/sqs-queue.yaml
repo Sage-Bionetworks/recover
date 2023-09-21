@@ -6,7 +6,6 @@ parameters:
   VisibilityTimeout: '120'
   S3SourceBucketArn: !stack_output_external recover-input-bucket::BucketArn
 dependencies:
-  - prod/namespaced/s3-to-glue-lambda.yaml
   - prod/s3-input-bucket.yaml
 stack_name: '{{ stack_group_config.namespace }}-sqs-S3ToLambda'
 stack_tags:

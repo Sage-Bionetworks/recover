@@ -33,15 +33,14 @@ Parameters:
     Type: Number
     Default: 10
     Description: >-
-      The number of S3 messages in a SQS event before lambda processes
-      them in a batch
+      The maximum number of S3 messages in a SQS event that Lambda will process in a batch
 
   LambdaMaximumBatchingWindowInSeconds:
     Type: Number
     Default: 300
     Description: >-
-      The amount of time in seconds before lambda polls for all the messages
-      in the SQS queue and processes them in a batch
+      The maximum amount of time in seconds Lambda will batch messages before polling
+      the SQS queue and processing them
 
 Resources:
   S3ToGlueFunction:
