@@ -77,6 +77,21 @@ def submit_s3_to_json_workflow(objects_info: list[dict[str, str]], workflow_name
     )
 
 
+def is_s3_test_event(record : dict) -> bool:
+    """
+    AWS always sends a s3 test event to the SQS queue
+    whenever a new file is uploaded. We want to skip those
+    and have lambda delete it.
+    """
+    if "Event" in record.keys():
+        if record["Event"] == "s3:TestEvent":
+            return True
+        else:
+            return False
+    else:
+        return False
+
+
 def lambda_handler(event, context) -> None:
     """
     This main lambda function will be triggered by a SQS event and will
@@ -94,7 +109,9 @@ def lambda_handler(event, context) -> None:
     s3_objects_info = []
     for record in event["Records"]:
         s3_event_records = json.loads(record["body"])
-        if "Records" in s3_event_records:
+        if is_s3_test_event(s3_event_records):
+            logger.info(f"Found AWS default s3:TestEvent. Skipping.")
+        else:
             for s3_event in s3_event_records["Records"]:
                 bucket_name = s3_event["s3"]["bucket"]["name"]
                 object_key = s3_event["s3"]["object"]["key"]
@@ -108,10 +125,6 @@ def lambda_handler(event, context) -> None:
                     logger.info(
                         f"Object doesn't meet the S3 event rules to be processed. Skipping."
                     )
-        else:
-            logger.info(
-                f"No S3 records for this SQS event record:\n{s3_event_records}"
-            )
 
     if len(s3_objects_info) > 0:
         logger.info(

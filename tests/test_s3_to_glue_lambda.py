@@ -55,6 +55,18 @@ class TestS3ToGlueLambda:
         yield sqs_msg
 
     @pytest.fixture
+    def s3_test_event(self):
+        s3_event = {
+            "Service": "Amazon S3",
+            "Event": "s3:TestEvent",
+            "Time": "2020-11-30T00:00:00.000Z",
+            "Bucket": "the_bucket_name",
+            "RequestId": "some_id",
+            "HostId": "another_id",
+        }
+        yield s3_event
+
+    @pytest.fixture
     def s3_event(self):
         s3_event = {
             "eventVersion": "2.0",
@@ -87,7 +99,7 @@ class TestS3ToGlueLambda:
         return s3_event
 
     @pytest.fixture
-    def sqs_message(self, s3_event):
+    def sqs_message(self, s3_event, s3_test_event):
         sqs_msg = {
             "Records": [
                 {
@@ -106,10 +118,30 @@ class TestS3ToGlueLambda:
                             "BinaryValue": "string",
                         }
                     },
+                },
+                {
+                    "MessageId": "string",
+                    "receiptHandle": "string",
+                    "MD5OfBody": "string",
+                    "body": "string",
+                    "Attributes": {
+                        "string": "string",
+                    },
+                    "MD5OfMessageAttributes": "string",
+                    "MessageAttributes": {
+                        "string": {
+                            "DataType": "string",
+                            "StringValue": "string",
+                            "BinaryValue": "string",
+                        }
+                    },
                 }
-            ]
+            ],
         }
-        sqs_msg["Records"][0]["body"] = json.dumps({"Records": [s3_event]})
+        sqs_msg["Records"][0]["body"] = json.dumps(
+            {"Records": [s3_event]}
+        )
+        sqs_msg["Records"][1]["body"] = json.dumps(s3_test_event)
         yield sqs_msg
 
     @pytest.fixture
@@ -133,7 +165,6 @@ class TestS3ToGlueLambda:
             objects_info=object_info, workflow_name="example-workflow"
         )
 
-
     def test_that_lambda_handler_does_not_call_submit_s3_to_json_workflow_if_no_s3_records(
         self, no_s3_event_records, sqs_queue, set_env_var
     ):
@@ -141,15 +172,14 @@ class TestS3ToGlueLambda:
             with mock.patch.object(boto3, "client") as patch_client, mock.patch.object(
                 app, "submit_s3_to_json_workflow"
             ) as patch_submit:
-                patch_client.return_value.get_queue_url.return_value = (
-                    sqs_queue["QueueUrl"]
-                )
+                patch_client.return_value.get_queue_url.return_value = sqs_queue[
+                    "QueueUrl"
+                ]
                 patch_client.return_value.receive_message.return_value = (
                     no_s3_event_records
                 )
                 app.lambda_handler(event=no_s3_event_records, context=None)
                 patch_submit.assert_not_called()
-
 
     def test_that_lambda_handler_calls_submit_s3_to_json_workflow_if_queue_has_message(
         self, sqs_message, object_info, sqs_queue, set_env_var
@@ -161,15 +191,12 @@ class TestS3ToGlueLambda:
                 patch_client.return_value.get_queue_url.return_value = (
                     sqs_queue["QueueUrl"],
                 )
-                patch_client.return_value.receive_message.return_value = (
-                    sqs_message
-                )
+                patch_client.return_value.receive_message.return_value = sqs_message
                 app.lambda_handler(event=sqs_message, context=None)
                 patch_submit.assert_called_once_with(
                     objects_info=object_info,
                     workflow_name="test_workflow",
                 )
-
 
     @pytest.mark.parametrize(
         "object_info,expected",
@@ -225,3 +252,14 @@ class TestS3ToGlueLambda:
         self, object_info, expected
     ):
         assert app.filter_object_info(object_info) == expected
+
+
+    def test_that_is_s3_test_event_returns_true_when_s3_test_event_is_present(
+        self, s3_test_event
+    ):
+        assert app.is_s3_test_event(s3_test_event) == True
+
+    def test_that_is_s3_test_event_returns_false_when_s3_test_event_is_not_present(
+        self, s3_event
+    ):
+        assert app.is_s3_test_event(s3_event) == False
