@@ -7,10 +7,6 @@ Description: >
 
 Parameters:
 
-  SQSQueueUrl:
-    Type: String
-    Description: URL of the SQS queue where the messages for the source data are stored
-
   SQSQueueArn:
     Type: String
     Description: Arn of the SQS queue for lambda to poll messages from.
@@ -55,7 +51,6 @@ Resources:
       Environment:
         Variables:
           PRIMARY_WORKFLOW_NAME: !Ref PrimaryWorkflowName
-          SQS_QUEUE_URL: !Ref SQSQueueUrl
       Events:
         SQSEvent:
           Type: SQS
