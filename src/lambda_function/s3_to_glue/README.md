@@ -1,7 +1,7 @@
 # s3_to_glue lambda
 
-The s3_to_glue lambda is triggered daily by a scheduled event and checks the source
-S3 bucket for files to submit to a glue workflow. If there are files to submit,
+The s3_to_glue lambda is triggered by a SQS event and polls the SQS queue
+for S3 event messages of files to submit to a glue workflow. If there are files to submit,
 it starts the S3-to-Json workflow.
 
 ## Development
@@ -40,14 +40,23 @@ dummy event for an S3 event trigger. You can generate your own test events
 for single or multiple records with the script at
 `src/lambda_function/s3_to_glue/events/generate_test_event.py`.
 
+Sample working function call:
+
+```bash
+python src/lambda_function/s3_to_glue/events/generate_test_event.py
+--output-directory ./src/lambda_function/s3_to_glue/events/
+--input-bucket recover-dev-input-data
+--input-key-prefix <folder_under_recover-dev-input-data_containing_test_data>
+```
+
 ### Invoking test events
 
 To test the lambda function locally, run the following command from the lambda directory.
 Use `single-record.json` or your own test event to trigger the S3 to JSON Glue workflow.
 The file `test-env-vars.json` contains
-the environment variable that is expected by the lambda script.
-Don't forget to update the value of this variable
-if you are testing a stack deployed as part of a feature branch.
+the environment variables that are expected by the lambda script.
+
+Don't forget to update the value of this variables if applicable to mirror the stack deployed as part of a feature branch
 
 To invoke the lambda with the test event:
 
@@ -66,7 +75,7 @@ There are two main stacks involved in the s3 to glue lambda. They are the
 #### Launching in development
 
 1. Create/update the following s3 to glue lambda role [sceptre](https://github.com/Sceptre/sceptre) config file:
-`config/develop/s3-to-glue-lambda-role.yaml`
+`config/develop/namespaced/s3-to-glue-lambda-role.yaml`
 
 2. Create/update the following s3 to glue lambda role [sceptre](https://github.com/Sceptre/sceptre) template file:
 `templates/s3-to-glue-lambda-role.yaml`

@@ -7,9 +7,9 @@ Description: >
 
 Parameters:
 
-  S3SourceBucketName:
+  SQSQueueArn:
     Type: String
-    Description: Name of the S3 bucket where source data are stored.
+    Description: Arn of the SQS queue for lambda to poll messages from.
 
   S3ToGlueRoleArn:
     Type: String
@@ -25,6 +25,18 @@ Parameters:
     Description: Python version to use for this lambda function
     Default: "3.9"
 
+  LambdaBatchSize:
+    Type: Number
+    Default: 10
+    Description: >-
+      The maximum number of S3 messages in a SQS event that Lambda will process in a batch
+
+  LambdaMaximumBatchingWindowInSeconds:
+    Type: Number
+    Default: 300
+    Description: >-
+      The maximum amount of time in seconds Lambda will batch messages before polling
+      the SQS queue and processing them
 
 Resources:
   S3ToGlueFunction:
@@ -39,15 +51,13 @@ Resources:
       Environment:
         Variables:
           PRIMARY_WORKFLOW_NAME: !Ref PrimaryWorkflowName
-
-  LambdaInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt S3ToGlueFunction.Arn
-      Action: lambda:InvokeFunction
-      Principal: s3.amazonaws.com
-      SourceAccount: !Ref 'AWS::AccountId'
-      SourceArn: !Sub 'arn:aws:s3:::${S3SourceBucketName}'
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            BatchSize: !Ref LambdaBatchSize
+            MaximumBatchingWindowInSeconds: !Ref LambdaMaximumBatchingWindowInSeconds
+            Queue: !Ref SQSQueueArn
 
 
 Outputs:
