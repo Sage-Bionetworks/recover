@@ -8,6 +8,7 @@ import os
 import json
 import logging
 import boto3
+from urllib import parse
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -91,8 +92,25 @@ def is_s3_test_event(record : dict) -> bool:
     else:
         return False
 
+def get_object_info(s3_event) -> dict:
+    """
+    Derive object info formatted for submission to Glue from an S3 event.
 
-def lambda_handler(event, context) -> None:
+    Args:
+        s3_event (dict): An S3 event
+
+    Returns:
+        object_info (dict) The S3 object info
+    """
+    bucket_name = s3_event["s3"]["bucket"]["name"]
+    object_key = parse.unquote(s3_event["s3"]["object"]["key"])
+    object_info = {
+        "source_bucket": bucket_name,
+        "source_key": object_key,
+    }
+    return object_info
+
+def lambda_handler(event, context) -> dict:
     """
     This main lambda function will be triggered by a SQS event and will
     poll the SQS queue for all available S3 event messages. If the
@@ -113,27 +131,21 @@ def lambda_handler(event, context) -> None:
             logger.info(f"Found AWS default s3:TestEvent. Skipping.")
         else:
             for s3_event in s3_event_records["Records"]:
-                bucket_name = s3_event["s3"]["bucket"]["name"]
-                object_key = s3_event["s3"]["object"]["key"]
-                object_info = {
-                    "source_bucket": bucket_name,
-                    "source_key": object_key,
-                }
+                object_info = get_object_info(s3_event)
                 if filter_object_info(object_info) is not None:
                     s3_objects_info.append(object_info)
                 else:
                     logger.info(
                         f"Object doesn't meet the S3 event rules to be processed. Skipping."
                     )
-
     if len(s3_objects_info) > 0:
         logger.info(
             "Submitting the following files to "
             f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
         )
         submit_s3_to_json_workflow(
-            objects_info=s3_objects_info,
-            workflow_name=os.environ["PRIMARY_WORKFLOW_NAME"],
+                objects_info=s3_objects_info,
+                workflow_name=os.environ["PRIMARY_WORKFLOW_NAME"]
         )
     else:
         logger.info(
