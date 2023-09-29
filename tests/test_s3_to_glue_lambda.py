@@ -156,7 +156,6 @@ class TestS3ToGlueLambda:
 
     @pytest.fixture
     def set_env_var(self, monkeypatch, sqs_queue):
-        monkeypatch.setenv("SQS_QUEUE_URL", sqs_queue["QueueUrl"])
         monkeypatch.setenv("PRIMARY_WORKFLOW_NAME", "test_workflow")
 
     def test_submit_s3_to_json_workflow(self, object_info, monkeypatch):
@@ -197,6 +196,13 @@ class TestS3ToGlueLambda:
                     objects_info=object_info,
                     workflow_name="test_workflow",
                 )
+
+    def test_get_object_info_unicode_characters_in_key(self, s3_event):
+        s3_event["s3"]["object"]["key"] = \
+                "main/2023-09-26T00%3A06%3A39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
+        object_info = app.get_object_info(s3_event=s3_event)
+        assert object_info["source_key"] == \
+                "main/2023-09-26T00:06:39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
 
     @pytest.mark.parametrize(
         "object_info,expected",
