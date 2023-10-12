@@ -1,6 +1,6 @@
 """
 This Lambda app responds to an SQS event notification and starts a Glue workflow.
-The Glue workflow name is set by the environment variable `PRIMARY_WORKFLOW_NAME`.
+The Glue workflow name is set by the environment variable `S3_TO_JSON_WORKFLOW_NAME`.
 Subsequently, the S3 objects which were contained in the SQS event are written as a
 JSON string to the `messages` workflow run property.
 """
@@ -141,14 +141,14 @@ def lambda_handler(event, context) -> dict:
     if len(s3_objects_info) > 0:
         logger.info(
             "Submitting the following files to "
-            f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
+            f"{os.environ['S3_TO_JSON_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
         )
         submit_s3_to_json_workflow(
                 objects_info=s3_objects_info,
-                workflow_name=os.environ["PRIMARY_WORKFLOW_NAME"]
+                workflow_name=os.environ["S3_TO_JSON_WORKFLOW_NAME"]
         )
     else:
         logger.info(
             "NO files were submitted to "
-            f"{os.environ['PRIMARY_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
+            f"{os.environ['S3_TO_JSON_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
         )

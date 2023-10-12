@@ -15,7 +15,7 @@ Parameters:
     Type: String
     Description: Arn for the S3 to Glue Lambda Role
 
-  PrimaryWorkflowName:
+  S3ToJsonWorkflowName:
     Type: String
     Description: >
       Name of the main glue workflow that runs glue jobs from S3 to JSON and JSON to Parquet
@@ -50,7 +50,7 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          PRIMARY_WORKFLOW_NAME: !Ref PrimaryWorkflowName
+          S3_TO_JSON_WORKFLOW_NAME: !Ref S3ToJsonWorkflowName
       Events:
         SQSEvent:
           Type: SQS

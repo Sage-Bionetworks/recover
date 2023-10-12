@@ -11,6 +11,6 @@ stack_tags: {{ stack_group_config.default_stack_tags }}
 parameters:
   SQSQueueArn: !stack_output_external "{{ stack_group_config.namespace }}-sqs-S3ToLambda::PrimaryQueueArn"
   S3ToGlueRoleArn: !stack_output_external "{{ stack_group_config.namespace }}-s3-to-glue-lambda-role::RoleArn"
-  PrimaryWorkflowName: !stack_output_external "{{ stack_group_config.namespace }}-glue-workflow::WorkflowName"
+  S3ToJsonWorkflowName: !stack_output_external "{{ stack_group_config.namespace }}-glue-workflow::S3ToJsonWorkflowName"
   LambdaBatchSize: '10'
   LambdaMaximumBatchingWindowInSeconds: '300'
