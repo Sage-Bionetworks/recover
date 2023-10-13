@@ -1,5 +1,5 @@
 {
   "S3ToGlueFunction": {
-    "PRIMARY_WORKFLOW_NAME": "main-PrimaryWorkflow"
+    "PRIMARY_WORKFLOW_NAME": "main-S3ToJsonWorkflow"
   }
 }

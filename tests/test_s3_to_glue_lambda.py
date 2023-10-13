@@ -156,7 +156,7 @@ class TestS3ToGlueLambda:
 
     @pytest.fixture
     def set_env_var(self, monkeypatch, sqs_queue):
-        monkeypatch.setenv("PRIMARY_WORKFLOW_NAME", "test_workflow")
+        monkeypatch.setenv("S3_TO_JSON_WORKFLOW_NAME", "test_workflow")
 
     def test_submit_s3_to_json_workflow(self, object_info, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockGlueClient())

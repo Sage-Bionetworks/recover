@@ -1,15 +1,21 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: >-
-    The primary workflow for processing RECOVER data. An outline of the workflow is below:
+    The two workflows for processing RECOVER data. An outline of each workflow is below:
 
-    S3 to JSON ->
+    (S3 to JSON) On-demand trigger (triggered by Lambda) ->
+    (S3 to JSON) S3 to JSON
+
+    and
+
+    (JSON to Parquet) Scheduled trigger ->
+    (JSON to Parquet) Crawler ->
     (JSON to Parquet) EnrolledParticipants and SymptomLog ->
     (JSON to Parquet) HealthKit ->
     (JSON to Parquet) Fitbit ->
     (JSON to Parquet) Google ->
     (JSON to Parquet) Garmin ->
-    CompareParquetJob
+    (JSON to Parquet) CompareParquetJob (if Namespace != "main")
 
 Parameters:
 
@@ -50,6 +56,15 @@ Parameters:
     Type: String
     Description: The name of the S3 To JSON Job
 
+  JsontoParquetTriggerSchedule:
+    Type: String
+    Description: >-
+        The cron schedule on which the JSON to Parquet workflow is triggered.
+        When `IsMainNamespace`, the respective trigger is active from the moment
+        of deployment. Otherwise, the trigger is disabled so that we don't waste
+        resources running our development pipelines every day.
+    Default: cron(0 2 * * ? *)
+
   CompareParquetStagingNamespace:
     Type: String
     Description: the name of the "staging" namespace
@@ -59,7 +74,8 @@ Parameters:
     Description: The name of the "main" namespace
 
 Conditions:
-  IsStagingNamespace: !Not [!Equals [!Ref Namespace, "main"]]
+  IsMainNamespace: !Equals [!Ref Namespace, "main"]
+  IsDevelopmentNamespace: !Not [!Equals [!Ref Namespace, "main"]]
 
 Resources:
 
@@ -72,46 +88,65 @@ Resources:
     {% do datasets.append(dataset) %}
   {% endfor %}
 
-  PrimaryWorkflow:
+  S3ToJsonWorkflow:
     Type: AWS::Glue::Workflow
     Properties:
       DefaultRunProperties:
         namespace: !Ref Namespace
         json_bucket: !Ref JsonBucketName
         json_prefix: !Ref JsonKeyPrefix
-        parquet_bucket: !Ref ParquetBucketName
-        parquet_prefix: !Ref ParquetKeyPrefix
-        glue_database: !Ref GlueDatabase
       Description: >-
-        Glue workflow for exporting RECOVER data to Parquet datasets
-      MaxConcurrentRuns: 1
-      Name: !Sub ${Namespace}-PrimaryWorkflow
+        Glue workflow for exporting raw data to their JSON datasets
+      Name: !Sub ${Namespace}-S3ToJsonWorkflow
 
-  InitialTrigger:
+  S3ToJsonTrigger:
     Type: AWS::Glue::Trigger
     Properties:
-      Name: !Sub "${Namespace}-InitialTrigger"
+      Name: !Sub "${Namespace}-S3ToJsonTrigger"
       Actions:
         - JobName: !Ref S3ToJsonJobName
       Description: This is the first trigger in the primary workflow.
       Type: ON_DEMAND
-      WorkflowName: !Ref PrimaryWorkflow
+      WorkflowName: !Ref S3ToJsonWorkflow
 
-  S3ToJsonCompleteTrigger:
+  JsonToParquetWorkflow:
+    Type: AWS::Glue::Workflow
+    Properties:
+      DefaultRunProperties:
+        namespace: !Ref Namespace
+        parquet_bucket: !Ref ParquetBucketName
+        parquet_prefix: !Ref ParquetKeyPrefix
+        glue_database: !Ref GlueDatabase
+      Description: >-
+        Glue workflow which loads the JSON datasets and writes to them to Parquet datasets
+      MaxConcurrentRuns: 1
+      Name: !Sub ${Namespace}-JsonToParquetWorkflow
+
+  JsontoParquetTrigger:
+    Condition: IsMainNamespace
     Type: AWS::Glue::Trigger
     Properties:
-      Name: !Sub "${Namespace}-S3ToJsonCompleteTrigger"
+      Name: !Sub "${Namespace}-JsontoParquetTrigger"
       Actions:
         - CrawlerName: !Ref StandardCrawler
-      Description: This trigger starts the crawler.
-      Type: CONDITIONAL
-      Predicate:
-        Conditions:
-        - JobName: !Ref S3ToJsonJobName
-          State: SUCCEEDED
-          LogicalOperator: EQUALS
+      Description: This trigger starts the JSON to Parquet workflow.
+      Type: SCHEDULED
+      Schedule: !Ref JsontoParquetTriggerSchedule
       StartOnCreation: true
-      WorkflowName: !Ref PrimaryWorkflow
+      WorkflowName: !Ref JsonToParquetWorkflow
+
+  JsontoParquetTrigger:
+    Condition: IsDevelopmentNamespace
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub "${Namespace}-JsontoParquetTrigger"
+      Actions:
+        - CrawlerName: !Ref StandardCrawler
+      Description: This trigger starts the JSON to Parquet workflow.
+      Type: SCHEDULED
+      Schedule: !Ref JsontoParquetTriggerSchedule
+      StartOnCreation: false
+      WorkflowName: !Ref JsonToParquetWorkflow
 
   StandardCrawler:
     Type: AWS::Glue::Crawler
@@ -150,7 +185,7 @@ Resources:
           LogicalOperator: EQUALS
           CrawlState: SUCCEEDED
       StartOnCreation: true
-      WorkflowName: !Ref PrimaryWorkflow
+      WorkflowName: !Ref JsonToParquetWorkflow
 
   HealthKitTrigger:
     Type: AWS::Glue::Trigger
@@ -172,7 +207,7 @@ Resources:
           {% endfor %}
         Logical: AND
       StartOnCreation: true
-      WorkflowName: !Ref PrimaryWorkflow
+      WorkflowName: !Ref JsonToParquetWorkflow
 
   FitbitTrigger:
     Type: AWS::Glue::Trigger
@@ -194,7 +229,7 @@ Resources:
           {% endfor %}
         Logical: AND
       StartOnCreation: true
-      WorkflowName: !Ref PrimaryWorkflow
+      WorkflowName: !Ref JsonToParquetWorkflow
 
   GoogleTrigger:
     Type: AWS::Glue::Trigger
@@ -216,7 +251,7 @@ Resources:
           {% endfor %}
         Logical: AND
       StartOnCreation: true
-      WorkflowName: !Ref PrimaryWorkflow
+      WorkflowName: !Ref JsonToParquetWorkflow
 
   GarminTrigger:
     Type: AWS::Glue::Trigger
@@ -238,11 +273,11 @@ Resources:
           {% endfor %}
         Logical: AND
       StartOnCreation: true
-      WorkflowName: !Ref PrimaryWorkflow
+      WorkflowName: !Ref JsonToParquetWorkflow
 
   JsontoParquetCompleteTrigger:
     Type: AWS::Glue::Trigger
-    Condition: IsStagingNamespace
+    Condition: IsDevelopmentNamespace
     Properties:
       Name: !Sub "${Namespace}-JsontoParquetCompleteTrigger"
       Actions:
@@ -266,11 +301,11 @@ Resources:
           {% endfor %}
         Logical: AND
       StartOnCreation: true
-      WorkflowName: !Ref PrimaryWorkflow
+      WorkflowName: !Ref JsonToParquetWorkflow
 
 Outputs:
 
-  WorkflowName:
-    Value: !Ref PrimaryWorkflow
+  S3ToJsonWorkflowName:
+    Value: !Ref S3ToJsonWorkflow
     Export:
-      Name: !Sub '${AWS::Region}-${AWS::StackName}-WorkflowName'
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-S3ToJsonWorkflowName'
