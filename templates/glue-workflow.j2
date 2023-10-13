@@ -123,7 +123,6 @@ Resources:
       Name: !Sub ${Namespace}-JsonToParquetWorkflow
 
   JsontoParquetTrigger:
-    Condition: IsMainNamespace
     Type: AWS::Glue::Trigger
     Properties:
       Name: !Sub "${Namespace}-JsontoParquetTrigger"
@@ -132,20 +131,7 @@ Resources:
       Description: This trigger starts the JSON to Parquet workflow.
       Type: SCHEDULED
       Schedule: !Ref JsontoParquetTriggerSchedule
-      StartOnCreation: true
-      WorkflowName: !Ref JsonToParquetWorkflow
-
-  JsontoParquetTrigger:
-    Condition: IsDevelopmentNamespace
-    Type: AWS::Glue::Trigger
-    Properties:
-      Name: !Sub "${Namespace}-JsontoParquetTrigger"
-      Actions:
-        - CrawlerName: !Ref StandardCrawler
-      Description: This trigger starts the JSON to Parquet workflow.
-      Type: SCHEDULED
-      Schedule: !Ref JsontoParquetTriggerSchedule
-      StartOnCreation: false
+      StartOnCreation: !If [IsMainNamespace, true, false]
       WorkflowName: !Ref JsonToParquetWorkflow
 
   StandardCrawler:
