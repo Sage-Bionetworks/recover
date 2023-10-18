@@ -23,7 +23,11 @@ def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event, indent=2)}")
     if event["RequestType"] == "Delete":
         logger.info(f'Request Type:{event["RequestType"]}')
-        delete_notification(s3, bucket=os.environ["S3_SOURCE_BUCKET_NAME"])
+        delete_notification(
+            s3,
+            bucket=os.environ["S3_SOURCE_BUCKET_NAME"],
+            destination_type=os.environ["S3_TO_GLUE_DESTINATION_TYPE"],
+        )
         logger.info("Sending response to custom resource after Delete")
     elif event["RequestType"] in ["Update", "Create"]:
         logger.info(f'Request Type: {event["RequestType"]}')
@@ -104,21 +108,42 @@ def add_notification(
             NotificationConfiguration=merged_config,
         )
         logger.info(
-            f"Put request completed to add a NotificationConfiguration for `{destination_type}Configurations`"
+            f"Put request completed to add a NotificationConfiguration for `{destination_type}Configurations`."
         )
-    logger.info(
-        f"Put not required as an existing NotificationConfiguration for `{destination_type}Configurations` already exists"
-    )
+    else:
+        logger.info(
+            f"Put not required as an existing NotificationConfiguration for `{destination_type}Configurations` already exists."
+        )
 
 
-def delete_notification(s3_client: boto3.client, bucket: str):
-    """Deletes the S3 notification configuration from an existing bucket
+def delete_notification(s3_client: boto3.client, bucket: str, destination_type: str):
+    """Deletes the S3 notification configuration from an existing bucket for a specific destination type.
 
     Args:
         s3_client (boto3.client) : s3 client to use for s3 event config
         bucket (str): bucket name of the s3 bucket to delete the config in
+        destination_type (str): String name of the destination type for the configuration
     """
-    s3_client.put_bucket_notification_configuration(
-        Bucket=bucket, NotificationConfiguration={}
+    existing_bucket_notification_configuration = (
+        s3_client.get_bucket_notification_configuration(Bucket=bucket)
     )
-    logger.info("Delete request completed....")
+
+    configuration_name = f"{destination_type}Configurations"
+
+    existing_notification_config_for_type = (
+        existing_bucket_notification_configuration.get(configuration_name, {})
+    )
+
+    if existing_notification_config_for_type:
+        del existing_bucket_notification_configuration[configuration_name]
+        s3_client.put_bucket_notification_configuration(
+            Bucket=bucket,
+            NotificationConfiguration=existing_bucket_notification_configuration,
+        )
+        logger.info(
+            f"Delete request completed to remove a NotificationConfiguration for `{destination_type}Configurations`."
+        )
+    else:
+        logger.info(
+            f"Delete not required as no NotificationConfiguration exists for `{destination_type}Configurations`."
+        )
