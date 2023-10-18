@@ -63,8 +63,14 @@ def add_notification(
         bucket (str): bucket name of the s3 bucket to add the config to
         bucket_key_prefix (str): bucket key prefix for where to look for s3 object notifications
     """
-    existing_bucket_notification_configuration = s3_client.get_bucket_notification_configuration(Bucket=bucket)
-    existing_notification_config_for_type = existing_bucket_notification_configuration.get(f"{destination_type}Configurations", {})
+    existing_bucket_notification_configuration = (
+        s3_client.get_bucket_notification_configuration(Bucket=bucket)
+    )
+    existing_notification_config_for_type = (
+        existing_bucket_notification_configuration.get(
+            f"{destination_type}Configurations", {}
+        )
+    )
 
     new_notification_config = {
         f"{destination_type}Configurations": [
@@ -83,8 +89,15 @@ def add_notification(
     }
 
     # If the configuration we want to add isn't there or is different then create a new that contains the new value along with any previous data.
-    if not existing_notification_config_for_type or json.dumps(existing_notification_config_for_type, sort_keys=True) != json.dumps(new_notification_config, sort_keys=True):
-        merged_config = {**existing_bucket_notification_configuration, **new_notification_config}
+    if not existing_notification_config_for_type or json.dumps(
+        existing_notification_config_for_type, sort_keys=True
+    ) != json.dumps(
+        new_notification_config[f"{destination_type}Configurations"], sort_keys=True
+    ):
+        merged_config = {
+            **existing_bucket_notification_configuration,
+            **new_notification_config,
+        }
 
         s3_client.put_bucket_notification_configuration(
             Bucket=bucket,

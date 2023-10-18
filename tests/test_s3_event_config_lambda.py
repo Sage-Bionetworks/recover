@@ -48,13 +48,18 @@ def test_that_add_notification_adds_expected_settings_for_lambda(
     s3, mock_lambda_function
 ):
     s3.create_bucket(Bucket="some_bucket")
-    set_config = app.add_notification(
+    with mock.patch.object(
         s3,
-        "LambdaFunction",
-        mock_lambda_function["Configuration"]["FunctionArn"],
-        "some_bucket",
-        "test_folder",
-    )
+        "get_bucket_notification_configuration",
+        return_value={},
+    ):
+        app.add_notification(
+            s3,
+            "LambdaFunction",
+            mock_lambda_function["Configuration"]["FunctionArn"],
+            "some_bucket",
+            "test_folder",
+        )
     get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
     assert (
         get_config["LambdaFunctionConfigurations"][0]["LambdaFunctionArn"]
@@ -71,13 +76,18 @@ def test_that_add_notification_adds_expected_settings_for_lambda(
 @mock_s3
 def test_that_delete_notification_is_successful_for_lambda(s3, mock_lambda_function):
     s3.create_bucket(Bucket="some_bucket")
-    app.add_notification(
+    with mock.patch.object(
         s3,
-        "LambdaFunction",
-        mock_lambda_function["Configuration"]["FunctionArn"],
-        "some_bucket",
-        "test_folder",
-    )
+        "get_bucket_notification_configuration",
+        return_value={},
+    ):
+        app.add_notification(
+            s3,
+            "LambdaFunction",
+            mock_lambda_function["Configuration"]["FunctionArn"],
+            "some_bucket",
+            "test_folder",
+        )
     app.delete_notification(s3, "some_bucket")
     get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
     assert "LambdaFunctionConfigurations" not in get_config
@@ -86,13 +96,18 @@ def test_that_delete_notification_is_successful_for_lambda(s3, mock_lambda_funct
 @mock_s3
 def test_that_add_notification_adds_expected_settings_for_sqs(s3, mock_sqs_queue):
     s3.create_bucket(Bucket="some_bucket")
-    set_config = app.add_notification(
+    with mock.patch.object(
         s3,
-        "Queue",
-        mock_sqs_queue["Attributes"]["QueueArn"],
-        "some_bucket",
-        "test_folder",
-    )
+        "get_bucket_notification_configuration",
+        return_value={},
+    ):
+        app.add_notification(
+            s3,
+            "Queue",
+            mock_sqs_queue["Attributes"]["QueueArn"],
+            "some_bucket",
+            "test_folder",
+        )
     get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
     assert (
         get_config["QueueConfigurations"][0]["QueueArn"]
@@ -107,13 +122,18 @@ def test_that_add_notification_adds_expected_settings_for_sqs(s3, mock_sqs_queue
 @mock_s3
 def test_that_delete_notification_is_successful_for_sqs(s3, mock_sqs_queue):
     s3.create_bucket(Bucket="some_bucket")
-    app.add_notification(
+    with mock.patch.object(
         s3,
-        "Queue",
-        mock_sqs_queue["Attributes"]["QueueArn"],
-        "some_bucket",
-        "test_folder",
-    )
+        "get_bucket_notification_configuration",
+        return_value={},
+    ):
+        app.add_notification(
+            s3,
+            "Queue",
+            mock_sqs_queue["Attributes"]["QueueArn"],
+            "some_bucket",
+            "test_folder",
+        )
     app.delete_notification(s3, "some_bucket")
     get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
     assert "QueueConfigurations" not in get_config
@@ -147,7 +167,7 @@ def test_add_notification_does_nothing_if_notification_already_exists(
                 }
             ]
         },
-    ):
+    ), mock.patch.object(s3, "put_bucket_notification_configuration") as put_config:
         # WHEN I add the existing matching `LambdaFunction` configuration
         app.add_notification(
             s3,
@@ -161,7 +181,7 @@ def test_add_notification_does_nothing_if_notification_already_exists(
     get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
 
     # THEN I expect nothing to have been saved in our mocked environment
-    assert get_config.get("LambdaFunctionConfigurations", None) is None
+    assert not put_config.called
 
 
 @mock_s3
@@ -192,7 +212,7 @@ def test_add_notification_does_nothing_if_notification_already_exists_even_in_di
                 }
             ]
         },
-    ):
+    ), mock.patch.object(s3, "put_bucket_notification_configuration") as put_config:
         # WHEN I add the existing matching `LambdaFunction` configuration
         app.add_notification(
             s3,
@@ -206,7 +226,7 @@ def test_add_notification_does_nothing_if_notification_already_exists_even_in_di
     get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
 
     # THEN I expect nothing to have been saved in our mocked environment
-    assert get_config.get("LambdaFunctionConfigurations", None) is None
+    assert not put_config.called
 
 
 @mock_s3
