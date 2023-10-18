@@ -42,12 +42,19 @@ def lambda_handler(event, context):
 
 def add_notification(
     s3_client: boto3.client,
-    destination_type : str,
+    destination_type: str,
     destination_arn: str,
     bucket: str,
     bucket_key_prefix: str,
 ):
-    """Adds the S3 notification configuration to an existing bucket
+    """Adds the S3 notification configuration to an existing bucket.
+
+        Use cases:
+            1) If a bucket has no `NotificationConfiguration` then create the config
+            2) If a bucket has a `NotificationConfiguration` but no matching "{destination_type}Configurations" then merge and add the config
+            3) If a bucket has a `NotificationConfiguration` and a matching "{destination_type}Configurations":
+                3a) If the config is the same then do nothing - ordering of the dict does not matter
+                3b) If the config is different then overwrite the matching "{destination_type}Configurations"
 
     Args:
         s3_client (boto3.client) : s3 client to use for s3 event config
@@ -56,25 +63,39 @@ def add_notification(
         bucket (str): bucket name of the s3 bucket to add the config to
         bucket_key_prefix (str): bucket key prefix for where to look for s3 object notifications
     """
-    s3_client.put_bucket_notification_configuration(
-        Bucket=bucket,
-        NotificationConfiguration={
-            f"{destination_type}Configurations": [
-                {
-                    f"{destination_type}Arn": destination_arn,
-                    "Events": ["s3:ObjectCreated:*"],
-                    "Filter": {
-                        "Key": {
-                            "FilterRules": [
-                                {"Name": "prefix", "Value": f"{bucket_key_prefix}/"}
-                            ]
-                        }
-                    },
-                }
-            ]
-        },
+    existing_bucket_notification_configuration = s3_client.get_bucket_notification_configuration(Bucket=bucket)
+    existing_notification_config_for_type = existing_bucket_notification_configuration.get(f"{destination_type}Configurations", {})
+
+    new_notification_config = {
+        f"{destination_type}Configurations": [
+            {
+                f"{destination_type}Arn": destination_arn,
+                "Events": ["s3:ObjectCreated:*"],
+                "Filter": {
+                    "Key": {
+                        "FilterRules": [
+                            {"Name": "prefix", "Value": f"{bucket_key_prefix}/"}
+                        ]
+                    }
+                },
+            }
+        ]
+    }
+
+    # If the configuration we want to add isn't there or is different then create a new that contains the new value along with any previous data.
+    if not existing_notification_config_for_type or json.dumps(existing_notification_config_for_type, sort_keys=True) != json.dumps(new_notification_config, sort_keys=True):
+        merged_config = {**existing_bucket_notification_configuration, **new_notification_config}
+
+        s3_client.put_bucket_notification_configuration(
+            Bucket=bucket,
+            NotificationConfiguration=merged_config,
+        )
+        logger.info(
+            f"Put request completed to add a NotificationConfiguration for `{destination_type}Configurations`"
+        )
+    logger.info(
+        f"Put not required as an existing NotificationConfiguration for `{destination_type}Configurations` already exists"
     )
-    logger.info("Put request completed....")
 
 
 def delete_notification(s3_client: boto3.client, bucket: str):
