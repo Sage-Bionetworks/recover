@@ -55,13 +55,13 @@ def add_notification(
 
         Use cases:
             1) If a bucket has no `NotificationConfiguration` then create the config
-            2) If a bucket has a `NotificationConfiguration` but no matching 
+            2) If a bucket has a `NotificationConfiguration` but no matching
                 "{destination_type}Configurations" then merge and add the config
-            3) If a bucket has a `NotificationConfiguration` and a matching 
+            3) If a bucket has a `NotificationConfiguration` and a matching
                                                     "{destination_type}Configurations":
-                3a) If the config is the same then do nothing - ordering of the dict 
+                3a) If the config is the same then do nothing - ordering of the dict
                                                                         does not matter
-                3b) If the config is different then overwrite the matching 
+                3b) If the config is different then overwrite the matching
                                                     "{destination_type}Configurations"
 
     Args:
@@ -97,7 +97,7 @@ def add_notification(
         ]
     }
 
-    # If the configuration we want to add isn't there 
+    # If the configuration we want to add isn't there
     # or is different from what we want to update it with
     if not existing_notification_config_for_type or json.dumps(
         existing_notification_config_for_type, sort_keys=True
