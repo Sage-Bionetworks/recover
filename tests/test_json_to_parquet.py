@@ -340,7 +340,7 @@ def glue_test_data(glue_flat_table_location, glue_nested_table_location,
 @pytest.fixture(scope="class")
 def glue_crawler_role(namespace):
     iam_client = boto3.client("iam")
-    role_name=f"{namespace}-pytest-crawler-role"[:60]
+    role_name=f"{namespace}-pytest-crawler-role"
     glue_service_policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
     s3_read_policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
     glue_crawler_role = iam_client.create_role(

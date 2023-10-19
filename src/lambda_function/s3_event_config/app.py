@@ -55,10 +55,14 @@ def add_notification(
 
         Use cases:
             1) If a bucket has no `NotificationConfiguration` then create the config
-            2) If a bucket has a `NotificationConfiguration` but no matching "{destination_type}Configurations" then merge and add the config
-            3) If a bucket has a `NotificationConfiguration` and a matching "{destination_type}Configurations":
-                3a) If the config is the same then do nothing - ordering of the dict does not matter
-                3b) If the config is different then overwrite the matching "{destination_type}Configurations"
+            2) If a bucket has a `NotificationConfiguration` but no matching 
+                "{destination_type}Configurations" then merge and add the config
+            3) If a bucket has a `NotificationConfiguration` and a matching 
+                                                    "{destination_type}Configurations":
+                3a) If the config is the same then do nothing - ordering of the dict 
+                                                                        does not matter
+                3b) If the config is different then overwrite the matching 
+                                                    "{destination_type}Configurations"
 
     Args:
         s3_client (boto3.client) : s3 client to use for s3 event config
@@ -70,6 +74,7 @@ def add_notification(
     existing_bucket_notification_configuration = (
         s3_client.get_bucket_notification_configuration(Bucket=bucket)
     )
+    existing_bucket_notification_configuration.pop("ResponseMetadata", None)
     existing_notification_config_for_type = (
         existing_bucket_notification_configuration.get(
             f"{destination_type}Configurations", {}
@@ -92,7 +97,8 @@ def add_notification(
         ]
     }
 
-    # If the configuration we want to add isn't there or is different then create a new that contains the new value along with any previous data.
+    # If the configuration we want to add isn't there 
+    # or is different from what we want to update it with
     if not existing_notification_config_for_type or json.dumps(
         existing_notification_config_for_type, sort_keys=True
     ) != json.dumps(
@@ -108,13 +114,14 @@ def add_notification(
             NotificationConfiguration=merged_config,
         )
         logger.info(
-            f"Put request completed to add a NotificationConfiguration for `{destination_type}Configurations`."
+            f"Put request completed to add a \
+                NotificationConfiguration for `{destination_type}Configurations`."
         )
     else:
         logger.info(
-            f"Put not required as an existing NotificationConfiguration for `{destination_type}Configurations` already exists."
+            f"Put not required as an existing NotificationConfiguration \
+                for `{destination_type}Configurations` already exists."
         )
-
 
 def delete_notification(s3_client: boto3.client, bucket: str, destination_type: str):
     """Deletes the S3 notification configuration from an existing bucket for a specific destination type.
@@ -127,7 +134,7 @@ def delete_notification(s3_client: boto3.client, bucket: str, destination_type: 
     existing_bucket_notification_configuration = (
         s3_client.get_bucket_notification_configuration(Bucket=bucket)
     )
-
+    existing_bucket_notification_configuration.pop("ResponseMetadata", None)
     configuration_name = f"{destination_type}Configurations"
 
     existing_notification_config_for_type = (
@@ -141,9 +148,11 @@ def delete_notification(s3_client: boto3.client, bucket: str, destination_type: 
             NotificationConfiguration=existing_bucket_notification_configuration,
         )
         logger.info(
-            f"Delete request completed to remove a NotificationConfiguration for `{destination_type}Configurations`."
+            f"Delete request completed to remove a \
+                NotificationConfiguration for `{destination_type}Configurations`."
         )
     else:
         logger.info(
-            f"Delete not required as no NotificationConfiguration exists for `{destination_type}Configurations`."
+            f"Delete not required as no \
+                NotificationConfiguration exists for `{destination_type}Configurations`."
         )
