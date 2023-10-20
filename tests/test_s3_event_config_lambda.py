@@ -343,6 +343,7 @@ def test_add_notification_adds_config_if_existing_config_does_not_match(
     assert get_config["LambdaFunctionConfigurations"][0]["Events"] == [
         "s3:ObjectCreated:*"
     ]
+
     assert get_config["LambdaFunctionConfigurations"][0]["Filter"] == {
         "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
     }
