@@ -30,6 +30,7 @@ def lambda_handler(event, context):
             s3,
             bucket=os.environ["S3_SOURCE_BUCKET_NAME"],
             destination_type=os.environ["S3_TO_GLUE_DESTINATION_TYPE"],
+            destination_arn=os.environ["S3_TO_GLUE_DESTINATION_ARN"]
         )
         logger.info("Sending response to custom resource after Delete")
     elif event["RequestType"] in ["Update", "Create"]:
