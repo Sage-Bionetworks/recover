@@ -11,5 +11,6 @@ parameters:
   S3ScriptKey: '{{ stack_group_config.namespace }}/src/glue/jobs/s3_to_json.py'
   GluePythonShellVersion: "{{ stack_group_config.glue_python_shell_python_version }}"
   GlueVersion: "{{ stack_group_config.glue_python_shell_glue_version }}"
+  AdditionalPythonModules: ecs_logging~=2.0
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
