@@ -15,16 +15,15 @@ import sys
 import typing
 import zipfile
 import boto3
+import ecs_logging
 from awsglue.utils import getResolvedOptions
 
 DATA_TYPES_WITH_SUBTYPE = ["HealthKitV2Samples", "HealthKitV2Statistics"]
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(levelname)s:%(name)s:%(message)s")
-handler.setFormatter(formatter)
+handler = logging.StreamHandler()
+handler.setFormatter(ecs_logging.StdlibFormatter())
 logger.addHandler(handler)
 
 def transform_object_to_array_of_objects(
@@ -32,7 +31,8 @@ def transform_object_to_array_of_objects(
         key_name: str,
         key_type: type,
         value_name: str,
-        value_type: type,) -> list:
+        value_type: type,
+        logger_context: dict={},) -> list:
     """
     Transforms a dictionary object into an array of dictionaries with specified
     key and value types.
@@ -52,6 +52,8 @@ def transform_object_to_array_of_objects(
         value_name (str): The name of the value in the output dictionaries.
         value_type (type): The type to which the values corresponding to `value_name`
             should be converted in the output dictionaries.
+        logger_context (dict): A dictionary containing contextual information
+            to include with every log.
 
     Returns:
         list: An array of dictionaries, where each dictionary contains
@@ -84,12 +86,30 @@ def transform_object_to_array_of_objects(
         try:
             key_value = key_type(k)
         except ValueError:
-            logger.warning(value_error, k,key_type)
+            logger.warning(
+                    value_error, k, key_type,
+                    extra={
+                        **logger_context,
+                        "event.kind": "alert",
+                        "event.category": ["configuration"],
+                        "event.type": ["change"],
+                        "event.outcome": "failure"
+                    }
+            )
             key_value = None
         try:
             value_value = value_type(v)
         except ValueError:
-            logger.warning(value_error, v, value_type)
+            logger.warning(
+                    value_error, v, value_type,
+                    extra={
+                        **logger_context,
+                        "event.kind": "alert",
+                        "event.category": ["configuration"],
+                        "event.type": ["change"],
+                        "event.outcome": "failure"
+                    }
+            )
             value_value = None
         obj = {
             key_name: key_value,
@@ -102,7 +122,8 @@ def transform_json(
         json_obj: dict,
         dataset_identifier: str,
         cohort: str,
-        metadata: dict,) -> dict:
+        metadata: dict,
+        logger_context: dict={}) -> dict:
     """
     Perform the following transformations:
 
@@ -129,6 +150,8 @@ def transform_json(
         dataset_identifier (str): The data type of `json_obj`.
         cohort (str): The cohort which this data associates with.
         metadata (dict): Metadata derived from the file basename.
+        logger_context (dict): A dictionary containing contextual information
+            to include with every log.
 
     Returns:
         json_obj (dict) The JSON object with the relevant transformations applied.
@@ -164,9 +187,19 @@ def transform_json(
                     except json.JSONDecodeError as e:
                         # If it's not propertly formatted JSON, then we
                         # can't read it, and instead store an empty list
-                        logger.warning(f"Problem CustomFields.{field_name}: "
-                                       f"{json_obj['CustomFields'][field_name]}")
-                        logger.warning(str(e))
+                        logger.error(
+                                (f"Problem CustomFields.{field_name}: "
+                                f"{json_obj['CustomFields'][field_name]}"),
+                                extra={
+                                    **logger_context,
+                                    "error.message": repr(e),
+                                    "error.type": "json.JSONDecodeError",
+                                    "event.kind": "alert",
+                                    "event.category": ["configuration"],
+                                    "event.type": ["creation"],
+                                    "event.outcome": "failure",
+                                }
+                        )
                         json_obj["CustomFields"][field_name] = []
                 else:
                     json_obj["CustomFields"][field_name] = []
@@ -215,7 +248,8 @@ def transform_json(
                             key_name=key_name,
                             key_type=key_type,
                             value_name=value_name,
-                            value_type=value_type
+                            value_type=value_type,
+                            logger_context=logger_context
                     )
                     json_obj[prop_name] = array_of_obj
             if len(property_hierarchy) == 2:
@@ -229,7 +263,8 @@ def transform_json(
                                         key_name=key_name,
                                         key_type=key_type,
                                         value_name=value_name,
-                                        value_type=value_type
+                                        value_type=value_type,
+                                        logger_context=logger_context
                             )
                             obj[sub_prop_name] = array_of_obj
     return json_obj
@@ -280,6 +315,7 @@ def transform_block(
         dataset_identifier: str,
         cohort: str,
         metadata: dict,
+        logger_context: dict={},
         block_size: int=10000):
     """
     A generator function which yields a block of transformed JSON records.
@@ -292,8 +328,10 @@ def transform_block(
     Args:
         input_json (typing.IO): A file-like object of the JSON to be transformed.
         dataset_identifier (str): The data type of `input_json`.
-        metadata (dict): Metadata derived from the file basename. See `get_metadata`.
         cohort (str): The cohort which this data associates with.
+        metadata (dict): Metadata derived from the file basename. See `get_metadata`.
+        logger_context (dict): A dictionary containing contextual information
+            to include with every log.
         block_size (int, optional): The number of records to process in each block.
             Default is 10000.
 
@@ -307,7 +345,8 @@ def transform_block(
                 json_obj=json_obj,
                 dataset_identifier=dataset_identifier,
                 cohort=cohort,
-                metadata=metadata
+                metadata=metadata,
+                logger_context=logger_context
         )
         block.append(json_obj)
         if len(block) == block_size:
@@ -323,6 +362,7 @@ def write_file_to_json_dataset(
         cohort: str,
         metadata: dict,
         workflow_run_properties: dict,
+        logger_context: dict={},
         delete_upon_successful_upload: bool=True,
         file_size_limit: float=1e8) -> list:
     """
@@ -341,6 +381,8 @@ def write_file_to_json_dataset(
         cohort (str): The cohort which this data associates with.
         metadata (dict): Metadata derived from the file basename.
         workflow_run_properties (dict): The workflow arguments
+        logger_context (dict): A dictionary containing contextual information
+            to include with every log.
         delete_upon_successful_upload (bool): Whether to delete the local
             copy of the JSON file after uploading to S3. Set to False
             during testing.
@@ -369,11 +411,13 @@ def write_file_to_json_dataset(
     )
     with z.open(json_path, "r") as input_json:
         current_output_path = output_path
+        line_count = 0
         for transformed_block in transform_block(
                 input_json=input_json,
                 dataset_identifier=dataset_identifier,
                 cohort=cohort,
-                metadata=metadata
+                metadata=metadata,
+                logger_context=logger_context
         ):
             current_file_size = os.path.getsize(current_output_path)
             if current_file_size > file_size_limit:
@@ -393,6 +437,7 @@ def write_file_to_json_dataset(
                 )
             with open(current_output_path, "a") as f_out:
                 for transformed_record in transformed_block:
+                    line_count += 1
                     f_out.write("{}\n".format(json.dumps(transformed_record)))
         # Upload final block
         _upload_file_to_json_dataset(
@@ -402,6 +447,22 @@ def write_file_to_json_dataset(
                 delete_upon_successful_upload=delete_upon_successful_upload
         )
         uploaded_files.append(current_output_path)
+        logger.info(
+                "Output file attributes",
+                extra={
+                    **logger_context,
+                    "file.LineCount": line_count,
+                    "event.kind": "metric",
+                    "event.category": ["file"],
+                    "event.type": ["info", "creation"],
+                    "event.action": "list-file-properties",
+                    "labels": {
+                        k: v.isoformat()
+                        if isinstance(v, datetime.datetime) else v
+                        for k, v in metadata.items()
+                    }
+                }
+    )
     return uploaded_files
 
 def _upload_file_to_json_dataset(
@@ -430,7 +491,7 @@ def _upload_file_to_json_dataset(
         workflow_run_properties["json_prefix"],
         file_path
     )
-    logger.debug("Uploading %s to %s", file_path, s3_output_key)
+    basic_file_info = get_basic_file_info(file_path=file_path)
     with open(file_path, "rb") as f_in:
         response = s3_client.put_object(
                 Body = f_in,
@@ -438,7 +499,21 @@ def _upload_file_to_json_dataset(
                 Key = s3_output_key,
                 Metadata = s3_metadata
         )
-        logger.debug("S3 Put object response: %s", json.dumps(response))
+    logger.info(
+        "Upload to S3",
+        extra = {
+            **basic_file_info,
+            "event.kind": "event",
+            "event.category": ["database"],
+            "event.type": ["creation"],
+            "event.action": "put-bucket-object",
+            "labels": {
+                **s3_metadata,
+                "bucket": workflow_run_properties["json_bucket"],
+                "key": s3_output_key
+            }
+        }
+    )
     if delete_upon_successful_upload:
         os.remove(file_path)
     return s3_output_key
@@ -523,8 +598,29 @@ def get_metadata(basename: str) -> dict:
         and basename_components[-2] == "Deleted"
     ):
         metadata["type"] = "{}_Deleted".format(metadata["type"])
-    logger.debug("metadata = %s", metadata)
     return metadata
+
+def get_basic_file_info(file_path):
+    """
+    Returns a dictionary of basic information about a file.
+
+    Args:
+        file_path (str): The path to this file
+
+    Returns:
+        dict: Basic file information, formatted as
+            file.type (str): Always "file"
+            file.path (str): Same as `file_path`
+            file.name (str): The basename
+            file.extension (str): The file extension with no leading dot.
+    """
+    basic_file_info = {
+        "file.type": "file",
+        "file.path": file_path,
+        "file.name": os.path.basename(file_path),
+        "file.extension": os.path.splitext(file_path)[-1][1:]
+    }
+    return basic_file_info
 
 def process_record(
         s3_obj: dict,
@@ -552,20 +648,47 @@ def process_record(
                 "Manifest" not in f.filename and
                 f.file_size > 0
         ]
-        logger.debug("contents: %s", z.namelist())
-        logger.debug("non-empty contents: %s", non_empty_contents)
         for json_path in non_empty_contents:
+            with z.open(json_path, "r") as f:
+                line_count = sum(1 for _ in f)
+            basic_file_info = get_basic_file_info(file_path=json_path)
+            logger.debug(
+                    "Getting metadata",
+                    extra={
+                        **basic_file_info,
+                        "event.kind": "event",
+                        "event.category": ["process"],
+                        "event.type": ["start"]
+                    }
+            )
             metadata = get_metadata(os.path.basename(json_path))
-            dataset_identifier = metadata["type"]
-            logger.info("Writing %s to dataset %s",
-                        json_path, dataset_identifier)
+            metadata_str_keys = {
+                k: v.isoformat()
+                if isinstance(v, datetime.datetime) else v
+                for k, v in metadata.items()
+            }
+
+            logger_context = {**basic_file_info, "labels": metadata_str_keys}
+            logger.info(
+                    "Input file attributes",
+                    extra={
+                        **logger_context,
+                        "file.size": sys.getsizeof(json_path),
+                        "file.LineCount": line_count,
+                        "event.kind": "metric",
+                        "event.category": ["file"],
+                        "event.type": ["info", "access"],
+                        "event.action": "list-file-properties",
+                    }
+            )
             write_file_to_json_dataset(
                     z=z,
                     json_path=json_path,
-                    dataset_identifier=dataset_identifier,
+                    dataset_identifier=metadata["type"],
                     cohort=cohort,
                     metadata=metadata,
-                    workflow_run_properties=workflow_run_properties)
+                    workflow_run_properties=workflow_run_properties,
+                    logger_context=logger_context)
 
 def main() -> None:
 
@@ -583,15 +706,41 @@ def main() -> None:
     workflow_run_properties = glue_client.get_workflow_run_properties(
             Name=args["WORKFLOW_NAME"],
             RunId=args["WORKFLOW_RUN_ID"])["RunProperties"]
-    logger.debug("getResolvedOptions: %s", json.dumps(args))
-    logger.debug("get_workflow_run_properties: %s", json.dumps(workflow_run_properties))
+    logger.debug(
+            "getResolvedOptions",
+            extra={
+                "event.kind": "event",
+                "event.category": ["process"],
+                "event.type": ["info"],
+                "event.action": "get-job-arguments",
+                "labels": args
+            }
+    )
+    logger.debug(
+            "get_workflow_run_properties",
+            extra={
+                "event.kind": "event",
+                "event.category": ["process"],
+                "event.type": ["info"],
+                "event.action": "get-workflow-arguments",
+                "labels": workflow_run_properties
+            }
+    )
 
     # Load messages to be processed
-    logger.info("Loading messages")
     messages = json.loads(workflow_run_properties["messages"])
     for message in messages:
-        logger.info("Retrieving S3 object for Bucket %s and Key %s",
-                    message["source_bucket"], message["source_key"])
+        logger.info(
+                "Retrieving S3 object",
+                extra={
+                    "event.kind": "event",
+                    "event.category": ["database"],
+                    "event.type": ["access"],
+                    "event.action": "get-bucket-object",
+                    "labels": {"bucket": message["source_bucket"],
+                               "key": message["source_key"]}
+                }
+        )
         s3_obj = s3_client.get_object(
                 Bucket = message["source_bucket"],
                 Key = message["source_key"]
@@ -606,7 +755,15 @@ def main() -> None:
             logger.warning(
                     "Could not determine the cohort of object at %s"
                     "This file will not be written to a JSON dataset.",
-                    f"s3://{message['source_bucket']}/{message['source_key']}. "
+                    f"s3://{message['source_bucket']}/{message['source_key']}. ",
+                    extra={
+                        "event.kind": "alert",
+                        "event.category": ["configuration"],
+                        "event.type": ["creation"],
+                        "event.outcome": "failure",
+                        "labels": {"bucket": message["source_bucket"],
+                                   "key": message["source_key"]}
+                    }
             )
             continue
         process_record(
