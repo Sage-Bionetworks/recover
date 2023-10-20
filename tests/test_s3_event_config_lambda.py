@@ -1,6 +1,4 @@
 from unittest import mock
-import zipfile
-import io
 import boto3
 from moto import mock_s3, mock_lambda, mock_iam, mock_sqs
 import pytest
@@ -44,9 +42,7 @@ def mock_sqs_queue(mock_aws_credentials):
 
 
 @mock_s3
-def test_that_add_notification_adds_expected_settings_for_lambda(
-    s3, mock_lambda_function
-):
+def test_add_notification_adds_expected_settings_for_lambda(s3, mock_lambda_function):
     s3.create_bucket(Bucket="some_bucket")
     with mock.patch.object(
         s3,
@@ -74,84 +70,56 @@ def test_that_add_notification_adds_expected_settings_for_lambda(
 
 
 @mock_s3
-def test_that_delete_notification_is_successful_for_configuration_that_exists(
-    s3, mock_lambda_function
-):
-    # GIVEN an S3 bucket
-    s3.create_bucket(Bucket="some_bucket")
-
-    # AND a configuration exists
-    with mock.patch.object(
-        s3,
-        "get_bucket_notification_configuration",
-        return_value={
-            f"LambdaFunctionConfigurations": [
-                {
-                    f"LambdaFunctionArn": mock_lambda_function["Configuration"][
-                        "FunctionArn"
-                    ],
-                    "Events": ["s3:ObjectCreated:*"],
-                    "Filter": {
-                        "Key": {
-                            "FilterRules": [
-                                {"Name": "prefix", "Value": f"test_folder/"}
-                            ]
-                        }
-                    },
-                }
-            ]
-        },
-    ):
-        # WHEN I delete the notification
-        app.delete_notification(s3, "some_bucket", "LambdaFunction")
-    # THEN the notification should be deleted
-    get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
-    assert "LambdaFunctionConfigurations" not in get_config
-
-
-@mock_s3
-def test_delete_notification_does_nothing_when_deleting_configuration_that_does_not_exist(
-    s3, mock_lambda_function
-):
-    # GIVEN an S3 bucket
-    s3.create_bucket(Bucket="some_bucket")
-
-    # AND a configuration exists for a different notification type
-    with mock.patch.object(
-        s3,
-        "get_bucket_notification_configuration",
-        return_value={
-            f"LambdaFunctionConfigurations": [
-                {
-                    f"LambdaFunctionArn": mock_lambda_function["Configuration"][
-                        "FunctionArn"
-                    ],
-                    "Events": ["s3:ObjectCreated:*"],
-                    "Filter": {
-                        "Key": {
-                            "FilterRules": [
-                                {"Name": "prefix", "Value": f"test_folder/"}
-                            ]
-                        }
-                    },
-                }
-            ]
-        },
-        # AND a mock for the put_bucket_notification_configuration method
-    ), mock.patch.object(s3, "put_bucket_notification_configuration") as put_config:
-        # WHEN I delete a notification that does not exist
-        app.delete_notification(s3, "some_bucket", "doesNotExist")
-    # THEN nothing should have been called
-    assert not put_config.called
-
-
-@mock_s3
-def test_that_add_notification_adds_expected_settings_for_sqs(s3, mock_sqs_queue):
+def test_add_notification_adds_expected_settings_for_sqs(s3, mock_sqs_queue):
     s3.create_bucket(Bucket="some_bucket")
     with mock.patch.object(
         s3,
         "get_bucket_notification_configuration",
         return_value={},
+    ):
+        app.add_notification(
+            s3,
+            "Queue",
+            mock_sqs_queue["Attributes"]["QueueArn"],
+            "some_bucket",
+            "test_folder",
+        )
+    get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
+    assert (
+        get_config["QueueConfigurations"][0]["QueueArn"]
+        == mock_sqs_queue["Attributes"]["QueueArn"]
+    )
+    assert get_config["QueueConfigurations"][0]["Events"] == ["s3:ObjectCreated:*"]
+    assert get_config["QueueConfigurations"][0]["Filter"] == {
+        "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
+    }
+
+
+@mock_s3
+def test_add_notification_replace_if_different(s3, mock_sqs_queue):
+    # GIVEN an S3 bucket
+    s3.create_bucket(Bucket="some_bucket")
+
+    # AND the bucket has an existing `QueueConfigurations` that is different to what we want
+    # but matches the ARN.
+    with mock.patch.object(
+        s3,
+        "get_bucket_notification_configuration",
+        return_value={
+            f"QueueConfigurations": [
+                {
+                    "QueueArn": mock_sqs_queue["Attributes"]["QueueArn"],
+                    "Events": ["s3:ObjectCreated:*"],
+                    "Filter": {
+                        "Key": {
+                            "FilterRules": [
+                                {"Name": "prefix", "Value": f"some_other_folder/"}
+                            ]
+                        }
+                    },
+                }
+            ]
+        },
     ):
         app.add_notification(
             s3,
@@ -223,7 +191,8 @@ def test_add_notification_does_nothing_if_notification_already_exists_even_in_di
     # GIVEN an S3 bucket
     s3.create_bucket(Bucket="some_bucket")
 
-    # AND the bucket has an existing `LambdaFunctionConfigurations` that matches content of the one we will add - But differs in order
+    # AND the bucket has an existing `LambdaFunctionConfigurations` that matches
+    # content of the one we will add - But differs in order
     with mock.patch.object(
         s3,
         "get_bucket_notification_configuration",
@@ -338,10 +307,18 @@ def test_add_notification_adds_config_if_existing_config_does_not_match(
         return_value={
             f"LambdaFunctionConfigurations": [
                 {
-                    f"SomeOtherArn": mock_lambda_function["Configuration"][
+                    f"LambdaFunctionArn": mock_lambda_function["Configuration"][
                         "FunctionArn"
-                    ],
-                    "Events": ["s3:SomeOtherS3Event:*"],
+                    ]
+                    + "asdf",
+                    "Events": ["s3:ObjectCreated:*"],
+                    "Filter": {
+                        "Key": {
+                            "FilterRules": [
+                                {"Name": "prefix", "Value": f"test_folder/"}
+                            ]
+                        }
+                    },
                 }
             ]
         },
@@ -358,10 +335,10 @@ def test_add_notification_adds_config_if_existing_config_does_not_match(
     # AND I get the notification configuration
     get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
 
-    # THEN I expect to see the updated `LambdaFunction` configuration
+    # THEN I expect to see the updated `LambdaFunction` configuration for the existing one
     assert (
         get_config["LambdaFunctionConfigurations"][0]["LambdaFunctionArn"]
-        == mock_lambda_function["Configuration"]["FunctionArn"]
+        == mock_lambda_function["Configuration"]["FunctionArn"] + "asdf"
     )
     assert get_config["LambdaFunctionConfigurations"][0]["Events"] == [
         "s3:ObjectCreated:*"
@@ -369,3 +346,97 @@ def test_add_notification_adds_config_if_existing_config_does_not_match(
     assert get_config["LambdaFunctionConfigurations"][0]["Filter"] == {
         "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
     }
+
+    # AND I expect to see the updated `LambdaFunction` configuration for the new one
+    assert (
+        get_config["LambdaFunctionConfigurations"][1]["LambdaFunctionArn"]
+        == mock_lambda_function["Configuration"]["FunctionArn"]
+    )
+    assert get_config["LambdaFunctionConfigurations"][1]["Events"] == [
+        "s3:ObjectCreated:*"
+    ]
+    assert get_config["LambdaFunctionConfigurations"][1]["Filter"] == {
+        "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
+    }
+
+
+@mock_s3
+def test_delete_notification_is_successful_for_configuration_that_exists(
+    s3, mock_lambda_function
+):
+    # GIVEN an S3 bucket
+    s3.create_bucket(Bucket="some_bucket")
+
+    # AND a configuration exists
+    with mock.patch.object(
+        s3,
+        "get_bucket_notification_configuration",
+        return_value={
+            f"LambdaFunctionConfigurations": [
+                {
+                    f"LambdaFunctionArn": mock_lambda_function["Configuration"][
+                        "FunctionArn"
+                    ],
+                    "Events": ["s3:ObjectCreated:*"],
+                    "Filter": {
+                        "Key": {
+                            "FilterRules": [
+                                {"Name": "prefix", "Value": f"test_folder/"}
+                            ]
+                        }
+                    },
+                }
+            ]
+        },
+    ):
+        # WHEN I delete the notification
+        app.delete_notification(
+            s3_client=s3,
+            bucket="some_bucket",
+            destination_type="LambdaFunction",
+            destination_arn=mock_lambda_function["Configuration"]["FunctionArn"],
+        )
+    # THEN the notification should be deleted
+    get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
+    assert "LambdaFunctionConfigurations" not in get_config
+
+
+@mock_s3
+def test_delete_notification_does_nothing_when_deleting_configuration_that_does_not_exist(
+    s3, mock_lambda_function
+):
+    # GIVEN an S3 bucket
+    s3.create_bucket(Bucket="some_bucket")
+
+    # AND a configuration exists for a different notification type
+    with mock.patch.object(
+        s3,
+        "get_bucket_notification_configuration",
+        return_value={
+            f"LambdaFunctionConfigurations": [
+                {
+                    f"LambdaFunctionArn": mock_lambda_function["Configuration"][
+                        "FunctionArn"
+                    ],
+                    "Events": ["s3:ObjectCreated:*"],
+                    "Filter": {
+                        "Key": {
+                            "FilterRules": [
+                                {"Name": "prefix", "Value": f"test_folder/"}
+                            ]
+                        }
+                    },
+                }
+            ]
+        },
+        # AND a mock for the put_bucket_notification_configuration method
+    ), mock.patch.object(s3, "put_bucket_notification_configuration") as put_config:
+        # WHEN I delete a notification that does not exist
+        app.delete_notification(
+            s3_client=s3,
+            bucket="some_bucket",
+            destination_type="doesNotExist",
+            destination_arn=mock_lambda_function["Configuration"]["FunctionArn"],
+        )
+    # THEN nothing should have been called
+    assert not put_config.called
