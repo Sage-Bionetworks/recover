@@ -95,11 +95,16 @@ def get_existing_bucket_notification_configuration_and_type(
     )
 
 
+class MatchingNotificationConfiguration(typing.NamedTuple):
+    index_of_matching_arn: typing.Union[int, None]
+    matching_notification_configuration: typing.Union[dict, None]
+
+
 def get_matching_notification_configuration(
     destination_type_arn: str,
     existing_notification_configurations_for_type: list,
     destination_arn: str,
-) -> typing.Union[tuple[int, dict], tuple[None, None]]:
+) -> MatchingNotificationConfiguration:
     """
     Search through the list of existing notifications and find the one that has a key of
     `destination_type_arn` and a value of `destination_arn`.
@@ -110,8 +115,9 @@ def get_matching_notification_configuration(
         destination_arn (str): Arn of the destination's s3 event config
 
     Returns:
-        tuple: The index of the matching notification configuration and the matching
-            notification configuration or None, None if no match is found
+        MatchingNotificationConfiguration: The index of the matching notification
+        configuration and the matching notification configuration
+        or None, None if no match is found
     """
     for index, existing_notification_configuration_for_type in enumerate(
         existing_notification_configurations_for_type
@@ -121,8 +127,11 @@ def get_matching_notification_configuration(
             and existing_notification_configuration_for_type[destination_type_arn]
             == destination_arn
         ):
-            return index, existing_notification_configuration_for_type
-    return None, None
+            return MatchingNotificationConfiguration(
+                index_of_matching_arn=index,
+                matching_notification_configuration=existing_notification_configuration_for_type,
+            )
+    return MatchingNotificationConfiguration(None, None)
 
 
 def create_formatted_message(
@@ -233,7 +242,10 @@ def add_notification(
         destination_arn,
     )
 
-    if index_of_matching_arn is not None:
+    if (
+        index_of_matching_arn is not None
+        and matching_notification_configuration is not None
+    ):
         if not notification_configuration_matches(
             matching_notification_configuration, new_notification_configuration
         ):
