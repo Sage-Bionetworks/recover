@@ -30,7 +30,7 @@ def lambda_handler(event, context):
             s3,
             bucket=os.environ["S3_SOURCE_BUCKET_NAME"],
             destination_type=os.environ["S3_TO_GLUE_DESTINATION_TYPE"],
-            destination_arn=os.environ["S3_TO_GLUE_DESTINATION_ARN"]
+            destination_arn=os.environ["S3_TO_GLUE_DESTINATION_ARN"],
         )
         logger.info("Sending response to custom resource after Delete")
     elif event["RequestType"] in ["Update", "Create"]:
@@ -48,9 +48,14 @@ def lambda_handler(event, context):
         raise KeyError(err_msg)
 
 
+class ExistingNotificationConfiguration(typing.NamedTuple):
+    existing_bucket_notification_configuration: dict
+    existing_notification_configurations_for_type: list
+
+
 def get_existing_bucket_notification_configuration_and_type(
     s3_client: boto3.client, bucket: str, destination_type: str
-) -> typing.Tuple[dict, list]:
+) -> ExistingNotificationConfiguration:
     """
     Gets the existing bucket notification configuration and the existing notification
     configurations for a specific destination type.
@@ -61,7 +66,7 @@ def get_existing_bucket_notification_configuration_and_type(
         destination_type (str): String name of the destination type for the configuration
 
     Returns:
-        Tuple: A bucket notifiction configuration,
+        ExistingNotificationConfiguration: A bucket notifiction configuration,
             and the notification configurations for a specific destination type
     """
     existing_bucket_notification_configuration = (
@@ -84,9 +89,9 @@ def get_existing_bucket_notification_configuration_and_type(
             f"{destination_type}Configurations"
         ] = []
 
-    return (
-        existing_bucket_notification_configuration,
-        existing_notification_configurations_for_type,
+    return ExistingNotificationConfiguration(
+        existing_bucket_notification_configuration=existing_bucket_notification_configuration,
+        existing_notification_configurations_for_type=existing_notification_configurations_for_type,
     )
 
 
@@ -134,6 +139,45 @@ def create_formatted_message(
         str: A formatted message
     """
     return f"Bucket: {bucket}, DestinationType: {destination_type}, DestinationArn: {destination_arn}"
+
+
+def notification_configuration_matches(
+    matching_notification_configuration: dict, new_notification_configuration: dict
+) -> bool:
+    """Determines if the Events and Filter.key.FilterRules match.
+
+    Arguments:
+        matching_notification_configuration (dict): The existing notification config
+        new_notification_configuration (dict): The new notification config
+
+    Returns:
+        bool: True if the Events and Filter.key.FilterRules match.
+    """
+    # Check if the Events match
+    if matching_notification_configuration.get(
+        "Events"
+    ) != new_notification_configuration.get("Events"):
+        return False
+
+    # Check if the Filter.key.FilterRules match
+    matching_filter_rules = (
+        matching_notification_configuration.get("Filter", {})
+        .get("Key", {})
+        .get("FilterRules", [])
+    )
+    new_filter_rules = (
+        new_notification_configuration.get("Filter", {})
+        .get("Key", {})
+        .get("FilterRules", [])
+    )
+    if len(matching_filter_rules) != len(new_filter_rules):
+        return False
+    for i in range(len(matching_filter_rules)):
+        if matching_filter_rules[i] != new_filter_rules[i]:
+            return False
+
+    # All checks passed, the notification configurations match
+    return True
 
 
 def add_notification(
@@ -190,9 +234,9 @@ def add_notification(
     )
 
     if index_of_matching_arn is not None:
-        if json.dumps(
-            matching_notification_configuration, sort_keys=True
-        ) != json.dumps(new_notification_configuration, sort_keys=True):
+        if not notification_configuration_matches(
+            matching_notification_configuration, new_notification_configuration
+        ):
             existing_notification_configurations_for_type[
                 index_of_matching_arn
             ] = new_notification_configuration
@@ -243,7 +287,7 @@ def delete_notification(
 
     (
         index_of_matching_arn,
-        matching_notification_confiugration,
+        _matching_notification_configuration,
     ) = get_matching_notification_configuration(
         destination_type_arn,
         existing_notification_configurations_for_type,

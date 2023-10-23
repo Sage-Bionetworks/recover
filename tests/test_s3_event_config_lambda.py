@@ -96,7 +96,7 @@ def test_add_notification_adds_expected_settings_for_sqs(s3, mock_sqs_queue):
 
 
 @mock_s3
-def test_add_notification_replace_if_different(s3, mock_sqs_queue):
+def test_add_notification_replace_if_filter_rule_different(s3, mock_sqs_queue):
     # GIVEN an S3 bucket
     s3.create_bucket(Bucket="some_bucket")
 
@@ -138,6 +138,48 @@ def test_add_notification_replace_if_different(s3, mock_sqs_queue):
         "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
     }
 
+@mock_s3
+def test_add_notification_replace_if_events_different(s3, mock_sqs_queue):
+    # GIVEN an S3 bucket
+    s3.create_bucket(Bucket="some_bucket")
+
+    # AND the bucket has an existing `QueueConfigurations` that is different to what we want
+    # but matches the ARN.
+    with mock.patch.object(
+        s3,
+        "get_bucket_notification_configuration",
+        return_value={
+            f"QueueConfigurations": [
+                {
+                    "QueueArn": mock_sqs_queue["Attributes"]["QueueArn"],
+                    "Events": ["s3:ASDF:*"],
+                    "Filter": {
+                        "Key": {
+                            "FilterRules": [
+                                {"Name": "prefix", "Value": f"test_folder/"}
+                            ]
+                        }
+                    },
+                }
+            ]
+        },
+    ):
+        app.add_notification(
+            s3,
+            "Queue",
+            mock_sqs_queue["Attributes"]["QueueArn"],
+            "some_bucket",
+            "test_folder",
+        )
+    get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
+    assert (
+        get_config["QueueConfigurations"][0]["QueueArn"]
+        == mock_sqs_queue["Attributes"]["QueueArn"]
+    )
+    assert get_config["QueueConfigurations"][0]["Events"] == ["s3:ObjectCreated:*"]
+    assert get_config["QueueConfigurations"][0]["Filter"] == {
+        "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
+    }
 
 @mock_s3
 def test_add_notification_does_nothing_if_notification_already_exists(
