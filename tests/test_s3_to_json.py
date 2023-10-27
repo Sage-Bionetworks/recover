@@ -6,7 +6,6 @@ import zipfile
 import datetime
 from dateutil.tz import tzutc
 
-import boto3
 import pytest
 
 from src.glue.jobs import s3_to_json
@@ -61,6 +60,17 @@ class TestS3ToJsonS3:
         return s3_obj
 
     @pytest.fixture
+    def sample_metadata(self):
+        sample_metadata = {
+                "type": "FitbitDevices",
+                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
+                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
+                "subtype": "FakeSubtype",
+                "cohort": "adults_v1"
+        }
+        return sample_metadata
+
+    @pytest.fixture
     def json_file_basenames_dict(self):
         # keep examples of all possible data types and valid filename
         json_file_basenames = {
@@ -113,40 +123,19 @@ class TestS3ToJsonS3:
         ]
         assert all([obj in expected_object for obj in transformed_object])
 
-    def test_transform_json_generic(self):
-        sample_metadata = {
-                "type": "FitbitDevices",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
+    def test_log_error_transform_object_to_array_of_objects(self, caplog):
+        s3_to_json._log_error_transform_object_to_array_of_objects(
+                value="a",
+                value_type=int,
+                error=ValueError,
+                logger_context={}
+        )
+        assert len(caplog.records) == 2
+
+    def test_transform_json_with_subtype(self, sample_metadata):
+        sample_metadata["type"] = "HealthKitV2Samples"
         transformed_json = s3_to_json.transform_json(
                 json_obj={},
-                dataset_identifier=sample_metadata["type"],
-                cohort="adults_v1",
-                metadata=sample_metadata
-        )
-
-        assert (
-            sample_metadata["start_date"].isoformat()
-            == transformed_json["export_start_date"]
-        )
-        assert (
-            sample_metadata["end_date"].isoformat()
-            == transformed_json["export_end_date"]
-        )
-        assert transformed_json["cohort"] == "adults_v1"
-
-    def test_transform_json_with_subtype(self):
-        sample_metadata = {
-                "type": "HealthKitV2Samples",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-                "subtype": "Weight",
-        }
-        transformed_json = s3_to_json.transform_json(
-                json_obj={},
-                dataset_identifier=sample_metadata["type"],
-                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -160,17 +149,11 @@ class TestS3ToJsonS3:
             == transformed_json["export_end_date"]
         )
 
-    def test_transform_json_symptom_log(self):
-        sample_metadata = {
-                "type": "SymptomLog",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
+    def test_transform_json_symptom_log(self, sample_metadata):
+        sample_metadata["type"] = "SymptomLog"
         transformed_value = {"a": 1, "b": 2}
         transformed_json = s3_to_json.transform_json(
                 json_obj={"Value": json.dumps(transformed_value)},
-                dataset_identifier=sample_metadata["type"],
-                cohort="adults_v1",
                 metadata=sample_metadata
         )
 
@@ -184,31 +167,38 @@ class TestS3ToJsonS3:
         )
         assert transformed_json["Value"] == transformed_value
 
-    def test_transform_json_enrolled_participants_str(self):
+    def test_add_universal_properties_start_date(self, sample_metadata):
+        json_obj = s3_to_json._add_universal_properties(
+                json_obj={},
+                metadata=sample_metadata,
+        )
+        assert json_obj["export_start_date"] == sample_metadata["start_date"].isoformat()
+
+    def test_add_universal_properties_no_start_date(self, sample_metadata):
+        sample_metadata["start_date"] = None
+        json_obj = s3_to_json._add_universal_properties(
+                json_obj={},
+                metadata=sample_metadata,
+        )
+        assert json_obj["export_start_date"] is None
+
+    def test_add_universal_properties_generic(self, sample_metadata):
+        json_obj = s3_to_json._add_universal_properties(
+                json_obj={},
+                metadata=sample_metadata,
+        )
+        assert json_obj["export_end_date"] == sample_metadata["end_date"].isoformat()
+        assert json_obj["cohort"] == sample_metadata["cohort"]
+
+    def test_cast_custom_fields_to_array(self):
         sample_symptoms = {"id": "123", "symptom": "sick"}
-        sample_metadata = {
-                "type": "EnrolledParticipants",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
-        transformed_json = s3_to_json.transform_json(
+        transformed_json = s3_to_json._cast_custom_fields_to_array(
                 json_obj={
                     "CustomFields": {
                         "Symptoms": json.dumps(sample_symptoms)
                     }
                 },
-                dataset_identifier=sample_metadata["type"],
-                cohort="adults_v1",
-                metadata=sample_metadata
-        )
-
-        assert (
-            sample_metadata["start_date"].isoformat()
-            == transformed_json["export_start_date"]
-        )
-        assert (
-            sample_metadata["end_date"].isoformat()
-            == transformed_json["export_end_date"]
+                logger_context={},
         )
         assert all(
                 [
@@ -217,34 +207,19 @@ class TestS3ToJsonS3:
                 ]
         )
 
-    def test_transform_json_enrolled_participants_malformatted_str(self):
-        sample_metadata = {
-                "type": "EnrolledParticipants",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
-        transformed_json = s3_to_json.transform_json(
+    def test_cast_custom_fields_to_array_malformatted_str(self, caplog):
+        transformed_json = s3_to_json._cast_custom_fields_to_array(
                 json_obj={
                     "CustomFields": {
                         "Symptoms": r'[{\\\"id\\\": "123", \\\"symptom\\\": "sick"}]'
                     }
                 },
-                dataset_identifier=sample_metadata["type"],
-                cohort="adults_v1",
-                metadata=sample_metadata
+                logger_context={},
         )
-
-        assert (
-            sample_metadata["start_date"].isoformat()
-            == transformed_json["export_start_date"]
-        )
-        assert (
-            sample_metadata["end_date"].isoformat()
-            == transformed_json["export_end_date"]
-        )
+        assert len(caplog.records) == 1
         assert transformed_json["CustomFields"]["Symptoms"] == []
 
-    def test_transform_json_garmin_one_level_down(self):
+    def test_transform_garmin_data_types_one_level_hierarchy(self):
         time_offset_heartrate_samples = {
                 "0": 60.0,
                 "1": 61.0,
@@ -264,25 +239,11 @@ class TestS3ToJsonS3:
                     "HeartRate": 99
                 }
         ]
-        sample_metadata = {
-                "type": "GarminDailySummary",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
-        transformed_json = s3_to_json.transform_json(
+        data_type_transforms={"TimeOffsetHeartRateSamples": (("OffsetInSeconds", int), ("HeartRate", int))}
+        transformed_json = s3_to_json._transform_garmin_data_types(
                 json_obj={"TimeOffsetHeartRateSamples": time_offset_heartrate_samples},
-                dataset_identifier=sample_metadata["type"],
-                cohort="adults_v1",
-                metadata=sample_metadata
-        )
-
-        assert (
-            sample_metadata["start_date"].isoformat()
-            == transformed_json["export_start_date"]
-        )
-        assert (
-            sample_metadata["end_date"].isoformat()
-            == transformed_json["export_end_date"]
+                data_type_transforms=data_type_transforms,
+                logger_context={},
         )
         assert all(
                 [
@@ -291,7 +252,7 @@ class TestS3ToJsonS3:
                 ]
         )
 
-    def test_transform_json_garmin_two_levels_down(self):
+    def test_transform_garmin_data_types_two_level_hierarchy(self):
         epoch_summaries = {
                 "0": 60.0,
                 "1": 61.0,
@@ -311,12 +272,10 @@ class TestS3ToJsonS3:
                     "Value": 99.0
                 }
         ]
-        sample_metadata = {
-                "type": "GarminHealthSnapshotSummary",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
+        data_type_transforms= {
+                "Summaries.EpochSummaries": (("OffsetInSeconds", int), ("Value", float))
         }
-        transformed_json = s3_to_json.transform_json(
+        transformed_json = s3_to_json._transform_garmin_data_types(
                 json_obj={
                     "Summaries": [
                         {
@@ -328,69 +287,44 @@ class TestS3ToJsonS3:
                         },
                     ]
                 },
-                dataset_identifier=sample_metadata["type"],
-                cohort="adults_v1",
-                metadata=sample_metadata
+                data_type_transforms=data_type_transforms,
+                logger_context={},
         )
-
-        assert (
-            sample_metadata["start_date"].isoformat()
-            == transformed_json["export_start_date"]
-        )
-        assert (
-            sample_metadata["end_date"].isoformat()
-            == transformed_json["export_end_date"]
-        )
+        print(transformed_json)
         assert all(
                 [
                     obj in transformed_json["Summaries"][0]["EpochSummaries"]
                     for obj in transformed_epoch_summaries
                 ]
         )
-        # Check that this worked for another object in the array
-        # and not just the first object
+        assert transformed_json["Summaries"][0]["Dummy"] == 1
         assert all(
                 [
                     obj in transformed_json["Summaries"][1]["EpochSummaries"]
                     for obj in transformed_epoch_summaries
                 ]
         )
-        # Check that other properties were not affected
-        assert transformed_json["Summaries"][0]["Dummy"] == 1
 
-    def test_transform_block_empty_file(self, s3_obj):
-        sample_metadata = {
-            "type": "HealthKitV2Samples",
-            "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-            "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-            "subtype": "Weight",
-        }
+    def test_transform_block_empty_file(self, s3_obj, sample_metadata):
+        sample_metadata["type"] = "HealthKitV2Samples"
         with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
             json_path = "HealthKitV2Samples_Weight_20230112-20230114.json"
             with z.open(json_path, "r") as input_json:
                 transformed_block = s3_to_json.transform_block(
                     input_json=input_json,
-                    dataset_identifier=sample_metadata["type"],
-                    cohort="adults_v1",
                     metadata=sample_metadata,
                     block_size=2
                 )
                 with pytest.raises(StopIteration):
                     next(transformed_block)
 
-    def test_transform_block_non_empty_file_block_size(self, s3_obj):
-        sample_metadata = {
-            "type": "FitbitSleepLogs",
-            "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-            "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
+    def test_transform_block_non_empty_file_block_size(self, s3_obj, sample_metadata):
+        sample_metadata["type"] = "FitbitSleepLogs"
         with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
             json_path = "FitbitSleepLogs_20230112-20230114.json"
             with z.open(json_path, "r") as input_json:
                 transformed_block = s3_to_json.transform_block(
                     input_json=input_json,
-                    dataset_identifier=sample_metadata["type"],
-                    cohort="adults_v1",
                     metadata=sample_metadata,
                     block_size=2
                 )
@@ -401,12 +335,8 @@ class TestS3ToJsonS3:
                         and isinstance(first_block[1], dict)
                 )
 
-    def test_transform_block_non_empty_file_all_blocks(self, s3_obj):
-        sample_metadata = {
-            "type": "FitbitSleepLogs",
-            "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-            "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
+    def test_transform_block_non_empty_file_all_blocks(self, s3_obj, sample_metadata):
+        sample_metadata["type"] = "FitbitSleepLogs"
         with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
             json_path = "FitbitSleepLogs_20230112-20230114.json"
             with z.open(json_path, "r") as input_json:
@@ -414,8 +344,6 @@ class TestS3ToJsonS3:
             with z.open(json_path, "r") as input_json:
                 transformed_block = s3_to_json.transform_block(
                     input_json=input_json,
-                    dataset_identifier=sample_metadata["type"],
-                    cohort="adults_v1",
                     metadata=sample_metadata,
                     block_size=10
                 )
@@ -425,49 +353,31 @@ class TestS3ToJsonS3:
                 # Should be 12
                 assert counter == record_count
 
-    def test_get_output_filename_generic(self):
-        sample_metadata = {
-                "type": "FitbitDevices",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
+    def test_get_output_filename_generic(self, sample_metadata):
         output_filename = s3_to_json.get_output_filename(
                 metadata=sample_metadata,
                 part_number=0
         )
-        assert output_filename == "FitbitDevices_20220112-20230114.part0.ndjson"
+        assert output_filename == f"{sample_metadata['type']}_20220112-20230114.part0.ndjson"
 
-    def test_get_output_filename_no_start_date(self):
-        sample_metadata = {
-                "type": "EnrolledParticipants",
-                "start_date": None,
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
+    def test_get_output_filename_no_start_date(self, sample_metadata):
+        sample_metadata["start_date"] = None
         output_filename = s3_to_json.get_output_filename(
                 metadata=sample_metadata,
                 part_number=0
         )
-        assert output_filename == "EnrolledParticipants_20230114.part0.ndjson"
+        assert output_filename == f"{sample_metadata['type']}_20230114.part0.ndjson"
 
-    def test_get_output_filename_subtype(self):
-        sample_metadata = {
-                "type": "HealthKitV2Samples",
-                "subtype": "Weight",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-        }
+    def test_get_output_filename_subtype(self, sample_metadata):
+        sample_metadata["type"] = "HealthKitV2Samples"
         output_filename = s3_to_json.get_output_filename(
                 metadata=sample_metadata,
                 part_number=0
         )
-        assert output_filename == "HealthKitV2Samples_Weight_20220112-20230114.part0.ndjson"
+        assert output_filename == "HealthKitV2Samples_FakeSubtype_20220112-20230114.part0.ndjson"
 
-    def test_upload_file_to_json_dataset_delete_local_copy(self, namespace, monkeypatch, shared_datadir):
+    def test_upload_file_to_json_dataset_delete_local_copy(self, namespace, sample_metadata, monkeypatch, shared_datadir):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
-        sample_metadata = {
-                "type": "HealthKitV2Samples",
-                "subtype": "Weight",
-        }
         workflow_run_properties = {
             "namespace": namespace,
             "json_prefix": "raw-json",
@@ -517,14 +427,9 @@ class TestS3ToJsonS3:
         assert s3_key == correct_s3_key
         shutil.rmtree(temp_dir)
 
-    def test_write_file_to_json_dataset_delete_local_copy(self, s3_obj, namespace, monkeypatch):
+    def test_write_file_to_json_dataset_delete_local_copy(self, s3_obj, sample_metadata, namespace, monkeypatch):
+        sample_metadata["type"] = "HealthKitV2Samples"
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
-        sample_metadata = {
-                "type": "HealthKitV2Samples",
-                "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0),
-                "subtype": "Weight",
-        }
         workflow_run_properties = {
             "namespace": namespace,
             "json_prefix": "raw-json",
@@ -534,8 +439,6 @@ class TestS3ToJsonS3:
             output_files = s3_to_json.write_file_to_json_dataset(
                 z=z,
                 json_path="HealthKitV2Samples_Weight_20230112-20230114.json",
-                dataset_identifier="HealthKitV2Samples",
-                cohort="adults_v1",
                 metadata=sample_metadata,
                 workflow_run_properties=workflow_run_properties,
                 delete_upon_successful_upload=True,
@@ -545,13 +448,10 @@ class TestS3ToJsonS3:
         assert not os.path.exists(output_file)
         shutil.rmtree(f"dataset={sample_metadata['type']}")
 
-    def test_write_file_to_json_dataset_record_consistency(self, s3_obj, namespace, monkeypatch):
+    def test_write_file_to_json_dataset_record_consistency(
+            self, s3_obj, sample_metadata, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
-        sample_metadata = {
-                "type": "FitbitDevices",
-                "start_date": None,
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
-        }
+        sample_metadata["start_date"] = None
         workflow_run_properties = {
             "namespace": namespace,
             "json_prefix": "raw-json",
@@ -564,8 +464,6 @@ class TestS3ToJsonS3:
             output_files = s3_to_json.write_file_to_json_dataset(
                 z=z,
                 json_path="FitbitDevices_20230114.json",
-                dataset_identifier=sample_metadata["type"],
-                cohort="adults_v1",
                 metadata=sample_metadata,
                 workflow_run_properties=workflow_run_properties,
                 delete_upon_successful_upload=False,
@@ -586,13 +484,10 @@ class TestS3ToJsonS3:
             assert input_line_cnt == output_line_cnt
             shutil.rmtree(f"dataset={sample_metadata['type']}", ignore_errors=True)
 
-    def test_write_file_to_json_dataset_multiple_parts(self, s3_obj, namespace, monkeypatch):
+    def test_write_file_to_json_dataset_multiple_parts(
+            self, s3_obj, sample_metadata, namespace, monkeypatch):
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
-        sample_metadata = {
-            "type": "FitbitIntradayCombined",
-            "start_date": datetime.datetime(2022, 1, 12, 0, 0),
-            "end_date": datetime.datetime(2023, 1, 14, 0, 0)
-        }
+        sample_metadata["type"] = "FitbitIntradayCombined"
         workflow_run_properties = {
             "namespace": namespace,
             "json_prefix": "raw-json",
@@ -605,8 +500,6 @@ class TestS3ToJsonS3:
             output_files = s3_to_json.write_file_to_json_dataset(
                 z=z,
                 json_path=json_path,
-                dataset_identifier=sample_metadata["type"],
-                cohort="adults_v1",
                 metadata=sample_metadata,
                 workflow_run_properties=workflow_run_properties,
                 delete_upon_successful_upload=False,
@@ -621,12 +514,13 @@ class TestS3ToJsonS3:
             assert input_line_cnt == output_line_count
             shutil.rmtree(f"dataset={sample_metadata['type']}", ignore_errors=True)
 
-    def test_get_part_path_no_touch(self):
-        sample_metadata = {
-                "type": "FitbitDevices",
-                "start_date": None,
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
-        }
+    def test_derive_str_metadata(self, sample_metadata):
+        str_metadata = s3_to_json._derive_str_metadata(metadata=sample_metadata)
+        assert isinstance(str_metadata["start_date"], str)
+        assert isinstance(str_metadata["end_date"], str)
+
+    def test_get_part_path_no_touch(self, sample_metadata):
+        sample_metadata["start_date"] = None
         part_path = s3_to_json.get_part_path(
                 metadata=sample_metadata,
                 part_number=0,
@@ -635,12 +529,7 @@ class TestS3ToJsonS3:
         )
         assert part_path == "FitbitDevices/FitbitDevices_20230114.part0.ndjson"
 
-    def test_get_part_path_touch(self):
-        sample_metadata = {
-                "type": "FitbitDevices",
-                "start_date": None,
-                "end_date": datetime.datetime(2023, 1, 14, 0, 0)
-        }
+    def test_get_part_path_touch(self, sample_metadata):
         part_path = s3_to_json.get_part_path(
                 metadata=sample_metadata,
                 part_number=0,
@@ -660,13 +549,9 @@ class TestS3ToJsonS3:
 
     def test_get_metadata_no_startdate(self, json_file_basenames_dict):
         basename = json_file_basenames_dict["EnrolledParticipants"]
-        assert s3_to_json.get_metadata(basename)[
-            "start_date"
-        ] == None and s3_to_json.get_metadata(basename)[
-            "end_date"
-        ] == datetime.datetime(
-            2023, 1, 3, 0, 0
-        )
+        assert s3_to_json.get_metadata(basename)["start_date"] is None
+        assert s3_to_json.get_metadata(basename)["end_date"] == \
+                datetime.datetime(2023, 1, 3, 0, 0)
 
     def test_get_metadata_subtype(self, json_file_basenames_dict):
         basename = json_file_basenames_dict["HealthKitV2Samples"]
@@ -703,3 +588,11 @@ class TestS3ToJsonS3:
         ]
         assert all(metadata_check),\
             "Some data types' metadata type key are incorrect"
+
+    def test_get_basic_file_info(self):
+        file_path = "my/dir/HealthKitV2Samples_Weight_20230112-20230114.json"
+        basic_file_info = s3_to_json.get_basic_file_info(file_path=file_path)
+        required_fields = ["file.type", "file.path", "file.name", "file.extension"]
+        assert all([field in basic_file_info for field in required_fields])
+        assert basic_file_info["file.name"] == "HealthKitV2Samples_Weight_20230112-20230114.json"
+        assert basic_file_info["file.extension"] == "json"
