@@ -46,6 +46,12 @@ Parameters:
     Type: String
     Description: The version of glue to use for this job
 
+  AdditionalPythonModules:
+    Type: String
+    Description: >-
+      Additional python packages to install as a comma-delimited list.
+      Any format supported by pip3 is supported here.
+
   TimeoutInMinutes:
     Type: Number
     Description: The job timeout in minutes (integer).
@@ -69,6 +75,7 @@ Resources:
         --job-language: python
         --enable-continuous-cloudwatch-log: true
         --enable-metrics: true
+        --additional-python-modules: !Ref AdditionalPythonModules
       Description: !Ref JobDescription
       GlueVersion: !Ref GlueVersion
       ExecutionProperty:

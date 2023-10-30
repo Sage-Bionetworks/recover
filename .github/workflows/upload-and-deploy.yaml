@@ -78,6 +78,10 @@ jobs:
           role_session_name: ${{ github.event.repository.name }}-${{ github.run_id }}-nonglue-unit-tests
           python_version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install additional python dependency
+        run: |
+          pipenv install ecs_logging~=2.0
+
       - name: Test lambda scripts with pytest
         run: |
           pipenv run python -m pytest tests/test_s3_event_config_lambda.py -v
