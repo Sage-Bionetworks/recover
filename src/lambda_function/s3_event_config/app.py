@@ -260,12 +260,17 @@ def add_notification(
         update_required = True
 
     if update_required:
+        logger.info(
+            f"Put request started to add a NotificationConfiguration for"
+            + create_formatted_message(bucket, destination_type, destination_arn)
+        )
         existing_bucket_notification_configuration[
             f"{destination_type}Configurations"
         ] = existing_notification_configurations_for_type
         s3_client.put_bucket_notification_configuration(
             Bucket=bucket,
             NotificationConfiguration=existing_bucket_notification_configuration,
+            SkipDestinationValidation=True,
         )
         logger.info(
             f"Put request completed to add a NotificationConfiguration for"
@@ -318,9 +323,14 @@ def delete_notification(
                 f"{destination_type}Configurations"
             ]
 
+        logger.info(
+            f"Delete request started to remove a NotificationConfiguration for"
+            + create_formatted_message(bucket, destination_type, destination_arn)
+        )
         s3_client.put_bucket_notification_configuration(
             Bucket=bucket,
             NotificationConfiguration=existing_bucket_notification_configuration,
+            SkipDestinationValidation=True,
         )
         logger.info(
             f"Delete request completed to remove a NotificationConfiguration for"
