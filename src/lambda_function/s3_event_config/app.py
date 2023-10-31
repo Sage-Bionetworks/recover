@@ -260,20 +260,25 @@ def add_notification(
         update_required = True
 
     if update_required:
+        logger.info(
+            "Put request started to add a NotificationConfiguration for "
+            + create_formatted_message(bucket, destination_type, destination_arn)
+        )
         existing_bucket_notification_configuration[
             f"{destination_type}Configurations"
         ] = existing_notification_configurations_for_type
         s3_client.put_bucket_notification_configuration(
             Bucket=bucket,
             NotificationConfiguration=existing_bucket_notification_configuration,
+            SkipDestinationValidation=True,
         )
         logger.info(
-            f"Put request completed to add a NotificationConfiguration for"
+            "Put request completed to add a NotificationConfiguration for "
             + create_formatted_message(bucket, destination_type, destination_arn)
         )
     else:
         logger.info(
-            f"Put not required as an existing NotificationConfiguration already exists for"
+            "Put not required as an existing NotificationConfiguration already exists for "
             + create_formatted_message(bucket, destination_type, destination_arn)
         )
 
@@ -318,16 +323,21 @@ def delete_notification(
                 f"{destination_type}Configurations"
             ]
 
+        logger.info(
+            "Delete request started to remove a NotificationConfiguration for "
+            + create_formatted_message(bucket, destination_type, destination_arn)
+        )
         s3_client.put_bucket_notification_configuration(
             Bucket=bucket,
             NotificationConfiguration=existing_bucket_notification_configuration,
+            SkipDestinationValidation=True,
         )
         logger.info(
-            f"Delete request completed to remove a NotificationConfiguration for"
+            "Delete request completed to remove a NotificationConfiguration for "
             + create_formatted_message(bucket, destination_type, destination_arn)
         )
     else:
         logger.info(
-            f"Delete not required as no NotificationConfiguration exists for"
+            "Delete not required as no NotificationConfiguration exists for "
             + create_formatted_message(bucket, destination_type, destination_arn)
         )
