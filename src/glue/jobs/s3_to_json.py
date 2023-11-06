@@ -25,6 +25,7 @@ logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler()
 handler.setFormatter(ecs_logging.StdlibFormatter())
 logger.addHandler(handler)
+logger.propagate = False
 
 def transform_object_to_array_of_objects(
         json_obj_to_replace: dict,
@@ -749,7 +750,8 @@ def get_basic_file_info(file_path: str) -> dict:
 def process_record(
         s3_obj: dict,
         cohort: str,
-        workflow_run_properties: dict) -> None:
+        workflow_run_properties: dict
+    ) -> None:
     """
     Write the contents of a .zip archive stored on S3 to their respective
     JSON dataset. Each file contained in the .zip archive has its line count logged.
@@ -781,7 +783,12 @@ def process_record(
             )
             metadata["cohort"] = cohort
             metadata_str_keys = _derive_str_metadata(metadata=metadata)
-            logger_context = {**basic_file_info, "labels": metadata_str_keys}
+            logger_context = {
+                    **basic_file_info,
+                    "labels": metadata_str_keys,
+                    "process.parent.pid": workflow_run_properties["WORKFLOW_RUN_ID"],
+                    "process.parent.name": workflow_run_properties["WORKFLOW_NAME"],
+            }
             logger.info(
                     "Input file attributes",
                     extra={
@@ -817,6 +824,7 @@ def main() -> None:
     workflow_run_properties = glue_client.get_workflow_run_properties(
             Name=args["WORKFLOW_NAME"],
             RunId=args["WORKFLOW_RUN_ID"])["RunProperties"]
+    workflow_run_properties = {**args, **workflow_run_properties}
     logger.debug(
             "getResolvedOptions",
             extra={

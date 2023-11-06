@@ -124,12 +124,14 @@ class TestS3ToJsonS3:
         assert all([obj in expected_object for obj in transformed_object])
 
     def test_log_error_transform_object_to_array_of_objects(self, caplog):
+        s3_to_json.logger.propagate = True
         s3_to_json._log_error_transform_object_to_array_of_objects(
                 value="a",
                 value_type=int,
                 error=ValueError,
                 logger_context={}
         )
+        s3_to_json.logger.propagate = False
         assert len(caplog.records) == 2
 
     def test_transform_json_with_subtype(self, sample_metadata):
@@ -208,6 +210,7 @@ class TestS3ToJsonS3:
         )
 
     def test_cast_custom_fields_to_array_malformatted_str(self, caplog):
+        s3_to_json.logger.propagate = True
         transformed_json = s3_to_json._cast_custom_fields_to_array(
                 json_obj={
                     "CustomFields": {
@@ -216,6 +219,7 @@ class TestS3ToJsonS3:
                 },
                 logger_context={},
         )
+        s3_to_json.logger.propagate = False
         assert len(caplog.records) == 1
         assert transformed_json["CustomFields"]["Symptoms"] == []
 
