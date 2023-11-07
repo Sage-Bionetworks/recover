@@ -55,12 +55,6 @@ jobs:
           --namespace $NAMESPACE
           --cfn_bucket ${{ vars.CFN_BUCKET }}
 
-      - name: Copies over test files from ingestion bucket
-        run: >
-          aws s3 sync s3://recover-dev-ingestion/pilot-data/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
-          --exclude "owner.txt"
-
-
   nonglue-unit-tests:
     name: Runs unit tests that are not dependent on aws-glue package resources
     runs-on: ubuntu-latest
@@ -271,9 +265,6 @@ jobs:
       - name: Set namespace for non-default branch or for tag
         if: github.ref_name != 'main'
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
-
-      - name: Setup sam
-        uses: aws-actions/setup-sam@v2
 
       - name: Copies over test files from ingestion bucket
         run: >
