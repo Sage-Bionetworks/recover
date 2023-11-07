@@ -278,6 +278,7 @@ jobs:
       - name: Copies over test files from ingestion bucket
         run: >
           aws s3 cp s3://recover-dev-ingestion/pilot-data/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
+          --recursive
           --exclude "owner.txt"
 
   sceptre-deploy-staging:
