@@ -55,12 +55,6 @@ jobs:
           --namespace $NAMESPACE
           --cfn_bucket ${{ vars.CFN_BUCKET }}
 
-      - name: Copies over test files from ingestion bucket
-        run: >
-          aws s3 sync s3://recover-dev-ingestion/pilot-data/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
-          --exclude "owner.txt"
-
-
   nonglue-unit-tests:
     name: Runs unit tests that are not dependent on aws-glue package resources
     runs-on: ubuntu-latest
@@ -272,27 +266,11 @@ jobs:
         if: github.ref_name != 'main'
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
-      - name: generate test events
+      - name: Copies over test files from ingestion bucket
         run: >
-          pipenv run python src/lambda_function/s3_to_glue/events/generate_test_event.py
-          --input-bucket $DEV_INPUT_BUCKET
-          --input-key-prefix $NAMESPACE
-          --output-directory ./src/lambda_function/s3_to_glue/events/
-
-      - name: Setup sam
-        uses: aws-actions/setup-sam@v2
-
-      - name: sam build lambda
-        run: >
-          sam build
-          -s src/lambda_function/s3_to_glue/
-          -t src/lambda_function/s3_to_glue/template.yaml
-
-      - name: Invoke Lambda
-        run: |
-          cd src/lambda_function/s3_to_glue/
-          sam local invoke -e events/records.json --parameter-overrides "S3ToJsonWorkflowName=$NAMESPACE-S3ToJsonWorkflow"
-
+          aws s3 cp s3://recover-dev-ingestion/pilot-data/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
+          --recursive
+          --exclude "owner.txt"
 
   sceptre-deploy-staging:
     name: Deploys to staging of prod using sceptre
