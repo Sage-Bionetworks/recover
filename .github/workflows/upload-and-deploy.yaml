@@ -293,6 +293,43 @@ jobs:
           cd src/lambda_function/s3_to_glue/
           sam local invoke -e events/records.json --parameter-overrides "S3ToJsonWorkflowName=$NAMESPACE-S3ToJsonWorkflow"
 
+  # Reupload test files into the namespaced bucket after the branch was deployed.
+  # This is needed as the S3 event notifications aren't active until the branch is deployed.
+  reupload-files:
+    name: Re-upload files to S3 bucket in development
+    runs-on: ubuntu-latest
+    needs: integration-test-develop
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    environment: develop
+    steps:
+
+      - name: Setup code, pipenv, aws
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
+        with:
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
+          python_version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup sam
+        uses: aws-actions/setup-sam@v2
+
+      - name: Set namespace for non-default branch
+        if: github.ref_name != 'main'
+        run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
+
+      - name: Delete test files from namespace bucket
+        run: >
+          aws s3 rm s3://$DEV_INPUT_BUCKET/$NAMESPACE/
+          --recursive
+          --exclude "owner.txt"
+
+      - name: Copies over test files from ingestion bucket
+        run: >
+          aws s3 sync s3://recover-dev-ingestion/pilot-data/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
+          --exclude "owner.txt"
 
   sceptre-deploy-staging:
     name: Deploys to staging of prod using sceptre
