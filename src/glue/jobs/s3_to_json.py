@@ -17,6 +17,7 @@ import zipfile
 import boto3
 import ecs_logging
 from awsglue.utils import getResolvedOptions
+from typing import Generator
 
 DATA_TYPES_WITH_SUBTYPE = ["HealthKitV2Samples", "HealthKitV2Statistics"]
 
@@ -327,7 +328,7 @@ def _transform_garmin_data_types(
         json_obj: dict,
         data_type_transforms: dict,
         logger_context: dict,
-) -> dict:
+    ) -> dict:
     """
     Transform objects to an array of objects for relevant Garmin data types.
 
@@ -554,10 +555,10 @@ def write_file_to_json_dataset(
                 delete_upon_successful_upload=delete_upon_successful_upload
         )
         uploaded_files.append(current_output_path)
-        logger.info(
-                "Output file attributes",
-                extra={
-                    **logger_context,
+        logger_extra = dict(
+            merge_dicts(
+                logger_context,
+                {
                     "file.LineCount": line_count,
                     "event.kind": "metric",
                     "event.category": ["file"],
@@ -569,7 +570,9 @@ def write_file_to_json_dataset(
                         for k, v in metadata.items()
                     }
                 }
-    )
+            )
+        )
+        logger.info("Output file attributes", extra=logger_extra)
     return uploaded_files
 
 def _derive_str_metadata(metadata: dict) -> dict:
@@ -642,6 +645,41 @@ def _upload_file_to_json_dataset(
     if delete_upon_successful_upload:
         os.remove(file_path)
     return s3_output_key
+
+def merge_dicts(x: dict, y: dict) -> Generator:
+    """
+    Merge two dictionaries recursively.
+
+    We use the following ruleset:
+
+        1. If a key is only in one of the dicts, we retain that
+           key:value pair
+        2. If a key is in both dicts but one or none of the values is
+           a dict, we retain the key:value pair from `y`.
+        3. If a key is in both dicts and both values are
+           a dict, we merge the dicts according to the above ruleset.
+    """
+    all_keys = x.keys() | y.keys()
+    overlapping_keys = x.keys() & y.keys()
+    for key in all_keys:
+        if (
+                key in overlapping_keys
+                and isinstance(x[key], dict)
+                and isinstance(y[key], dict)
+        ):
+            # Merge child dictionaries
+            yield (key, dict(merge_dicts(x[key], y[key])))
+        elif key in x and key not in y:
+            # This key is only in x
+            yield (key, x[key])
+        else:
+            # IF
+            # This key is only in y
+            # OR
+            # One or none of the values is a dict
+            # THEN
+            # The key:value pair from y is retained
+            yield (key, y[key])
 
 def get_part_path(
         metadata: dict,
