@@ -27,6 +27,18 @@ Parameters:
     Type: String
     Description: The bucket key where the script file is located.
 
+  DefaultWorkerType:
+    Type: String
+    Description: >-
+        Which worker type to use for this job.
+    Default: 'Standard'
+
+  LargeJobWorkerType:
+    Type: String
+    Description: >-
+        Which worker type to use for this job.
+    Default: 'G.1X'
+
   DefaultNumberOfWorkers:
     Type: Number
     Description: >-
@@ -92,11 +104,12 @@ Resources:
       MaxRetries: !Ref MaxRetries
       Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
       {% if dataset["type"] == "HealthKitV2Samples" or dataset["type"] == "FitbitIntradayCombined" -%}
+      WorkerType: !Ref LargeJobWorkerType
       NumberOfWorkers: !Ref LargeJobNumberOfWorkers
       {% else -%}
+      WorkerType: !Ref DefaultWorkerType
       NumberOfWorkers: !Ref DefaultNumberOfWorkers
       {%- endif %}
       Role: !Ref JobRole
       Timeout: !Ref TimeoutInMinutes
-      WorkerType: Standard
   {% endfor %}
