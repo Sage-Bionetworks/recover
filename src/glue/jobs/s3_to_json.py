@@ -17,7 +17,6 @@ import zipfile
 import boto3
 import ecs_logging
 from awsglue.utils import getResolvedOptions
-from typing import Generator
 
 DATA_TYPES_WITH_SUBTYPE = ["HealthKitV2Samples", "HealthKitV2Statistics"]
 
@@ -132,25 +131,33 @@ def _log_error_transform_object_to_array_of_objects(
     value_error = "Failed to cast %s to %s."
     logger.error(
             value_error, value, value_type,
-            extra={
-                **logger_context,
-                "error.message": repr(error),
-                "error.type": type(error).__name__,
-                "event.kind": "alert",
-                "event.category": ["configuration"],
-                "event.type": ["change"],
-                "event.outcome": "failure"
-            }
+            extra=dict(
+                merge_dicts(
+                    logger_context,
+                    {
+                        "error.message": repr(error),
+                        "error.type": type(error).__name__,
+                        "event.kind": "alert",
+                        "event.category": ["configuration"],
+                        "event.type": ["change"],
+                        "event.outcome": "failure"
+                    }
+                )
+            )
     )
     logger.warning(
             "Setting %s to None", value,
-            extra={
-                **logger_context,
-                "event.kind": "alert",
-                "event.category": ["configuration"],
-                "event.type": ["deletion"],
-                "event.outcome": "success"
-            }
+            extra=dict(
+                merge_dicts(
+                    logger_context,
+                    {
+                        "event.kind": "alert",
+                        "event.category": ["configuration"],
+                        "event.type": ["deletion"],
+                        "event.outcome": "success"
+                    }
+                )
+            )
     )
 
 def transform_json(
@@ -309,15 +316,19 @@ def _cast_custom_fields_to_array(json_obj: dict, logger_context: dict) -> dict:
                     logger.error(
                             (f"Problem CustomFields.{field_name}: "
                             f"{json_obj['CustomFields'][field_name]}"),
-                            extra={
-                                **logger_context,
-                                "error.message": repr(error),
-                                "error.type": "json.JSONDecodeError",
-                                "event.kind": "alert",
-                                "event.category": ["change"],
-                                "event.type": ["error"],
-                                "event.outcome": "failure",
-                            }
+                            extra=dict(
+                                merge_dicts(
+                                    logger_context,
+                                    {
+                                        "error.message": repr(error),
+                                        "error.type": "json.JSONDecodeError",
+                                        "event.kind": "alert",
+                                        "event.category": ["change"],
+                                        "event.type": ["error"],
+                                        "event.outcome": "failure",
+                                    }
+                                )
+                            )
                     )
                     json_obj["CustomFields"][field_name] = []
             else:
@@ -646,7 +657,7 @@ def _upload_file_to_json_dataset(
         os.remove(file_path)
     return s3_output_key
 
-def merge_dicts(x: dict, y: dict) -> Generator:
+def merge_dicts(x: dict, y: dict) -> typing.Generator:
     """
     Merge two dictionaries recursively.
 
@@ -829,15 +840,19 @@ def process_record(
             }
             logger.info(
                     "Input file attributes",
-                    extra={
-                        **logger_context,
-                        "file.size": sys.getsizeof(json_path),
-                        "file.LineCount": line_count,
-                        "event.kind": "metric",
-                        "event.category": ["file"],
-                        "event.type": ["info", "access"],
-                        "event.action": "list-file-properties",
-                    }
+                    extra=dict(
+                        merge_dicts(
+                            logger_context,
+                            {
+                                "file.size": sys.getsizeof(json_path),
+                                "file.LineCount": line_count,
+                                "event.kind": "metric",
+                                "event.category": ["file"],
+                                "event.type": ["info", "access"],
+                                "event.action": "list-file-properties",
+                            }
+                        )
+                    )
             )
             write_file_to_json_dataset(
                     z=z,

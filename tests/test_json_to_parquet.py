@@ -766,7 +766,6 @@ class TestJsonS3ToParquet:
                 table_name=glue_nested_table_name,
                 processed_tables=tables_with_index,
                 unprocessed_tables=nested_table_relationalized,
-                glue_context=glue_context
         )
         assert (
                 set(tables_with_index[glue_nested_table_name].schema.fieldNames()) ==
@@ -779,7 +778,6 @@ class TestJsonS3ToParquet:
                 table_name=glue_nested_table_name,
                 processed_tables=tables_with_index,
                 unprocessed_tables=nested_table_relationalized,
-                glue_context=glue_context
         )
         assert (
                 set(tables_with_index[table_key].schema.fieldNames()) ==
@@ -959,7 +957,7 @@ class TestJsonS3ToParquet:
         empty_table = spark_sample_table.filter(spark_sample_table.city == "Atlantis")
         record_counts = json_to_parquet.count_records_for_event(
                 table=empty_table,
-                event="READ",
+                event=json_to_parquet.CountEventType.READ,
                 record_counts=defaultdict(list),
                 logger_context=logger_context
         )
@@ -969,7 +967,7 @@ class TestJsonS3ToParquet:
         spark_sample_table = sample_table.toDF()
         record_counts = json_to_parquet.count_records_for_event(
                 table=spark_sample_table,
-                event="READ",
+                event=json_to_parquet.CountEventType.READ,
                 record_counts=defaultdict(list),
                 logger_context=logger_context
         )

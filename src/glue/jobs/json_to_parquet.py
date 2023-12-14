@@ -6,8 +6,6 @@ it will be separated into its own dataset with a predictable name. For example,
 the healthkitv2heartbeat data type has a field called "SubSamples" which is an
 array of objects. We will write out two parquet datasets in this case, a `healthkitv2heartbeat`
 dataset and an `healthkitv2heartbeat_subsamples` dataset.
-
-
 """
 
 import logging
@@ -15,6 +13,7 @@ import os
 import sys
 from collections import defaultdict
 from copy import deepcopy
+from enum import Enum
 
 import boto3
 import ecs_logging
@@ -120,7 +119,8 @@ def get_table(
         logger_context: dict,
     ) -> DynamicFrame:
     """
-    Return a table as a DynamicFrame with an unambiguous schema.
+    Return a table as a DynamicFrame with an unambiguous schema. Additionally,
+    we drop any superfluous partition_* fields which are added by Glue.
 
     Args:
         table_name (str): The name of the Glue table.
@@ -149,11 +149,11 @@ def get_table(
     for field in table.schema():
         if "partition_" in field.name: # superfluous field added by Glue
             partition_fields.append(field.name)
-    if len(partition_fields):
+    if len(partition_fields) > 0:
         table = table.drop_fields(paths=partition_fields)
     count_records_for_event(
             table=table.toDF(),
-            event="READ",
+            event=CountEventType.READ,
             record_counts=record_counts,
             logger_context=logger_context,
     )
@@ -172,8 +172,7 @@ def drop_table_duplicates(
     Duplicate samples are dropped by referencing the `InsertedDate`
     field, keeping the more recent sample. For any data types which
     don't have this field, we drop duplicates by referencing `export_end_date`.
-    Additionally, we drop any superfluous partition_* fields which are
-    added by Glue.
+
 
     Args:
         table (DynamicFrame): The table from which to drop duplicates
@@ -207,7 +206,7 @@ def drop_table_duplicates(
     )
     count_records_for_event(
             table=table.toDF(),
-            event="DROP_DUPLICATES",
+            event=CountEventType.DROP_DUPLICATES,
             record_counts=record_counts,
             logger_context=logger_context,
     )
@@ -285,7 +284,7 @@ def drop_deleted_healthkit_data(
     )
     count_records_for_event(
             table=table_with_deleted_samples_removed.toDF(),
-            event="DROP_DELETED_SAMPLES",
+            event=CountEventType.DROP_DELETED_SAMPLES,
             record_counts=record_counts,
             logger_context=logger_context,
     )
@@ -414,9 +413,35 @@ def write_table_to_s3(
             format = "parquet",
             transformation_ctx="write_dynamic_frame")
 
+class CountEventType(Enum):
+    """The event associated with a count."""
+
+    READ = "READ"
+    """
+    This table has just now been read from the Glue table catalog
+    and has not yet had any transformations done to it.
+    """
+
+    DROP_DUPLICATES = "DROP_DUPLICATES"
+    """
+    This table has just now had duplicate records dropped
+    (see the function `drop_table_duplicates`).
+    """
+
+    DROP_DELETED_SAMPLES = "DROP_DELETED_SAMPLES"
+    """
+    This table has just now had records which are present in its respective
+    "Deleted" table dropped (see the function `drop_deleted_healthkit_data`).
+    """
+
+    WRITE = "WRITE"
+    """
+    This table has just now been written to S3.
+    """
+
 def count_records_for_event(
         table: "pyspark.sql.dataframe.DataFrame",
-        event: str,
+        event: CountEventType,
         record_counts: dict[str,list],
         logger_context: dict,
     ) -> dict[str,list]:
@@ -428,17 +453,8 @@ def count_records_for_event(
 
     Args:
         table (pyspark.sql.dataframe.DataFrame): The dataframe to derive counts from.
-        event (str): The event associated with this count. An event
-            is restricted to the following set of values:
-
-            READ - This table has just now been read from the Glue table catalog
-                and has not yet had any transformations done to it.
-            DROP_DUPLICATES - This table has just now had duplicate records dropped
-                (see the function `drop_table_duplicates`).
-            DROP_DELETED_SAMPLES - This table has just now had records which are
-                present in its respective "Deleted" table dropped (see the function
-                `drop_deleted_healthkit_data`).
-            WRITE - This table has just now been written to S3.
+        event (CountEventType): The event associated with this count. See class
+            `CountEventType` for allowed values and their descriptions.
         record_counts (dict[str,list]): A dict mapping data types to a list
             of counts, each of which corresponds to an `event` type. This object
             is built up cumulatively by this function over the course of this job.
@@ -460,14 +476,6 @@ def count_records_for_event(
     """
     if table.count() == 0:
         return record_counts
-    allowed_events = {
-            "READ", "DROP_DUPLICATES", "DROP_DELETED_SAMPLES", "WRITE"
-    }
-    if event not in allowed_events:
-        raise ValueError(
-                f"Argument `event` = {event} not in allowed "
-                f"`event` values: {allowed_events}"
-        )
     table_counts = (
             table
             .groupby(["export_end_date"])
@@ -476,7 +484,7 @@ def count_records_for_event(
     )
     table_counts["workflow_run_id"] = logger_context["process.parent.pid"]
     table_counts["data_type"] = logger_context["labels"]["type"]
-    table_counts["event"] = event
+    table_counts["event"] = event.value
     record_counts[logger_context["labels"]["type"]].append(table_counts)
     return record_counts
 
@@ -539,7 +547,6 @@ def add_index_to_table(
         table_name: str,
         processed_tables: dict[str, DynamicFrame],
         unprocessed_tables: dict[str, DynamicFrame],
-        glue_context: GlueContext,
     ) -> "pyspark.sql.dataframe.DataFrame":
     """Add partition and index fields to a DynamicFrame.
 
@@ -564,7 +571,6 @@ def add_index_to_table(
             that a child table may always reference the index of its parent table.
         unprocessed_tables (dict): A mapping from table keys to DynamicFrames which
         don't yet have an index.
-        glue_context (GlueContext): The glue context
 
     Returns:
         awsglue.DynamicFrame with index columns
@@ -688,7 +694,6 @@ def main() -> None:
                     table_name=table_name,
                     processed_tables=tables_with_index,
                     unprocessed_tables=table_relationalized,
-                    glue_context=glue_context
             )
         for t in tables_with_index:
             clean_name = t.replace(".", "_").lower()
@@ -711,7 +716,7 @@ def main() -> None:
             )
         count_records_for_event(
                 table=tables_with_index[ordered_keys[0]],
-                event="WRITE",
+                event=CountEventType.WRITE,
                 record_counts=record_counts,
                 logger_context=logger_context,
         )
@@ -729,7 +734,7 @@ def main() -> None:
         )
         count_records_for_event(
                 table=table.toDF(),
-                event="WRITE",
+                event=CountEventType.WRITE,
                 record_counts=record_counts,
                 logger_context=logger_context,
         )
