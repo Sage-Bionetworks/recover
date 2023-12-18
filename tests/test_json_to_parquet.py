@@ -1,15 +1,156 @@
+import datetime
 import json
 import os
 import time
-from unittest.mock import patch
+from collections import defaultdict
+from unittest.mock import patch, MagicMock, ANY
 
 import boto3
 import pandas
 import pytest
+from awsglue import DynamicFrame
 from awsglue.context import GlueContext
+from pyspark.sql import Row
 from pyspark.sql.session import SparkSession
 from src.glue.jobs import json_to_parquet
 # requires pytest-datadir to be installed
+
+def configure_mock_client_archive_datasets(
+        mock_boto3_client,
+        dataset_key_prefix,
+        artifact_bucket
+    ):
+    """
+    Performs common operations related to setting up the MagicMock client
+    for the various *archive_datasets* tests
+    """
+    mock_client = mock_boto3_client.return_value
+    workflow_run_datetime = datetime.datetime(2023, 1, 1)
+    mock_client.get_workflow_run.return_value = {
+            "Run": {
+                "StartedOn": workflow_run_datetime
+            }
+    }
+    objects_to_copy = {
+            "Contents": [
+                {
+                    "Size": 0,
+                    "Key": os.path.join(dataset_key_prefix, "object0"),
+                    "Bucket": artifact_bucket
+                },
+                {
+                    "Size": 1,
+                    "Key": os.path.join(dataset_key_prefix, "object1"),
+                    "Bucket": artifact_bucket
+                },
+                {
+                    "Size": 1,
+                    "Key": os.path.join(dataset_key_prefix, "object2"),
+                    "Bucket": artifact_bucket
+                }
+            ]
+    }
+    mock_client.list_objects_v2.return_value = objects_to_copy
+    result = {
+            "mock_client": mock_client,
+            "objects_to_copy": objects_to_copy,
+            "workflow_run_datetime": workflow_run_datetime
+    }
+    return result
+
+@pytest.fixture()
+def spark_session():
+    spark_session = SparkSession.builder.getOrCreate()
+    return spark_session
+
+@pytest.fixture()
+def sample_table_data():
+    sample_table_data = {
+            "name": ["John", "John", "Jane", "Bob"],
+            "age": [25, 25, 30, 22],
+            "city": ["New York", "Chicago", "San Francisco", "Los Angeles"],
+            "GlobalKey": ["1", "1", "2", "3"],
+            "export_end_date": [
+                "2023-05-12T00:00:00",
+                "2023-05-13T00:00:00",
+                "2023-05-13T00:00:00",
+                "2023-05-14T00:00:00"
+            ]
+    }
+    return sample_table_data
+
+@pytest.fixture()
+def sample_table_inserted_date_data():
+    sample_table_data = {
+            "name": ["John", "John", "Jane", "Bob"],
+            "age": [25, 25, 30, 22],
+            "city": ["New York", "Chicago", "San Francisco", "Los Angeles"],
+            "GlobalKey": ["1", "1", "2", "3"],
+            "InsertedDate": [
+                "2023-05-12T00:00:00",
+                "2023-05-13T00:00:00",
+                "2023-05-13T00:00:00",
+                "2023-05-14T00:00:00"
+            ],
+            "export_end_date": [
+                "2023-05-14T00:00:00",
+                "2023-05-14T00:00:00",
+                "2023-05-14T00:00:00",
+                "2023-05-14T00:00:00"
+            ]
+    }
+    return sample_table_data
+
+def create_table(
+        table_data,
+        table_name,
+        spark_session,
+        glue_context,
+    ) -> DynamicFrame:
+    rows = [
+            Row(**record) for record
+            in [
+                dict(zip(table_data, t))
+                for t in zip(*table_data.values())
+            ]
+    ]
+    table_spark = spark_session.createDataFrame(rows)
+    table = DynamicFrame.fromDF(
+            dataframe=table_spark,
+            glue_ctx=glue_context,
+            name=table_name
+    )
+    return table
+
+@pytest.fixture()
+def sample_table(
+        spark_session,
+        sample_table_data,
+        glue_context,
+        glue_flat_table_name
+    ) -> DynamicFrame:
+    sample_table = create_table(
+            table_data=sample_table_data,
+            table_name=glue_flat_table_name,
+            spark_session=spark_session,
+            glue_context=glue_context
+    )
+    return sample_table
+
+@pytest.fixture()
+def sample_table_inserted_date(
+        spark_session,
+        sample_table_inserted_date_data,
+        glue_context,
+        glue_flat_inserted_date_table_name,
+    ) -> DynamicFrame:
+    sample_table_inserted_date = create_table(
+            table_data=sample_table_inserted_date_data,
+            table_name=glue_flat_inserted_date_table_name,
+            spark_session=spark_session,
+            glue_context=glue_context
+    )
+    return sample_table_inserted_date
 
 @pytest.fixture(scope="class")
 def glue_database_name(namespace):
@@ -442,6 +583,19 @@ def glue_context():
     glue_context = GlueContext(SparkSession.builder.getOrCreate())
     return glue_context
 
+@pytest.fixture(scope="class")
+def logger_context():
+    logger_context = {
+            "labels": {
+                "glue_table_name": "test_table_name",
+                "type": "test_type",
+                "job_name": "test_job_name",
+            },
+            "process.parent.pid": "test_workflow_run_id",
+            "process.parent.name": "test_workflow_name",
+    }
+    return logger_context
+
 @patch(
         "src.glue.jobs.json_to_parquet.INDEX_FIELD_MAP",
         {"testflatdatatype": ["GlobalKey"],
@@ -462,37 +616,101 @@ class TestJsonS3ToParquet:
         """
         return
 
-    def test_get_table_flat(self, glue_database_name,
-                            glue_flat_table_name, glue_context):
+    def test_get_table_flat(
+            self,
+            glue_database_name,
+            glue_flat_table_name,
+            glue_context,
+            logger_context,
+    ):
         flat_table = json_to_parquet.get_table(
                 table_name=glue_flat_table_name,
                 database_name=glue_database_name,
-                glue_context=glue_context
+                glue_context=glue_context,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
         )
-        assert flat_table.count() == 1
+        assert flat_table.count() == 2
         print(flat_table.schema())
         print(flat_table.schema().fields)
         assert len(flat_table.schema().fields) == 3
+        assert not any([
+            "partition_" in field.name for field in flat_table.schema().fields
+        ])
 
     def test_get_table_inserted_date(
-            self, glue_database_name, glue_flat_inserted_date_table_name, glue_context):
+            self,
+            glue_database_name,
+            glue_flat_inserted_date_table_name,
+            glue_context,
+            logger_context,
+    ):
         inserted_date_table = json_to_parquet.get_table(
                 table_name=glue_flat_inserted_date_table_name,
                 database_name=glue_database_name,
-                glue_context=glue_context
+                glue_context=glue_context,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
         )
-        assert inserted_date_table.count() == 1
-        assert len(inserted_date_table.schema().fields) == 3
+        assert inserted_date_table.count() == 2
+        assert len(inserted_date_table.schema().fields) == 4
+        assert not any([
+            "partition_" in field.name for field in inserted_date_table.schema().fields
+        ])
 
-    def test_get_table_nested(self, glue_database_name,
-                            glue_nested_table_name, glue_context):
+    def test_get_table_nested(
+            self,
+            glue_database_name,
+            glue_nested_table_name,
+            glue_context,
+            logger_context,
+    ):
         nested_table = json_to_parquet.get_table(
                 table_name=glue_nested_table_name,
                 database_name=glue_database_name,
-                glue_context=glue_context
+                glue_context=glue_context,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
         )
-        assert nested_table.count() == 1
+        assert nested_table.count() == 2
         assert len(nested_table.schema().fields) == 5
+        assert not any([
+            "partition_" in field.name for field in nested_table.schema().fields
+        ])
+
+    def test_drop_table_duplicates(
+            self,
+            sample_table,
+            glue_context,
+            logger_context
+    ):
+        table_no_duplicates = json_to_parquet.drop_table_duplicates(
+                table=sample_table,
+                table_name=sample_table.name,
+                glue_context=glue_context,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
+        )
+        table_no_duplicates_df = table_no_duplicates.toDF().toPandas()
+        assert len(table_no_duplicates_df) == 3
+        assert "Chicago" in set(table_no_duplicates_df.city)
+
+    def test_drop_table_duplicates_inserted_date(
+            self,
+            sample_table_inserted_date,
+            glue_context,
+            logger_context
+    ):
+        table_no_duplicates = json_to_parquet.drop_table_duplicates(
+                table=sample_table_inserted_date,
+                table_name=sample_table_inserted_date.name,
+                glue_context=glue_context,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
+        )
+        table_no_duplicates_df = table_no_duplicates.toDF().toPandas()
+        assert len(table_no_duplicates_df) == 3
+        assert "Chicago" in set(table_no_duplicates_df.city)
 
     @pytest.mark.parametrize(
         "table_name,expected",
@@ -501,22 +719,39 @@ class TestJsonS3ToParquet:
             ("glue_nested_table_name", True),
         ],
     )
-    def test_has_nested_fields(self, table_name, expected, glue_database_name,
-                               glue_context, request):
+    def test_has_nested_fields(
+            self,
+            table_name,
+            expected,
+            glue_database_name,
+            glue_context,
+            logger_context,
+            request,
+    ):
         table = json_to_parquet.get_table(
                 table_name=request.getfixturevalue(table_name),
                 database_name=glue_database_name,
-                glue_context=glue_context
+                glue_context=glue_context,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
         )
         table_schema = table.schema()
         assert json_to_parquet.has_nested_fields(table_schema) == expected
 
-    def test_add_index_to_table(self, glue_database_name, glue_database_path,
-                                glue_nested_table_name, glue_context):
+    def test_add_index_to_table(
+            self,
+            glue_database_name,
+            glue_database_path,
+            glue_nested_table_name,
+            glue_context,
+            logger_context,
+    ):
         nested_table = json_to_parquet.get_table(
                 table_name=glue_nested_table_name,
                 database_name=glue_database_name,
-                glue_context=glue_context
+                glue_context=glue_context,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
         )
         nested_table_relationalized = nested_table.relationalize(
             root_table_name = glue_nested_table_name,
@@ -531,7 +766,6 @@ class TestJsonS3ToParquet:
                 table_name=glue_nested_table_name,
                 processed_tables=tables_with_index,
                 unprocessed_tables=nested_table_relationalized,
-                glue_context=glue_context
         )
         assert (
                 set(tables_with_index[glue_nested_table_name].schema.fieldNames()) ==
@@ -544,7 +778,6 @@ class TestJsonS3ToParquet:
                 table_name=glue_nested_table_name,
                 processed_tables=tables_with_index,
                 unprocessed_tables=nested_table_relationalized,
-                glue_context=glue_context
         )
         assert (
                 set(tables_with_index[table_key].schema.fieldNames()) ==
@@ -570,24 +803,41 @@ class TestJsonS3ToParquet:
             print(child_table_with_index[col].values == correct_df[col].values)
             assert all(child_table_with_index[col].values == correct_df[col].values)
 
-    def test_write_table_to_s3(self, artifact_bucket, glue_database_name,
-                               glue_flat_table_name, glue_context, parquet_key_prefix):
+    def test_write_table_to_s3(
+            self,
+            artifact_bucket,
+            glue_database_name,
+            glue_flat_table_name,
+            glue_context,
+            parquet_key_prefix,
+            logger_context,
+    ):
         flat_table = json_to_parquet.get_table(
                 table_name=glue_flat_table_name,
                 database_name=glue_database_name,
-                glue_context=glue_context
+                glue_context=glue_context,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
         )
         parquet_key = os.path.join(
                     parquet_key_prefix,
                     "dataset_TestFlatDataType"
         )
-        json_to_parquet.write_table_to_s3(
-                dynamic_frame=flat_table,
-                bucket=artifact_bucket,
-                key=parquet_key,
-                glue_context=glue_context,
-                workflow_run_id="testing"
-        )
+        with patch.object(boto3, "client") as mock_boto3_client:
+            mock_client = mock_boto3_client.return_value
+            mock_client.get_workflow_run.return_value = {
+                    "Run": {
+                        "StartedOn": datetime.datetime(2023, 1, 1)
+                    }
+            }
+            json_to_parquet.write_table_to_s3(
+                    dynamic_frame=flat_table,
+                    bucket=artifact_bucket,
+                    key=parquet_key,
+                    glue_context=glue_context,
+                    workflow_name="testing",
+                    workflow_run_id="testing"
+            )
         s3_client = boto3.client("s3")
         parquet_dataset = s3_client.list_objects_v2(
                 Bucket=artifact_bucket,
@@ -595,93 +845,175 @@ class TestJsonS3ToParquet:
         assert parquet_dataset["KeyCount"] > 0
 
     def test_archive_existing_datasets_non_existent(
-            self, glue_context, artifact_bucket, parquet_key_prefix):
-        s3_client = boto3.client("s3")
-        archive_key = os.path.join(
-                parquet_key_prefix,
-                "archive"
-        )
+            self,
+            artifact_bucket,
+            parquet_key_prefix,
+    ):
         non_existent_dataset_key_prefix = os.path.join(
                 parquet_key_prefix,
                 "doesnotexist"
         ) + "/"
-        json_to_parquet.archive_existing_datasets(
-                glue_context=glue_context,
-                bucket=artifact_bucket,
-                key_prefix=non_existent_dataset_key_prefix,
-                workflow_run_id="testing",
-                delete_upon_completion=True
-        )
-        archive_contents = s3_client.list_objects_v2(
-                Bucket=artifact_bucket,
-                Prefix=archive_key
-        )
-        assert archive_contents["KeyCount"] == 0
+        with patch.object(boto3, "client") as mock_boto3_client:
+            mock_client = mock_boto3_client.return_value
+            mock_client.get_workflow_run.return_value = {
+                    "Run": {
+                        "StartedOn": datetime.datetime(2023, 1, 1)
+                    }
+            }
+            mock_client.list_objects_v2.return_value = dict()
+            archived_objects = json_to_parquet.archive_existing_datasets(
+                    bucket=artifact_bucket,
+                    key_prefix=non_existent_dataset_key_prefix,
+                    workflow_name="testing",
+                    workflow_run_id="testing",
+                    delete_upon_completion=True
+            )
+        assert len(archived_objects) == 0
 
     def test_archive_existing_datasets_existing(
-            self, glue_context, artifact_bucket, parquet_key_prefix):
-        s3_client = boto3.client("s3")
-        archive_key = os.path.join(
-                parquet_key_prefix,
-                "archive"
-        )
+            self,
+            artifact_bucket,
+            parquet_key_prefix,
+    ):
         existing_dataset_key_prefix = os.path.join(
                 parquet_key_prefix,
                 "dataset_TestFlatDataType"
         ) + "/"
-        existing_dataset = s3_client.list_objects_v2(
-                Bucket=artifact_bucket,
-                Prefix=existing_dataset_key_prefix
-        )
-        json_to_parquet.archive_existing_datasets(
-                glue_context=glue_context,
-                bucket=artifact_bucket,
-                key_prefix=existing_dataset_key_prefix,
-                workflow_run_id="testing",
-                delete_upon_completion=False
-        )
-        archive_contents = s3_client.list_objects_v2(
-                Bucket=artifact_bucket,
-                Prefix=archive_key
-        )
-        assert archive_contents["KeyCount"] == existing_dataset["KeyCount"]
-        s3_client.delete_objects(
-                Bucket=artifact_bucket,
-                Delete={"Objects": [
-                    {"Key": obj["Key"]} for obj in archive_contents["Contents"]
-                ]}
-        )
+        with patch.object(boto3, "client") as mock_boto3_client:
+            mock_client_config = configure_mock_client_archive_datasets(
+                    mock_boto3_client=mock_boto3_client,
+                    dataset_key_prefix=existing_dataset_key_prefix,
+                    artifact_bucket=artifact_bucket
+            )
+            mock_client = mock_client_config["mock_client"]
+            archived_objects = json_to_parquet.archive_existing_datasets(
+                    bucket=artifact_bucket,
+                    key_prefix=existing_dataset_key_prefix,
+                    workflow_name="testing",
+                    workflow_run_id="testing",
+                    delete_upon_completion=False,
+            )
+            for this_object in [obj for obj in mock_client_config["objects_to_copy"]["Contents"] if obj["Size"] > 0]:
+                mock_client.copy_object.assert_any_call(
+                    CopySource={"Bucket": this_object["Bucket"], "Key": this_object["Key"]},
+                    Bucket=artifact_bucket,
+                    Key=ANY
+                )
+            assert len(archived_objects) == 2
 
     def test_archive_existing_datasets_delete(
-            self, glue_context, artifact_bucket, parquet_key_prefix):
-        s3_client = boto3.client("s3")
+            self,
+            artifact_bucket,
+            parquet_key_prefix,
+    ):
         existing_dataset_key_prefix = os.path.join(
                 parquet_key_prefix,
                 "dataset_TestFlatDataType"
         ) + "/"
-        json_to_parquet.archive_existing_datasets(
-                glue_context=glue_context,
-                bucket=artifact_bucket,
-                key_prefix=existing_dataset_key_prefix,
-                workflow_run_id="testing2",
-                delete_upon_completion=True
-        )
-        deleted_dataset = s3_client.list_objects_v2(
-                Bucket=artifact_bucket,
-                Prefix=existing_dataset_key_prefix
-        )
-        assert deleted_dataset["KeyCount"] == 0
+        with patch.object(boto3, "client") as mock_boto3_client:
+            mock_client_config = configure_mock_client_archive_datasets(
+                    mock_boto3_client=mock_boto3_client,
+                    dataset_key_prefix=existing_dataset_key_prefix,
+                    artifact_bucket=artifact_bucket
+            )
+            mock_client = mock_client_config["mock_client"]
+            archived_objects = json_to_parquet.archive_existing_datasets(
+                    bucket=artifact_bucket,
+                    key_prefix=existing_dataset_key_prefix,
+                    workflow_name="testing",
+                    workflow_run_id="testing",
+                    delete_upon_completion=True,
+            )
+            mock_client.delete_objects.assert_called_once_with(
+                    Bucket=artifact_bucket,
+                    Delete={"Objects": {"Key": obj["Key"] for obj in archived_objects}}
+            )
 
-    def test_drop_deleted_healthkit_data(self, glue_context, glue_flat_table_name,
-                                         glue_database_name):
+    def test_drop_deleted_healthkit_data(
+            self,
+            glue_context,
+            glue_flat_table_name,
+            glue_database_name,
+            logger_context,
+    ):
         table = json_to_parquet.get_table(
                 table_name=glue_flat_table_name,
                 database_name=glue_database_name,
-                glue_context=glue_context
+                glue_context=glue_context,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
         )
         table_after_drop = json_to_parquet.drop_deleted_healthkit_data(
                 glue_context=glue_context,
                 table=table,
-                glue_database=glue_database_name
+                glue_database=glue_database_name,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
         )
         assert table_after_drop.count() == 0
+
+    def test_count_records_for_event_empty_table(self, sample_table, logger_context):
+        spark_sample_table = sample_table.toDF()
+        empty_table = spark_sample_table.filter(spark_sample_table.city == "Atlantis")
+        record_counts = json_to_parquet.count_records_for_event(
+                table=empty_table,
+                event=json_to_parquet.CountEventType.READ,
+                record_counts=defaultdict(list),
+                logger_context=logger_context
+        )
+        assert len(record_counts) == 0
+
+    def test_count_records(self, sample_table, logger_context):
+        spark_sample_table = sample_table.toDF()
+        record_counts = json_to_parquet.count_records_for_event(
+                table=spark_sample_table,
+                event=json_to_parquet.CountEventType.READ,
+                record_counts=defaultdict(list),
+                logger_context=logger_context
+        )
+        table_counts = record_counts[logger_context["labels"]["type"]][0]
+        table_counts_subset = table_counts.query(
+                "export_end_date == '2023-05-13T00:00:00'"
+        )
+        assert len(table_counts_subset) == 1
+        assert table_counts_subset["count"].iloc[0] == 2
+        assert all([
+            v == logger_context["process.parent.pid"]
+            for v in table_counts["workflow_run_id"].values
+        ])
+        assert all([
+            v == logger_context["labels"]["type"]
+            for v in table_counts["data_type"].values
+        ])
+        assert all([
+            v == "READ"
+            for v in table_counts["event"].values
+        ])
+
+    def test_store_record_counts(self):
+        record_counts = {
+                "testing_type": [
+                    pandas.DataFrame({"a": [1], "b": [2]}),
+                    pandas.DataFrame({"a": [1], "b": [2]})
+                ],
+                "testing_type_2": [
+                    pandas.DataFrame({"a": [1], "b": [2]})
+                ]
+        }
+        with patch.object(boto3, "client") as mock_boto3_client:
+            mock_client = mock_boto3_client.return_value
+            mock_client.get_workflow_run.return_value = {
+                    "Run": {
+                        "StartedOn": datetime.datetime(2023, 1, 1)
+                    }
+            }
+            uploaded_objects = json_to_parquet.store_record_counts(
+                    record_counts=record_counts,
+                    parquet_bucket="testing_bucket",
+                    namespace="testing_namespace",
+                    workflow_name="testing_workflow",
+                    workflow_run_id="testing_workflow_run_id",
+            )
+            mock_client.put_object.assert_called()
+            assert len(uploaded_objects) == 2
+            assert all([k in uploaded_objects.keys() for k in record_counts.keys()])

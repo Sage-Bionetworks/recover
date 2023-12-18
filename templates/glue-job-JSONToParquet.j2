@@ -71,6 +71,12 @@ Parameters:
     Type: String
     Description: The version of glue to use for this job
 
+  AdditionalPythonModules:
+    Type: String
+    Description: >-
+      Additional python packages to install as a comma-delimited list.
+      Any format supported by pip3 is supported here.
+
 Resources:
 
   {% set datasets = [] %}
@@ -98,6 +104,7 @@ Resources:
         --job-bookmark-option: job-bookmark-disable
         --job-language: python
         --glue-table: {{ dataset["table_name"] }}
+        --additional-python-modules: !Ref AdditionalPythonModules
         # --conf spark.sql.adaptive.enabled
       Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
       GlueVersion: !Ref GlueVersion

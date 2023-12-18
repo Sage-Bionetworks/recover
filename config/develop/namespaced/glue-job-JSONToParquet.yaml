@@ -11,6 +11,7 @@ parameters:
   S3ScriptBucket: {{ stack_group_config.template_bucket_name }}
   S3ScriptKey: '{{ stack_group_config.namespace }}/src/glue/jobs/json_to_parquet.py'
   GlueVersion: "{{ stack_group_config.json_to_parquet_glue_version }}"
+  AdditionalPythonModules: ecs_logging~=2.0
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
