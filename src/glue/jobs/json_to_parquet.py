@@ -361,7 +361,7 @@ def archive_existing_datasets(
     if delete_upon_completion and archived_objects:
         deleted_response = s3_client.delete_objects(
                 Bucket=bucket,
-                Delete={"Objects": {"Key": obj["Key"] for obj in archived_objects}}
+                Delete={"Objects": [{"Key": obj["Key"]} for obj in archived_objects]}
         )
     return archived_objects
 

@@ -926,7 +926,7 @@ class TestJsonS3ToParquet:
             )
             mock_client.delete_objects.assert_called_once_with(
                     Bucket=artifact_bucket,
-                    Delete={"Objects": {"Key": obj["Key"] for obj in archived_objects}}
+                    Delete={"Objects": [{"Key": obj["Key"]} for obj in archived_objects]}
             )
 
     def test_drop_deleted_healthkit_data(
