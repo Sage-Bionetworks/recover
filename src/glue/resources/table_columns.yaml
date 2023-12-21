@@ -26,7 +26,7 @@ tables:
       - Name: EnrollmentDate
         Type: string
       - Name: CustomFields
-        Type: struct<EhrConnected:string,EhrConnectedDate:string,SymptomLogSetupDate:string,DevicesConnected:string,AppleHealthRecordsReceived:string,DeviceOrderStatus:string,DeviceOrderDate:string,InfectionFirstReportedDate:string,ForceSendInvitation:string,ForceSync:string,SelfEnrolled:string,AppDownloadDate:string,DevicesConnectedDate:string,HasOutstandingSurveys:string,ProjectCode:string,Site:string,DateOfBirthVerified:string,DeviceEligible:string,InfectionsReported:string,AppDownloaded:string,AppleHealthEnabled:string,AppleHealthRecordsEnabled:string,GoogleFitEnabled:string,Reminder1Enabled:string,Reminder2Enabled:string,ReminderTime1:string,ReminderTime2:string,SkipConsent:string,Symptoms:array<struct<id:string,name:string,color:string,severityTracking:string,inactive:boolean>>,Treatments:array<struct<id:string,name:string,color:string,inactive:boolean>>>
+        Type: struct<EhrConnected:string,EhrConnectedDate:string,SymptomLogSetupDate:string,DevicesConnected:string,AppleHealthRecordsReceived:string,DeviceOrderStatus:string,DeviceOrderDate:string,InfectionFirstReportedDate:string,ForceSendInvitation:string,ForceSync:string,SelfEnrolled:string,AppDownloadDate:string,DevicesConnectedDate:string,HasOutstandingSurveys:string,ProjectCode:string,Site:string,DateOfBirthVerified:string,DeviceEligible:string,InfectionsReported:string,AppDownloaded:string,AppleHealthEnabled:string,AppleHealthRecordsEnabled:string,GoogleFitEnabled:string,Reminder1Enabled:string,Reminder2Enabled:string,ReminderTime1:string,ReminderTime2:string,SkipConsent:string,Symptoms:array<struct<id:string,name:string,color:string,severityTracking:string,inactive:boolean>>,Treatments:array<struct<id:string,name:string,color:string,inactive:boolean,EOPReason:int,EOPRemoveData:int>>>
       - Name: EventDates
         Type: struct<AppDownloadDate:string,DevicesConnectedDate:string,EhrConnectedDate:string,SymptomLogSetupDate:string,InfectionFirstReportedDate:string>
       - Name: UtcOffset
@@ -494,6 +494,8 @@ tables:
         Type: string
       - Name: SleepLogDetails
         Type: array<struct<Type:string,StartDate:string,EndDate:string,Value:string>>
+      - Name: IsMainSleep
+        Type: boolean
       - Name: LogId
         Type: string
       - Name: export_start_date
