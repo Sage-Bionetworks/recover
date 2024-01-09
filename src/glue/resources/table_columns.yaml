@@ -300,6 +300,33 @@ tables:
     partition_keys:
       - Name: cohort
         Type: string
+  FitbitEcg:
+    columns:
+      - Name: startTime
+        Type: string
+      - Name: averageHeartRate
+        Type: double
+      - Name: resultClassification
+        Type: string
+      - Name: waveformSamples
+        Type: array<int>
+      - Name: samplingFrequencyHz
+        Type: int
+      - Name: scalingFactor
+        Type: int
+      - Name: numberOfWaveformSamples
+        Type: int
+      - Name: leadNumber
+        Type: int
+      - Name: featureVersion
+        Type: string
+      - Name: deviceName
+        Type: string
+      - Name: firmwareVersion
+        Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   FitbitDevices:
     columns:
       - Name: ParticipantIdentifier
