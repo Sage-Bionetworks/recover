@@ -61,13 +61,19 @@ INDEX_FIELD_MAP = {
     "garminmoveiqactivitysummary": ["ParticipantID", "SummaryId"],
     "garminpulseoxsummary": ["ParticipantID", "SummaryId"],
     "garminrespirationsummary": ["ParticipantID", "SummaryId"],
-    "garminsleepsummary": ["ParticipantID", "StartTimeInSeconds", "DurationInSeconds", "Validation"],
+    "garminsleepsummary": [
+        "ParticipantID",
+        "StartTimeInSeconds",
+        "DurationInSeconds",
+        "Validation",
+    ],
     "garminstressdetailsummary": ["ParticipantID", "StartTimeInSeconds"],
     "garminthirdpartydailysummary": ["ParticipantID", "StartTimeInSeconds"],
     "garminusermetricssummary": ["ParticipantID", "CalenderDate"],
     "googlefitsamples": ["GoogleFitSampleKey"],
-    "symptomlog": ["DataPointKey"]
+    "symptomlog": ["DataPointKey"],
 }
+
 
 def get_args() -> tuple[dict, dict]:
     """
@@ -78,15 +84,13 @@ def get_args() -> tuple[dict, dict]:
     """
     glue_client = boto3.client("glue")
     args = getResolvedOptions(
-             sys.argv,
-             ["WORKFLOW_NAME",
-              "WORKFLOW_RUN_ID",
-              "JOB_NAME",
-              "glue-table"])
+        sys.argv, ["WORKFLOW_NAME", "WORKFLOW_RUN_ID", "JOB_NAME", "glue-table"]
+    )
     workflow_run_properties = glue_client.get_workflow_run_properties(
-            Name=args["WORKFLOW_NAME"],
-            RunId=args["WORKFLOW_RUN_ID"])["RunProperties"]
+        Name=args["WORKFLOW_NAME"], RunId=args["WORKFLOW_RUN_ID"]
+    )["RunProperties"]
     return args, workflow_run_properties
+
 
 def has_nested_fields(schema: StructType) -> bool:
     """
@@ -104,20 +108,20 @@ def has_nested_fields(schema: StructType) -> bool:
         bool: Whether this schema contains struct or array fields.
     """
     array_struct_cols = [
-        col.dataType.typeName() in ["array", "struct"]
-        for col in schema
+        col.dataType.typeName() in ["array", "struct"] for col in schema
     ]
     if any(array_struct_cols):
         return True
     return False
 
+
 def get_table(
-        table_name: str,
-        database_name: str,
-        glue_context: GlueContext,
-        record_counts: dict,
-        logger_context: dict,
-    ) -> DynamicFrame:
+    table_name: str,
+    database_name: str,
+    glue_context: GlueContext,
+    record_counts: dict,
+    logger_context: dict,
+) -> DynamicFrame:
     """
     Return a table as a DynamicFrame with an unambiguous schema. Additionally,
     we drop any superfluous partition_* fields which are added by Glue.
@@ -132,40 +136,36 @@ def get_table(
     Returns:
         awsglue.DynamicFrame: The Glue Table's data as a DynamicFrame
     """
-    table = (
-            glue_context.create_dynamic_frame.from_catalog(
-                 database=database_name,
-                 table_name=table_name,
-                 additional_options={"groupFiles": "inPartition"},
-                 transformation_ctx="create_dynamic_frame"
-            )
-            .resolveChoice(
-                choice="match_catalog",
-                database=database_name,
-                table_name=table_name
-            )
+    table = glue_context.create_dynamic_frame.from_catalog(
+        database=database_name,
+        table_name=table_name,
+        additional_options={"groupFiles": "inPartition"},
+        transformation_ctx="create_dynamic_frame",
+    ).resolveChoice(
+        choice="match_catalog", database=database_name, table_name=table_name
     )
     partition_fields = []
     for field in table.schema():
-        if "partition_" in field.name: # superfluous field added by Glue
+        if "partition_" in field.name:  # superfluous field added by Glue
             partition_fields.append(field.name)
     if len(partition_fields) > 0:
         table = table.drop_fields(paths=partition_fields)
     count_records_for_event(
-            table=table.toDF(),
-            event=CountEventType.READ,
-            record_counts=record_counts,
-            logger_context=logger_context,
+        table=table.toDF(),
+        event=CountEventType.READ,
+        record_counts=record_counts,
+        logger_context=logger_context,
     )
     return table
 
+
 def drop_table_duplicates(
-        table: DynamicFrame,
-        table_name: str,
-        glue_context: GlueContext,
-        record_counts: dict[str,list],
-        logger_context: dict,
-    ) -> DynamicFrame:
+    table: DynamicFrame,
+    table_name: str,
+    glue_context: GlueContext,
+    record_counts: dict[str, list],
+    logger_context: dict,
+) -> DynamicFrame:
     """
     Drop duplicate samples and superflous partition columns.
 
@@ -191,34 +191,34 @@ def drop_table_duplicates(
     table_data_type = table_name_components[1]
     spark_df = table.toDF()
     if "InsertedDate" in spark_df.columns:
-        sorted_spark_df = spark_df.sort(spark_df.InsertedDate.desc())
+        sorted_spark_df = spark_df.sort(
+            [spark_df.InsertedDate.desc(), spark_df.export_end_date.desc()]
+        )
     else:
         sorted_spark_df = spark_df.sort(spark_df.export_end_date.desc())
     table = DynamicFrame.fromDF(
-            dataframe=(
-                sorted_spark_df
-                .dropDuplicates(
-                    subset=INDEX_FIELD_MAP[table_data_type]
-                )
-            ),
-            glue_ctx=glue_context,
-            name=table_name
+        dataframe=(
+            sorted_spark_df.dropDuplicates(subset=INDEX_FIELD_MAP[table_data_type])
+        ),
+        glue_ctx=glue_context,
+        name=table_name,
     )
     count_records_for_event(
-            table=table.toDF(),
-            event=CountEventType.DROP_DUPLICATES,
-            record_counts=record_counts,
-            logger_context=logger_context,
+        table=table.toDF(),
+        event=CountEventType.DROP_DUPLICATES,
+        record_counts=record_counts,
+        logger_context=logger_context,
     )
     return table
 
+
 def drop_deleted_healthkit_data(
-        glue_context: GlueContext,
-        table: DynamicFrame,
-        glue_database: str,
-        record_counts: dict[str,list],
-        logger_context: dict,
-    ) -> DynamicFrame:
+    glue_context: GlueContext,
+    table: DynamicFrame,
+    glue_database: str,
+    record_counts: dict[str, list],
+    logger_context: dict,
+) -> DynamicFrame:
     """
     Drop records from a HealthKit table.
 
@@ -246,57 +246,55 @@ def drop_deleted_healthkit_data(
     deleted_table_name = f"{table.name}_deleted"
     table_data_type = table.name.split("_")[1]
     try:
-        glue_client.get_table(
-                DatabaseName=glue_database,
-                Name=deleted_table_name
-        )
+        glue_client.get_table(DatabaseName=glue_database, Name=deleted_table_name)
     except glue_client.exceptions.EntityNotFoundException:
         return table
     deleted_table_logger_context = deepcopy(logger_context)
     deleted_table_logger_context["labels"]["glue_table_name"] = deleted_table_name
     deleted_table_logger_context["labels"]["type"] = f"{table_data_type}_deleted"
     deleted_table_raw = get_table(
-            table_name=deleted_table_name,
-            database_name=glue_database,
-            glue_context=glue_context,
-            record_counts=record_counts,
-            logger_context=deleted_table_logger_context,
+        table_name=deleted_table_name,
+        database_name=glue_database,
+        glue_context=glue_context,
+        record_counts=record_counts,
+        logger_context=deleted_table_logger_context,
     )
     deleted_table = drop_table_duplicates(
-            table=deleted_table_raw,
-            table_name=deleted_table_name,
-            glue_context=glue_context,
-            record_counts=record_counts,
-            logger_context=deleted_table_logger_context,
+        table=deleted_table_raw,
+        table_name=deleted_table_name,
+        glue_context=glue_context,
+        record_counts=record_counts,
+        logger_context=deleted_table_logger_context,
     )
     table_df = table.toDF()
     deleted_table_df = deleted_table.toDF()
     table_with_deleted_samples_removed = DynamicFrame.fromDF(
-            dataframe=(
-                table_df.join(
-                    other=deleted_table_df,
-                    on=INDEX_FIELD_MAP[table_data_type],
-                    how="left_anti"
-                )
-            ),
-            glue_ctx=glue_context,
-            name=table.name
+        dataframe=(
+            table_df.join(
+                other=deleted_table_df,
+                on=INDEX_FIELD_MAP[table_data_type],
+                how="left_anti",
+            )
+        ),
+        glue_ctx=glue_context,
+        name=table.name,
     )
     count_records_for_event(
-            table=table_with_deleted_samples_removed.toDF(),
-            event=CountEventType.DROP_DELETED_SAMPLES,
-            record_counts=record_counts,
-            logger_context=logger_context,
+        table=table_with_deleted_samples_removed.toDF(),
+        event=CountEventType.DROP_DELETED_SAMPLES,
+        record_counts=record_counts,
+        logger_context=logger_context,
     )
     return table_with_deleted_samples_removed
 
+
 def archive_existing_datasets(
-        bucket: str,
-        key_prefix: str,
-        workflow_name: str,
-        workflow_run_id: str,
-        delete_upon_completion: bool
-    ) -> list[dict]:
+    bucket: str,
+    key_prefix: str,
+    workflow_name: str,
+    workflow_run_id: str,
+    delete_upon_completion: bool,
+) -> list[dict]:
     """
     Archives existing datasets in S3 by copying them to a timestamped subfolder
     within an "archive" folder. The format of the timestamped subfolder is:
@@ -324,56 +322,47 @@ def archive_existing_datasets(
     """
     glue_client = boto3.client("glue")
     workflow_run = glue_client.get_workflow_run(
-            Name=workflow_name,
-            RunId=workflow_run_id
+        Name=workflow_name, RunId=workflow_run_id
     )
     workflow_date = workflow_run["Run"]["StartedOn"].strftime("%Y_%m_%d")
     this_archive_collection = "_".join([workflow_date, workflow_run_id])
     s3_client = boto3.client("s3")
-    response = s3_client.list_objects_v2(
-            Bucket=bucket,
-            Prefix=key_prefix
-    )
+    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=key_prefix)
     if "Contents" not in response:
         return list()
-    source_objects = [
-            obj for obj in response["Contents"] if obj["Size"] > 0]
+    source_objects = [obj for obj in response["Contents"] if obj["Size"] > 0]
     archived_objects = []
     for source_object in source_objects:
-        this_object = {
-                "Bucket": bucket,
-                "Key": source_object["Key"]
-        }
+        this_object = {"Bucket": bucket, "Key": source_object["Key"]}
         destination_key = os.path.join(
-                os.path.dirname(key_prefix[:-1]), # .../parquet/
-                "archive",
-                this_archive_collection, # {year}_{month}_{day}_{workflow_run_id}
-                os.path.basename(key_prefix[:-1]), # {dataset}
-                os.path.relpath(this_object["Key"], key_prefix) # some/path/object.parquet
+            os.path.dirname(key_prefix[:-1]),  # .../parquet/
+            "archive",
+            this_archive_collection,  # {year}_{month}_{day}_{workflow_run_id}
+            os.path.basename(key_prefix[:-1]),  # {dataset}
+            os.path.relpath(this_object["Key"], key_prefix),  # some/path/object.parquet
         )
         logger.info(f"Copying {this_object['Key']} to {destination_key}")
         copy_response = s3_client.copy_object(
-                CopySource=this_object,
-                Bucket=bucket,
-                Key=destination_key
+            CopySource=this_object, Bucket=bucket, Key=destination_key
         )
         archived_objects.append(this_object)
     if delete_upon_completion and archived_objects:
         deleted_response = s3_client.delete_objects(
-                Bucket=bucket,
-                Delete={"Objects": [{"Key": obj["Key"]} for obj in archived_objects]}
+            Bucket=bucket,
+            Delete={"Objects": [{"Key": obj["Key"]} for obj in archived_objects]},
         )
     return archived_objects
 
+
 def write_table_to_s3(
-        dynamic_frame: DynamicFrame,
-        bucket: str,
-        key: str,
-        glue_context: GlueContext,
-        workflow_name: str,
-        workflow_run_id: str,
-        records_per_partition: int = int(1e6)
-    ) -> None:
+    dynamic_frame: DynamicFrame,
+    bucket: str,
+    key: str,
+    glue_context: GlueContext,
+    workflow_name: str,
+    workflow_run_id: str,
+    records_per_partition: int = int(1e6),
+) -> None:
     """
     Write a DynamicFrame to S3 as a parquet dataset.
 
@@ -395,23 +384,24 @@ def write_table_to_s3(
     dynamic_frame = dynamic_frame.coalesce(num_partitions)
     logger.info(f"Archiving {os.path.basename(key)}")
     archive_existing_datasets(
-            bucket=bucket,
-            key_prefix=key+"/",
-            workflow_name=workflow_name,
-            workflow_run_id=workflow_run_id,
-            delete_upon_completion=True
+        bucket=bucket,
+        key_prefix=key + "/",
+        workflow_name=workflow_name,
+        workflow_run_id=workflow_run_id,
+        delete_upon_completion=True,
     )
-    logger.info(f"Writing {os.path.basename(key)} to {s3_write_path} "
-                f"as {num_partitions} partitions.")
+    logger.info(
+        f"Writing {os.path.basename(key)} to {s3_write_path} "
+        f"as {num_partitions} partitions."
+    )
     glue_context.write_dynamic_frame.from_options(
-            frame = dynamic_frame,
-            connection_type = "s3",
-            connection_options = {
-                "path": s3_write_path,
-                "partitionKeys": ["cohort"]
-            },
-            format = "parquet",
-            transformation_ctx="write_dynamic_frame")
+        frame=dynamic_frame,
+        connection_type="s3",
+        connection_options={"path": s3_write_path, "partitionKeys": ["cohort"]},
+        format="parquet",
+        transformation_ctx="write_dynamic_frame",
+    )
+
 
 class CountEventType(Enum):
     """The event associated with a count."""
@@ -439,12 +429,13 @@ class CountEventType(Enum):
     This table has just now been written to S3.
     """
 
+
 def count_records_for_event(
-        table: "pyspark.sql.dataframe.DataFrame",
-        event: CountEventType,
-        record_counts: dict[str,list],
-        logger_context: dict,
-    ) -> dict[str,list]:
+    table: "pyspark.sql.dataframe.DataFrame",
+    event: CountEventType,
+    record_counts: dict[str, list],
+    logger_context: dict,
+) -> dict[str, list]:
     """
     Compute record count statistics for each `export_end_date`.
 
@@ -476,25 +467,22 @@ def count_records_for_event(
     """
     if table.count() == 0:
         return record_counts
-    table_counts = (
-            table
-            .groupby(["export_end_date"])
-            .count()
-            .toPandas()
-    )
+    table_counts = table.groupby(["export_end_date"]).count().toPandas()
+
     table_counts["workflow_run_id"] = logger_context["process.parent.pid"]
     table_counts["data_type"] = logger_context["labels"]["type"]
     table_counts["event"] = event.value
     record_counts[logger_context["labels"]["type"]].append(table_counts)
     return record_counts
 
+
 def store_record_counts(
-        record_counts: dict[str,list],
-        parquet_bucket: str,
-        namespace: str,
-        workflow_name: str,
-        workflow_run_id: str,
-    ) -> dict[str,str]:
+    record_counts: dict[str, list],
+    parquet_bucket: str,
+    namespace: str,
+    workflow_name: str,
+    workflow_run_id: str,
+) -> dict[str, str]:
     """
     Uploads record counts as S3 objects.
 
@@ -516,14 +504,11 @@ def store_record_counts(
     """
     glue_client = boto3.client("glue")
     workflow_run = glue_client.get_workflow_run(
-            Name=workflow_name,
-            RunId=workflow_run_id
+        Name=workflow_name, RunId=workflow_run_id
     )
     workflow_start_date = workflow_run["Run"]["StartedOn"].strftime("%Y_%m_%d")
     s3_key_prefix = os.path.join(
-            namespace,
-            "record_counts",
-            f"{workflow_start_date}_{workflow_run_id}"
+        namespace, "record_counts", f"{workflow_start_date}_{workflow_run_id}"
     )
     s3_client = boto3.client("s3")
     uploaded_objects = {}
@@ -533,21 +518,17 @@ def store_record_counts(
         all_counts = pandas.concat(record_counts[data_type])
         all_counts.to_csv(basename)
         with open(basename, "rb") as counts_file:
-            s3_client.put_object(
-                    Body=counts_file,
-                    Bucket=parquet_bucket,
-                    Key=s3_key
-            )
+            s3_client.put_object(Body=counts_file, Bucket=parquet_bucket, Key=s3_key)
             uploaded_objects[data_type] = s3_key
     return uploaded_objects
 
 
 def add_index_to_table(
-        table_key: str,
-        table_name: str,
-        processed_tables: dict[str, DynamicFrame],
-        unprocessed_tables: dict[str, DynamicFrame],
-    ) -> "pyspark.sql.dataframe.DataFrame":
+    table_key: str,
+    table_name: str,
+    processed_tables: dict[str, DynamicFrame],
+    unprocessed_tables: dict[str, DynamicFrame],
+) -> "pyspark.sql.dataframe.DataFrame":
     """Add partition and index fields to a DynamicFrame.
 
     A DynamicFrame containing the top-level fields already includes the index
@@ -578,9 +559,9 @@ def add_index_to_table(
     _, table_data_type = table_name.split("_")
     this_table = unprocessed_tables[table_key].toDF()
     logger.info(f"Adding index to {table_name}")
-    if table_key == table_name: # top-level fields already include index
+    if table_key == table_name:  # top-level fields already include index
         for c in list(this_table.columns):
-            if "." in c: # a flattened struct field
+            if "." in c:  # a flattened struct field
                 c_new = c.replace(".", "_")
                 logger.info(f"Renaming field {c} to {c_new}")
                 this_table = this_table.withColumnRenamed(c, c_new)
@@ -591,7 +572,7 @@ def add_index_to_table(
             parent_key = ".".join(hierarchy[:-1])
             original_field_name = hierarchy[-1]
             parent_table = processed_tables[parent_key]
-        else: # table_key is the value of a top-level field
+        else:  # table_key is the value of a top-level field
             parent_key = table_name
             original_field_name = table_key.replace(f"{table_name}_", "")
             parent_table = unprocessed_tables[parent_key].toDF()
@@ -600,26 +581,23 @@ def add_index_to_table(
         else:
             selectable_original_field_name = original_field_name
         logger.info(f"Adding index to {original_field_name}")
-        parent_index = (parent_table
-                .select(
-                    ([selectable_original_field_name, "cohort"]
-                     + INDEX_FIELD_MAP[table_data_type])
-                ).distinct())
+        parent_index = parent_table.select(
+            (
+                [selectable_original_field_name, "cohort"]
+                + INDEX_FIELD_MAP[table_data_type]
+            )
+        ).distinct()
         this_index = parent_index.withColumnRenamed(original_field_name, "id")
-        df_with_index = this_table.join(
-                this_index,
-                on = "id",
-                how = "inner")
+        df_with_index = this_table.join(this_index, on="id", how="inner")
         # remove prefix from field names
         field_prefix = table_key.replace(f"{table_name}_", "") + ".val."
         columns = list(df_with_index.columns)
         for c in columns:
             # do nothing if c is id, index, or partition field
-            if f"{original_field_name}.val" == c: # field is an array
+            if f"{original_field_name}.val" == c:  # field is an array
                 succinct_name = c.replace(".", "_")
                 logger.info(f"Renaming field {c} to {succinct_name}")
-                df_with_index = df_with_index.withColumnRenamed(
-                        c, succinct_name)
+                df_with_index = df_with_index.withColumnRenamed(c, succinct_name)
             elif field_prefix in c:
                 succinct_name = c.replace(field_prefix, "").replace(".", "_")
                 if succinct_name in df_with_index.columns:
@@ -629,22 +607,22 @@ def add_index_to_table(
                     # If key is still duplicate, leave unchanged
                     continue
                 logger.info(f"Renaming field {c} to {succinct_name}")
-                df_with_index = df_with_index.withColumnRenamed(
-                        c, succinct_name)
+                df_with_index = df_with_index.withColumnRenamed(c, succinct_name)
     return df_with_index
+
 
 def main() -> None:
     # Get args and setup environment
     args, workflow_run_properties = get_args()
     glue_context = GlueContext(SparkContext.getOrCreate())
     logger_context = {
-            "labels": {
-                "glue_table_name": args["glue_table"],
-                "type": args["glue_table"].split("_")[1],
-                "job_name": args["JOB_NAME"],
-            },
-            "process.parent.pid": args["WORKFLOW_RUN_ID"],
-            "process.parent.name": args["WORKFLOW_NAME"],
+        "labels": {
+            "glue_table_name": args["glue_table"],
+            "type": args["glue_table"].split("_")[1],
+            "job_name": args["JOB_NAME"],
+        },
+        "process.parent.pid": args["WORKFLOW_RUN_ID"],
+        "process.parent.name": args["WORKFLOW_NAME"],
     }
     record_counts = defaultdict(list)
     logger.info(f"Job args: {args}")
@@ -655,97 +633,98 @@ def main() -> None:
     # Read table and drop duplicated and deleted samples
     table_name = args["glue_table"]
     table_raw = get_table(
-            table_name=table_name,
-            database_name=workflow_run_properties["glue_database"],
-            glue_context=glue_context,
-            record_counts=record_counts,
-            logger_context=logger_context,
+        table_name=table_name,
+        database_name=workflow_run_properties["glue_database"],
+        glue_context=glue_context,
+        record_counts=record_counts,
+        logger_context=logger_context,
     )
     if table_raw.count() == 0:
         return
     table = drop_table_duplicates(
-            table=table_raw,
-            table_name=table_name,
-            glue_context=glue_context,
-            record_counts=record_counts,
-            logger_context=logger_context,
+        table=table_raw,
+        table_name=table_name,
+        glue_context=glue_context,
+        record_counts=record_counts,
+        logger_context=logger_context,
     )
     if "healthkit" in table_name:
         table = drop_deleted_healthkit_data(
-                glue_context=glue_context,
-                table=table,
-                glue_database=workflow_run_properties["glue_database"],
-                record_counts=record_counts,
-                logger_context=logger_context,
+            glue_context=glue_context,
+            table=table,
+            glue_database=workflow_run_properties["glue_database"],
+            record_counts=record_counts,
+            logger_context=logger_context,
         )
 
     # Export new table records to parquet
     if has_nested_fields(table.schema()):
         tables_with_index = {}
         table_relationalized = table.relationalize(
-            root_table_name = table_name,
-            staging_path = f"s3://{workflow_run_properties['parquet_bucket']}/tmp/",
-            transformation_ctx="relationalize")
+            root_table_name=table_name,
+            staging_path=f"s3://{workflow_run_properties['parquet_bucket']}/tmp/",
+            transformation_ctx="relationalize",
+        )
         # Inject record identifier into child tables
         ordered_keys = list(sorted(table_relationalized.keys()))
         for k in ordered_keys:
             tables_with_index[k] = add_index_to_table(
-                    table_key=k,
-                    table_name=table_name,
-                    processed_tables=tables_with_index,
-                    unprocessed_tables=table_relationalized,
+                table_key=k,
+                table_name=table_name,
+                processed_tables=tables_with_index,
+                unprocessed_tables=table_relationalized,
             )
         for t in tables_with_index:
             clean_name = t.replace(".", "_").lower()
             dynamic_frame_with_index = DynamicFrame.fromDF(
-                    tables_with_index[t],
-                    glue_ctx = glue_context,
-                    name = clean_name
+                tables_with_index[t], glue_ctx=glue_context, name=clean_name
             )
             write_table_to_s3(
-                    dynamic_frame=dynamic_frame_with_index,
-                    bucket=workflow_run_properties["parquet_bucket"],
-                    key=os.path.join(
-                        workflow_run_properties["namespace"],
-                        workflow_run_properties["parquet_prefix"],
-                        clean_name
-                    ),
-                    workflow_name=args["WORKFLOW_NAME"],
-                    workflow_run_id=args["WORKFLOW_RUN_ID"],
-                    glue_context=glue_context
-            )
-        count_records_for_event(
-                table=tables_with_index[ordered_keys[0]],
-                event=CountEventType.WRITE,
-                record_counts=record_counts,
-                logger_context=logger_context,
-        )
-    else:
-        write_table_to_s3(
-                dynamic_frame=table,
+                dynamic_frame=dynamic_frame_with_index,
                 bucket=workflow_run_properties["parquet_bucket"],
                 key=os.path.join(
                     workflow_run_properties["namespace"],
                     workflow_run_properties["parquet_prefix"],
-                    args["glue_table"]),
+                    clean_name,
+                ),
                 workflow_name=args["WORKFLOW_NAME"],
                 workflow_run_id=args["WORKFLOW_RUN_ID"],
-                glue_context=glue_context
-        )
+                glue_context=glue_context,
+            )
         count_records_for_event(
-                table=table.toDF(),
-                event=CountEventType.WRITE,
-                record_counts=record_counts,
-                logger_context=logger_context,
-        )
-    store_record_counts(
+            table=tables_with_index[ordered_keys[0]],
+            event=CountEventType.WRITE,
             record_counts=record_counts,
-            parquet_bucket=workflow_run_properties["parquet_bucket"],
-            namespace=workflow_run_properties["namespace"],
+            logger_context=logger_context,
+        )
+    else:
+        write_table_to_s3(
+            dynamic_frame=table,
+            bucket=workflow_run_properties["parquet_bucket"],
+            key=os.path.join(
+                workflow_run_properties["namespace"],
+                workflow_run_properties["parquet_prefix"],
+                args["glue_table"],
+            ),
             workflow_name=args["WORKFLOW_NAME"],
             workflow_run_id=args["WORKFLOW_RUN_ID"],
+            glue_context=glue_context,
+        )
+        count_records_for_event(
+            table=table.toDF(),
+            event=CountEventType.WRITE,
+            record_counts=record_counts,
+            logger_context=logger_context,
+        )
+    store_record_counts(
+        record_counts=record_counts,
+        parquet_bucket=workflow_run_properties["parquet_bucket"],
+        namespace=workflow_run_properties["namespace"],
+        workflow_name=args["WORKFLOW_NAME"],
+        workflow_run_id=args["WORKFLOW_RUN_ID"],
     )
     job.commit()
+
 
 if __name__ == "__main__":
     main()
