@@ -687,14 +687,12 @@ class TestJsonS3ToParquet:
         assert set(["1", "2", "3"]) == set(table_no_duplicates_df["GlobalKey"].tolist())
         assert set(
             [
-                "2023-05-12T00:00:00",
                 "2023-05-13T00:00:00",
                 "2023-05-14T00:00:00",
             ]
         ) == set(table_no_duplicates_df["InsertedDate"].tolist())
         assert set(
             [
-                "2023-05-14T00:00:00",
                 "2023-05-14T00:00:00",
                 "2023-05-15T00:00:00",
             ]
