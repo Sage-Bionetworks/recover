@@ -302,27 +302,33 @@ tables:
         Type: string
   FitbitEcg:
     columns:
-      - Name: startTime
+      - Name: FitbitEcgKey
         Type: string
-      - Name: averageHeartRate
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: StartTime
+        Type: string
+      - Name: AverageHeartRate
         Type: double
-      - Name: resultClassification
+      - Name: ResultClassification
         Type: string
-      - Name: waveformSamples
+      - Name: WaveformSamples
         Type: array<int>
-      - Name: samplingFrequencyHz
+      - Name: SamplingFrequencyHz
         Type: int
-      - Name: scalingFactor
+      - Name: ScalingFactor
         Type: int
-      - Name: numberOfWaveformSamples
+      - Name: NumberOfWaveformSamples
         Type: int
-      - Name: leadNumber
+      - Name: LeadNumber
         Type: int
-      - Name: featureVersion
+      - Name: FeatureVersion
         Type: string
-      - Name: deviceName
+      - Name: DeviceName
         Type: string
-      - Name: firmwareVersion
+      - Name: FirmwareVersion
         Type: string
     partition_keys:
       - Name: cohort
