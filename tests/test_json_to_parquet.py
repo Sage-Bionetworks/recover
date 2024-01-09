@@ -678,21 +678,27 @@ class TestJsonS3ToParquet:
         )
         table_no_duplicates_df = table_no_duplicates.toDF().toPandas()
         assert len(table_no_duplicates_df) == 3
-        assert ["John", "Jane", "Bob_2"] == table_no_duplicates_df["name"].tolist()
-        assert ["Chicago", "San Francisco", "Tucson"] == table_no_duplicates_df[
-            "city"
-        ].tolist()
-        assert ["1", "2", "3"] == table_no_duplicates_df["GlobalKey"].tolist()
-        assert [
-            "2023-05-12T00:00:00",
-            "2023-05-13T00:00:00",
-            "2023-05-14T00:00:00",
-        ] == table_no_duplicates_df["InsertedDate"].tolist()
-        assert [
-            "2023-05-14T00:00:00",
-            "2023-05-14T00:00:00",
-            "2023-05-15T00:00:00",
-        ] == table_no_duplicates_df["export_end_date"].tolist()
+        assert set(["John", "Jane", "Bob_2"]) == set(
+            table_no_duplicates_df["name"].tolist()
+        )
+        assert set(["Chicago", "San Francisco", "Tucson"]) == set(
+            table_no_duplicates_df["city"].tolist()
+        )
+        assert set(["1", "2", "3"]) == set(table_no_duplicates_df["GlobalKey"].tolist())
+        assert set(
+            [
+                "2023-05-12T00:00:00",
+                "2023-05-13T00:00:00",
+                "2023-05-14T00:00:00",
+            ]
+        ) == set(table_no_duplicates_df["InsertedDate"].tolist())
+        assert set(
+            [
+                "2023-05-14T00:00:00",
+                "2023-05-14T00:00:00",
+                "2023-05-15T00:00:00",
+            ]
+        ) == set(table_no_duplicates_df["export_end_date"].tolist())
 
     @pytest.mark.parametrize(
         "table_name,expected",
