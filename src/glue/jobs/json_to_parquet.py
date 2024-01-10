@@ -39,6 +39,7 @@ INDEX_FIELD_MAP = {
     "fitbitdevices": ["ParticipantIdentifier", "Date"],
     "fitbitactivitylogs": ["LogId"],
     "fitbitdailydata": ["ParticipantIdentifier", "Date"],
+    "fitbitecg": ["FitbitEcgKey"],
     "fitbitintradaycombined": ["ParticipantIdentifier", "Type", "DateTime"],
     "fitbitrestingheartrates": ["ParticipantIdentifier", "Date"],
     "fitbitsleeplogs": ["LogId"],
