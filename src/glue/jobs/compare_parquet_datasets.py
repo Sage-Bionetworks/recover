@@ -97,14 +97,16 @@ def get_duplicated_columns(dataset: pd.DataFrame) -> list:
 
 def has_common_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
     """Gets the list of common columns between two dataframes
-    TODO: Could look into depreciating this and using datacompy.intersect_columns function"""
+    TODO: Could look into depreciating this and using datacompy.intersect_columns function
+    """
     common_cols = staging_dataset.columns.intersection(main_dataset.columns).tolist()
     return common_cols != []
 
 
 def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
     """Gets the list of missing columns present in main but not in staging
-    TODO: Could look into depreciating this and using datacompy.df2_unq_columns function"""
+    TODO: Could look into depreciating this and using datacompy.df2_unq_columns function
+    """
     missing_cols = main_dataset.columns.difference(staging_dataset.columns).tolist()
     return missing_cols
 
@@ -113,7 +115,8 @@ def get_additional_cols(
     staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
     """Gets the list of additional columns present in staging but not in main
-    TODO: Could look into depreciating this and using datacompy.df1_unq_columns function"""
+    TODO: Could look into depreciating this and using datacompy.df1_unq_columns function
+    """
     add_cols = staging_dataset.columns.difference(main_dataset.columns).tolist()
     return add_cols
 
@@ -168,7 +171,20 @@ def get_parquet_dataset(
     grows bigger. Could find a way to optimize that.
     """
     table_source = dataset_key.split("s3://")[-1]
-    parquet_dataset = pq.read_table(source=table_source, filesystem=s3_filesystem)
+    # get cohort
+    adult_parquet_dataset = pq.read_table(
+        source=f"{table_source}/cohort=adults_v1/", filesystem=s3_filesystem
+    ).to_pandas()
+    if "cohort" not in adult_parquet_dataset:
+        adult_parquet_dataset["cohort"] = "adults_v1"
+
+    ped_parquet_dataset = pq.read_table(
+        source=f"{table_source}/cohort=pediatric_v1/", filesystem=s3_filesystem
+    ).to_pandas()
+    if "cohort" not in ped_parquet_dataset:
+        ped_parquet_dataset["cohort"] = "pediatric_v1"
+
+    parquet_dataset = pd.concat([adult_parquet_dataset, ped_parquet_dataset])
     return parquet_dataset.to_pandas()
 
 
@@ -333,7 +349,7 @@ def compare_datasets_and_output_report(
     compare = datacompy.Compare(
         df1=staging_dataset,
         df2=main_dataset,
-        join_columns=INDEX_FIELD_MAP[main_data_type],
+        join_columns=INDEX_FIELD_MAP[main_data_type] + ["cohort"],
         abs_tol=0,  # Optional, defaults to 0
         rel_tol=0,  # Optional, defaults to 0
         df1_name=staging_namespace,  # Optional, defaults to 'df1'
