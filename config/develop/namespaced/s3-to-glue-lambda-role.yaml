@@ -2,8 +2,8 @@ template:
   path: s3-to-glue-lambda-role.yaml
 stack_name: '{{ stack_group_config.namespace }}-s3-to-glue-lambda-role'
 dependencies:
-  - develop/namespaced/sqs-queue.yaml
+  - develop/namespaced/sqs-input-to-intermediate.yaml
 parameters:
-  SQSQueueArn: !stack_output_external "{{ stack_group_config.namespace }}-sqs-S3ToLambda::PrimaryQueueArn"
+  SQSQueueArn: !stack_output_external "{{ stack_group_config.namespace }}-sqs-input-to-intermediate::PrimaryQueueArn"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
