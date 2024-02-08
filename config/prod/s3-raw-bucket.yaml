@@ -1,0 +1,9 @@
+template:
+  type: file
+  path: s3-bucket.yaml
+stack_name: recover-raw-bucket
+parameters:
+  BucketName: {{ stack_group_config.raw_bucket_name }}
+  ConnectToSynapse: "false"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
