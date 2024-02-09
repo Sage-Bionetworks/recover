@@ -1,12 +1,12 @@
 template:
   path: sqs-queue.yaml
 parameters:
-  MessageRetentionPeriod: '86400'
-  ReceiveMessageWaitTimeSeconds: '20'
-  VisibilityTimeout: '120'
+  MessageRetentionPeriod: "86400"
+  ReceiveMessageWaitTimeSeconds: "20"
+  VisibilityTimeout: "120"
   S3SourceBucketArn: !stack_output_external recover-dev-input-bucket::BucketArn
 dependencies:
   - develop/s3-input-bucket.yaml
-stack_name: '{{ stack_group_config.namespace }}-sqs-S3ToLambda'
+stack_name: '{{ stack_group_config.namespace }}-sqs-input-to-intermediate'
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
