@@ -54,7 +54,7 @@ Assuming that the namespaced [S3 Event Config Lambda](config/develop/namespaced/
 
 ### Submitting test events to the S3 to Glue Lambda
 
-To submit SQS events directly to the [S3 to Glue Lambda](src/lambda_function/s3_to_glue), follow the instructions in its README.
+To submit SQS events directly to the [S3 to Glue Lambda](src/lambda_function/s3_to_glue), follow the instructions in its [README](src/lambda_function/s3_to_glue/README.md).
 
 ### Submitting test events to the S3 to JSON Glue workflow
 
@@ -72,7 +72,7 @@ We do not yet have a complete, automated data quality framework for our integrat
 
 To evaluate what effect this branch's changes had on the test data, we have Glue jobs which run as part of the JSON to Parquet workflow which compare the Parquet datasets within this branch's `{namespace}` to those of the `main` namespace. Data reports are written to `s3://recover-dev-processed-data/{namespace}/comparison_result`.
 
-#### Record count comparion
+#### Record count comparison
 
 We use a structured logging framework in our Glue jobs so that logs can be consumed in a programmatic way. At the time of writing, this is limited to [a script](src/scripts/consume_logs/consume_logs.py) that will compare the count of lines read versus the count of lines written for each NDJSON file in each S3 to JSON workflow run within a given time frame.
 
@@ -84,7 +84,23 @@ Before and/or after code review, clean up your commit history. If the `main` bra
 
 ### Post review
 
-Once the pull request has been approved, we expect _you_ to merge. Although this pulls your commits into the `main` branch, it does not yet deploy your changes to the `main` production pipeline. RECOVER data has FISMA restrictions, but only our production account is FISMA compliant. Since there is no guarantee that the test data provided to us (which doesn't have FISMA restrictions) perfectly models the production dataset, we maintain a `staging` namespace in the production account which enables us to test changes on production data before pulling those changes into the `main` namespace. Merging into `main` will deploy the changes to the `staging` namespace. To complete deployment to the `main` namespace of production, we push a new tag with a specific format to this repository, which will trigger [this GitHub action](.github/workflows/upload-and-deploy-to-prod-main.yaml). There is a diagram of this process [here](https://sagebionetworks.jira.com/wiki/spaces/IBC/pages/2863202319/ETL-390+RECOVER+Integration+Testing#Implementation).
+Once the pull request has been approved, we expect _you_ to merge. Although this pulls your commits into the `main` branch, it does not yet deploy your changes to the `main` production pipeline. RECOVER data has FISMA restrictions, but only our production account is FISMA compliant. Since there is no guarantee that the test data provided to us (which doesn't have FISMA restrictions) perfectly models the production dataset, we maintain a `staging` namespace in the production account which enables us to test changes on production data before pulling those changes into the `main` namespace. Merging into `main` will deploy the changes to the `staging` namespace. To complete deployment to the `main` namespace of production, we push a new tag with a specific format to this repository, which will trigger [this GitHub action](.github/workflows/upload-and-deploy-to-prod-main.yaml). There is a diagram of this process [here](https://sagebionetworks.jira.com/wiki/spaces/IBC/pages/2863202319/ETL-390+RECOVER+Integration+Testing#Implementation). See [release process](#release-process) for more details on this.
+
+### Release process
+
+This package uses [semantic versioning](https://semver.org/) for releasing new versions.
+
+**Background Pages:**
+
+- See [About releases - GitHub Docs](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases) for more information about Github releases and their relationship to github tags
+- See [Git - Tagging](https://git-scm.com/book/en/v2/Git-Basics-Tagging) for more information about Github tags
+
+**Instructions:**
+
+1. Once there are important features that need to be added so it’s applied to the production data, we will need to create a new tag and release
+1. [Create a new tag and release on the repo](https://github.com/Sage-Bionetworks/recover/releases) through here on the `main` branch. This will auto-create the new tag that you specify and release notes. Also include any known bugs for each release here.
+1. Wait for the CI/CD (specifically the [upload-and-deploy-to-prod-main](https://github.com/Sage-Bionetworks/recover/blob/main/.github/workflows/upload-and-deploy-to-prod-main.yaml) GH action which deploys the features to main) to finish successfully
+1. Now your features have been deployed to production, the next production data run on main will include your features!
 
 # Code style
 
