@@ -96,7 +96,7 @@ Once the pull request has been approved and merged, this pulls your commits into
 1. After successful deployment, wait for the staging S3 to JSON workflow to finish
 1. Trigger the staging JSON to Parquet workflow manually to produce the Parquet datasets in the `staging` namespace
 1. Review staging datasets for expected differences and similarities
-1. To complete deployment to the `main` namespace of production, follow [release process](release-process)
+1. To complete deployment to the `main` namespace of production, follow [release process](#release-process)
 
 ## Release process
 
