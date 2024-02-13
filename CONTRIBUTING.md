@@ -9,6 +9,8 @@ By contributing, you are agreeing that we may redistribute your work under this 
    * [Developing and testing locally](#developing-and-testing-locally)
    * [Testing remotely](#testing-remotely)
    * [Code review](#code-review)
+   * [Post review](#post-review)
+   * [Release process](#release-process)
 - [Code style](#code-style)
 
 # Getting started as a developer
@@ -82,21 +84,21 @@ Once integration testing is complete,  submit a pull request against the `main` 
 
 Before and/or after code review, clean up your commit history. If the `main` branch has changed since you last pushed your branch, [rebase](https://git-scm.com/docs/git-rebase) on main. If you have multiple commits, make sure that each commit is focused on delivering one complete feature. If you need to consolidate commits, consider doing an interactive rebase or a [`git merge --squash`](https://git-scm.com/docs/git-merge#Documentation/git-merge.txt---squash) if you are more comfortable with that method.
 
-### Post review
+## Post review
 
 **Overview:**
 Once the pull request has been approved and merged, this pulls your commits into the `main` branch. It does not yet deploy your changes to the `main` production pipeline. RECOVER data has FISMA restrictions, but only our production account is FISMA compliant. Since there is no guarantee that the test data provided to us (which doesn't have FISMA restrictions) perfectly models the production dataset, we maintain a `staging` namespace in the production account which enables us to test changes on production data before pulling those changes into the `main` namespace. There is a diagram of this process [here](https://sagebionetworks.jira.com/wiki/spaces/IBC/pages/2863202319/ETL-390+RECOVER+Integration+Testing#Implementation).
 
 **Instructions:**
 
-1. After pull request approval, [squash and merge your pull request)](https://sagebionetworks.jira.com/wiki/spaces/IBC/pages/2741797027/GitHub+Git#Merging-a-Pull-Request) into `main`.  Merging into `main` will deploy the changes to the `staging` namespace.
-1. Wait for changes to deploy to the `staging` namespace in the recover production account
+1. After pull request approval, [squash and merge your pull request](https://sagebionetworks.jira.com/wiki/spaces/IBC/pages/2741797027/GitHub+Git#Merging-a-Pull-Request) into `main`.  Merging into `main` will deploy the changes to the `staging` namespace.
+1. Wait for changes to deploy to the `staging` namespace in the production account
 1. After successful deployment, wait for the staging S3 to JSON workflow to finish
 1. Trigger the staging JSON to Parquet workflow manually to produce the Parquet datasets in the `staging` namespace
 1. Review staging datasets for expected differences and similarities
 1. To complete deployment to the `main` namespace of production, follow [release process](release-process)
 
-### Release process
+## Release process
 
 To complete deployment to the `main` namespace of production, we push a new tag with a specific format to this repository, which will trigger [this GitHub action](.github/workflows/upload-and-deploy-to-prod-main.yaml).
 
