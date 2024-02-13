@@ -84,9 +84,21 @@ Before and/or after code review, clean up your commit history. If the `main` bra
 
 ### Post review
 
-Once the pull request has been approved, we expect _you_ to merge. Although this pulls your commits into the `main` branch, it does not yet deploy your changes to the `main` production pipeline. RECOVER data has FISMA restrictions, but only our production account is FISMA compliant. Since there is no guarantee that the test data provided to us (which doesn't have FISMA restrictions) perfectly models the production dataset, we maintain a `staging` namespace in the production account which enables us to test changes on production data before pulling those changes into the `main` namespace. Merging into `main` will deploy the changes to the `staging` namespace. To complete deployment to the `main` namespace of production, we push a new tag with a specific format to this repository, which will trigger [this GitHub action](.github/workflows/upload-and-deploy-to-prod-main.yaml). There is a diagram of this process [here](https://sagebionetworks.jira.com/wiki/spaces/IBC/pages/2863202319/ETL-390+RECOVER+Integration+Testing#Implementation). See [release process](#release-process) for more details on this.
+**Overview:**
+Once the pull request has been approved and merged, this pulls your commits into the `main` branch. It does not yet deploy your changes to the `main` production pipeline. RECOVER data has FISMA restrictions, but only our production account is FISMA compliant. Since there is no guarantee that the test data provided to us (which doesn't have FISMA restrictions) perfectly models the production dataset, we maintain a `staging` namespace in the production account which enables us to test changes on production data before pulling those changes into the `main` namespace. There is a diagram of this process [here](https://sagebionetworks.jira.com/wiki/spaces/IBC/pages/2863202319/ETL-390+RECOVER+Integration+Testing#Implementation).
+
+**Instructions:**
+
+1. After pull request approval, [squash and merge your pull request)](https://sagebionetworks.jira.com/wiki/spaces/IBC/pages/2741797027/GitHub+Git#Merging-a-Pull-Request) into `main`.  Merging into `main` will deploy the changes to the `staging` namespace.
+1. Wait for changes to deploy to the `staging` namespace in the recover production account
+1. After successful deployment, wait for the staging S3 to JSON workflow to finish
+1. Trigger the staging JSON to Parquet workflow manually to produce the Parquet datasets in the `staging` namespace
+1. Review staging datasets for expected differences and similarities
+1. To complete deployment to the `main` namespace of production, follow [release process](release-process)
 
 ### Release process
+
+To complete deployment to the `main` namespace of production, we push a new tag with a specific format to this repository, which will trigger [this GitHub action](.github/workflows/upload-and-deploy-to-prod-main.yaml).
 
 This package uses [semantic versioning](https://semver.org/) for releasing new versions.
 
@@ -97,9 +109,10 @@ This package uses [semantic versioning](https://semver.org/) for releasing new v
 
 **Instructions:**
 
-1. Once there are important features that need to be added so it’s applied to the production data, we will need to create a new tag and release
-1. [Create a new tag and release on the repo](https://github.com/Sage-Bionetworks/recover/releases) through here on the `main` branch. This will auto-create the new tag that you specify and release notes. Also include any known bugs for each release here.
-1. Wait for the CI/CD (specifically the [upload-and-deploy-to-prod-main](https://github.com/Sage-Bionetworks/recover/blob/main/.github/workflows/upload-and-deploy-to-prod-main.yaml) GH action which deploys the features to main) to finish successfully
+1. Once there are important features that need to be added we will need to create a new tag and release. Once released it will be applied to production data.
+1. [Draft a new release for the repo here](https://github.com/Sage-Bionetworks/recover/releases), specify the `main` branch as the target, and choose a tag name. You can specify a tag name that doesn't exist to invoke the github auto tag create feature.
+1. Click `Generate release notes`, review the content and be sure to include any known bugs for the release.
+1. Wait for the CI/CD (specifically the [upload-and-deploy-to-prod-main](https://github.com/Sage-Bionetworks/recover/blob/main/.github/workflows/upload-and-deploy-to-prod-main.yaml) GH action which deploys the features to main) to finish successfully.
 1. Now your features have been deployed to production, the next production data run on main will include your features!
 
 # Code style
