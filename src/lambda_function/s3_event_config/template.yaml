@@ -19,6 +19,7 @@ Parameters:
     Type: String
     Description: The S3 Event Config Destination Type
     AllowedValues:
+      - "Topic"
       - "Queue"
       - "LambdaFunction"
 

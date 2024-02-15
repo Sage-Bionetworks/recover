@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Creates a Standard SNS queue which can be used with S3 event notifications.
+
+Parameters:
+
+  S3SourceBucketArn:
+    Type: String
+    Description: Arn of the S3 bucket where source data are stored.
+
+Resources:
+
+  SnsTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      TopicName: !Sub "${AWS::StackName}-Topic"
+      FifoTopic: false
+
+  SnsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Input S3 bucket event notification to SNS
+            Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+              AWS: !Sub '${AWS::AccountId}'
+            Action:
+            - sns:Publish
+            Resource: !Ref SnsTopic
+              #Condition:
+              #ArnLike:
+              #  "aws:SourceArn": !Ref S3SourceBucketArn
+      Topics:
+        - !Ref SnsTopic
+
+Outputs:
+
+  SnsTopicArn:
+    Value: !Ref SnsTopic
+    Export:
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-SnsTopicArn"
