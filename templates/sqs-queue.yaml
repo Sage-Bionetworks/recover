@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: >
-  Creates an SQS queue that gets S3 notifications
+  Creates an SQS queue which subscribes to an SNS topic
 
 Parameters:
 
@@ -22,9 +22,9 @@ Parameters:
       How long our lambda has to submit the messages to Glue and
       delete the message from the SQS queue
 
-  S3SourceBucketArn:
+  SNSTopicSubscription:
     Type: String
-    Description: Arn of the S3 bucket where source data are stored.
+    Description: Arn of the SNS topic where S3 event notifications are published.
 
 Resources:
 
@@ -49,16 +49,23 @@ Resources:
         - Sid: Send_Permission
           Effect: Allow
           Principal:
-            Service: s3.amazonaws.com
+            Service: sns.amazonaws.com
             AWS: !Sub '${AWS::AccountId}'
           Action:
           - SQS:SendMessage
           Resource: !GetAtt PrimaryQueue.Arn
           Condition:
             ArnLike:
-              "aws:SourceArn": !Ref S3SourceBucketArn
+              "aws:SourceArn": !Ref SNSTopicSubscription
       Queues:
       - !Ref PrimaryQueue
+
+  SnsSubscription:
+    Type: "AWS::SNS::Subscription"
+    Properties:
+      Protocol: sqs
+      Endpoint: !GetAtt PrimaryQueue.Arn
+      TopicArn: !Ref SNSTopicSubscription
 
   DeadLetterQueue:
     Type: AWS::SQS::Queue

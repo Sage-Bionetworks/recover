@@ -31,9 +31,9 @@ Resources:
             Action:
             - sns:Publish
             Resource: !Ref SnsTopic
-              #Condition:
-              #ArnLike:
-              #  "aws:SourceArn": !Ref S3SourceBucketArn
+            Condition:
+              ArnLike:
+                "aws:SourceArn": !Ref S3SourceBucketArn
       Topics:
         - !Ref SnsTopic
 
