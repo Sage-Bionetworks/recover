@@ -4,14 +4,14 @@ template:
   artifact_bucket_name: {{ stack_group_config.template_bucket_name }}
   artifact_prefix: '{{ stack_group_config.namespace }}/src/lambda'
 dependencies:
-  - develop/namespaced/s3-event-config-lambda-role.yaml
-  - develop/namespaced/s3-to-glue-lambda.yaml
-  - develop/namespaced/sqs-input-to-intermediate.yaml
+  - develop/namespaced/lambda-s3-event-config-role.yaml
+  - develop/s3-cloudformation-bucket.yaml
+  - develop/namespaced/sns-topic.yaml
 stack_name: '{{ stack_group_config.namespace }}-lambda-S3EventConfig'
 stack_tags: {{ stack_group_config.default_stack_tags }}
 parameters:
   Namespace: {{ stack_group_config.namespace }}
-  S3ToGlueDestinationArn: !stack_output_external "{{ stack_group_config.namespace }}-sqs-input-to-intermediate::PrimaryQueueArn"
-  S3ToGlueDestinationType: "Queue"
-  S3EventConfigRoleArn: !stack_output_external "{{ stack_group_config.namespace }}-s3-event-config-lambda-role::RoleArn"
+  S3ToGlueDestinationArn: !stack_output_external "{{ stack_group_config.namespace }}-sns-input-to-sqs::SnsTopicArn"
+  S3ToGlueDestinationType: "Topic"
+  S3EventConfigRoleArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-s3-event-config-role::RoleArn"
   S3SourceBucketName: {{ stack_group_config.input_bucket_name }}

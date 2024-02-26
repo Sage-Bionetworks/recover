@@ -1,6 +1,6 @@
 from unittest import mock
 import boto3
-from moto import mock_s3, mock_lambda, mock_iam, mock_sqs
+from moto import mock_s3, mock_lambda, mock_iam, mock_sqs, mock_sns
 import pytest
 
 from src.lambda_function.s3_event_config import app
@@ -28,6 +28,13 @@ def mock_lambda_function(mock_iam_role):
             Description="string",
         )
         yield client.get_function(FunctionName="some_function")
+
+@pytest.fixture
+def mock_sns_topic_arn():
+    with mock_sns():
+        client = boto3.client("sns")
+        topic = client.create_topic(Name="some_topic")
+        yield topic["TopicArn"]
 
 
 @pytest.fixture(scope="function")
@@ -65,6 +72,30 @@ def test_add_notification_adds_expected_settings_for_lambda(s3, mock_lambda_func
         "s3:ObjectCreated:*"
     ]
     assert get_config["LambdaFunctionConfigurations"][0]["Filter"] == {
+        "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
+    }
+
+@mock_s3
+def test_add_notification_adds_expected_settings_for_sns(s3, mock_sns_topic_arn):
+    s3.create_bucket(Bucket="some_bucket")
+    with mock.patch.object(
+        s3,
+        "get_bucket_notification_configuration",
+        return_value={},
+    ):
+        app.add_notification(
+            s3,
+            "Topic",
+            mock_sns_topic_arn,
+            "some_bucket",
+            "test_folder",
+        )
+    get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
+    assert get_config["TopicConfigurations"][0]["TopicArn"] == mock_sns_topic_arn
+    assert get_config["TopicConfigurations"][0]["Events"] == [
+        "s3:ObjectCreated:*"
+    ]
+    assert get_config["TopicConfigurations"][0]["Filter"] == {
         "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
     }
 

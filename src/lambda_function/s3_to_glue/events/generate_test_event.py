@@ -1,6 +1,6 @@
 """
-This is a utility script that generates a fake S3 event notification and writes
-it out as JSON. This test event can be used to test the Lambda which
+This is a utility script that generates a fake S3 -> SNS -> SQS event
+and writes it out as JSON. This test event can be used to test the Lambda which
 triggers the Glue pipeline.
 
 Two types of events can be generated:
@@ -59,7 +59,11 @@ def read_args() -> argparse.Namespace:
 
 def create_event(bucket: str, key: str, key_prefix: str, key_file: str) -> dict:
     """
-    Create an SQS event wrapping S3 event notification(s) for testing.
+    Create an SQS event wrapping a SNS notification of an S3 event notification(s)
+    for testing.
+
+    Each SNS notification will contain a single S3 event, and each SQS event
+    will contain a single SNS notification.
 
     This function accepts either an S3 object key or an S3 key prefix that will
     be included in the test event. If an S3 object key is provided, then the test
@@ -97,8 +101,11 @@ def create_event(bucket: str, key: str, key_prefix: str, key_file: str) -> dict:
     s3_events = [
             create_s3_event_record(bucket=bucket, key=k) for k in test_data
     ]
+    sns_notifications = [
+            create_sns_notification(s3_event) for s3_event in s3_events
+    ]
     sqs_messages = [
-            create_sqs_message(s3_event) for s3_event in s3_events
+            create_sqs_message(sns_notification) for sns_notification in sns_notifications
     ]
     sqs_event = {"Records": sqs_messages}
     return sqs_event
@@ -153,15 +160,15 @@ def create_s3_event_record(bucket: str, key: str) -> dict:
     s3_event_record["s3"]["object"]["key"] = key
     return s3_event_record
 
-def create_sqs_message(s3_event_record: dict) -> dict:
+def create_sqs_message(sns_notification: dict) -> dict:
     """
-    Create an SQS message wrapper for an individual S3 event notification.
+    Create an SQS message wrapper around an individual SNS notification.
 
-    See `create_s3_event_record` for creating S3 event notifications.
+    See `create_sns_notification` for creating S3 event notifications.
 
     Args:
-        s3_event_record (dict): A dictionary formatted as a "Record"
-            object would be in an S3 event notification
+        sns_notification (dict): A dictionary formatted as an SNS
+            notification JSON object would be.
 
     Returns:
         dict: A dictionary formatted as an SQS message
@@ -183,8 +190,32 @@ def create_sqs_message(s3_event_record: dict) -> dict:
       "eventSourceARN": "arn:aws:sqs:us-east-1:914833433684:mynamespace-sqs-S3ToLambda-Queue",
       "awsRegion": "us-east-1"
     }
-    sqs_event_record["body"] = json.dumps({"Records": [s3_event_record]})
+    sqs_event_record["body"] = json.dumps(sns_notification)
     return sqs_event_record
+
+def create_sns_notification(s3_event_record):
+    """
+    Create an SNS message wrapper for an individual S3 event notification.
+
+    See `create_s3_event_record` for creating S3 event notifications.
+
+    Args:
+        s3_event_record (dict): A dictionary formatted as a "Record"
+            object would be in an S3 event notification
+
+    Returns:
+        dict: A dictionary formatted as an SQS message
+    """
+    sns_notification = {
+            "Type": "string",
+            "MessageId": "string",
+            "TopicArn": "string",
+            "Subject": "string",
+            "Message": "string",
+            "Timestamp": "string"
+    }
+    sns_notification["Message"] = json.dumps({"Records": [s3_event_record]})
+    return sns_notification
 
 def main() -> None:
     args = read_args()

@@ -29,30 +29,16 @@ class TestS3ToGlueLambda:
             yield response
 
     @pytest.fixture
-    def no_s3_event_records(self):
-        sqs_msg = {
-            "Records": [
-                {
-                    "MessageId": "string",
-                    "receiptHandle": "string",
-                    "MD5OfBody": "string",
-                    "Body": "string",
-                    "Attributes": {
-                        "string": "string",
-                    },
-                    "MD5OfMessageAttributes": "string",
-                    "MessageAttributes": {
-                        "string": {
-                            "DataType": "string",
-                            "StringValue": "string",
-                            "BinaryValue": "string",
-                        },
-                    },
-                }
-            ]
+    def sns_message(self):
+        sns_message_wrapper = {
+                "Type": "string",
+                "MessageId": "string",
+                "TopicArn": "string",
+                "Subject": "string",
+                "Message": "string",
+                "Timestamp": "string"
         }
-        sqs_msg["Records"][0]["body"] = json.dumps({"Records": []})
-        yield sqs_msg
+        return sns_message_wrapper
 
     @pytest.fixture
     def s3_test_event(self):
@@ -99,7 +85,7 @@ class TestS3ToGlueLambda:
         return s3_event
 
     @pytest.fixture
-    def sqs_message(self, s3_event, s3_test_event):
+    def sqs_message(self):
         sqs_msg = {
             "Records": [
                 {
@@ -118,30 +104,9 @@ class TestS3ToGlueLambda:
                             "BinaryValue": "string",
                         }
                     },
-                },
-                {
-                    "MessageId": "string",
-                    "receiptHandle": "string",
-                    "MD5OfBody": "string",
-                    "body": "string",
-                    "Attributes": {
-                        "string": "string",
-                    },
-                    "MD5OfMessageAttributes": "string",
-                    "MessageAttributes": {
-                        "string": {
-                            "DataType": "string",
-                            "StringValue": "string",
-                            "BinaryValue": "string",
-                        }
-                    },
                 }
-            ],
+            ]
         }
-        sqs_msg["Records"][0]["body"] = json.dumps(
-            {"Records": [s3_event]}
-        )
-        sqs_msg["Records"][1]["body"] = json.dumps(s3_test_event)
         yield sqs_msg
 
     @pytest.fixture
@@ -155,7 +120,7 @@ class TestS3ToGlueLambda:
         return object_info
 
     @pytest.fixture
-    def set_env_var(self, monkeypatch, sqs_queue):
+    def set_env_var(self, monkeypatch):
         monkeypatch.setenv("S3_TO_JSON_WORKFLOW_NAME", "test_workflow")
 
     def test_submit_s3_to_json_workflow(self, object_info, monkeypatch):
@@ -165,8 +130,10 @@ class TestS3ToGlueLambda:
         )
 
     def test_that_lambda_handler_does_not_call_submit_s3_to_json_workflow_if_no_s3_records(
-        self, no_s3_event_records, sqs_queue, set_env_var
+        self, sqs_queue, set_env_var, sqs_message, sns_message
     ):
+        sns_message["Message"] = json.dumps({"Records": []})
+        sqs_message["Records"][0]["body"] = json.dumps(sns_message)
         with mock_sqs():
             with mock.patch.object(boto3, "client") as patch_client, mock.patch.object(
                 app, "submit_s3_to_json_workflow"
@@ -174,15 +141,15 @@ class TestS3ToGlueLambda:
                 patch_client.return_value.get_queue_url.return_value = sqs_queue[
                     "QueueUrl"
                 ]
-                patch_client.return_value.receive_message.return_value = (
-                    no_s3_event_records
-                )
-                app.lambda_handler(event=no_s3_event_records, context=None)
+                patch_client.return_value.receive_message.return_value = sqs_message
+                app.lambda_handler(event=sqs_message, context=None)
                 patch_submit.assert_not_called()
 
     def test_that_lambda_handler_calls_submit_s3_to_json_workflow_if_queue_has_message(
-        self, sqs_message, object_info, sqs_queue, set_env_var
+        self, sqs_message, object_info, sqs_queue, set_env_var, sns_message, s3_event
     ):
+        sns_message["Message"] = json.dumps({"Records": [s3_event]})
+        sqs_message["Records"][0]["body"] = json.dumps(sns_message)
         with mock_sqs():
             with mock.patch.object(boto3, "client") as patch_client, mock.patch.object(
                 app, "submit_s3_to_json_workflow"

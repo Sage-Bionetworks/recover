@@ -110,7 +110,7 @@ def get_object_info(s3_event) -> dict:
     }
     return object_info
 
-def lambda_handler(event, context) -> dict:
+def lambda_handler(event, context) -> None:
     """
     This main lambda function will be triggered by a SQS event and will
     poll the SQS queue for all available S3 event messages. If the
@@ -125,19 +125,20 @@ def lambda_handler(event, context) -> dict:
             Unused by this lambda function.
     """
     s3_objects_info = []
-    for record in event["Records"]:
-        s3_event_records = json.loads(record["body"])
-        if is_s3_test_event(s3_event_records):
+    for sqs_record in event["Records"]:
+        sns_notification = json.loads(sqs_record["body"])
+        sns_message = json.loads(sns_notification["Message"])
+        if is_s3_test_event(sns_message):
             logger.info(f"Found AWS default s3:TestEvent. Skipping.")
-        else:
-            for s3_event in s3_event_records["Records"]:
-                object_info = get_object_info(s3_event)
-                if filter_object_info(object_info) is not None:
-                    s3_objects_info.append(object_info)
-                else:
-                    logger.info(
-                        f"Object doesn't meet the S3 event rules to be processed. Skipping."
-                    )
+            return
+        for s3_event in sns_message["Records"]:
+            object_info = get_object_info(s3_event)
+            if filter_object_info(object_info) is not None:
+                s3_objects_info.append(object_info)
+            else:
+                logger.info(
+                    f"Object doesn't meet the S3 event rules to be processed. Skipping."
+                )
     if len(s3_objects_info) > 0:
         logger.info(
             "Submitting the following files to "

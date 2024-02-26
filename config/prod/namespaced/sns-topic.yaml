@@ -1,0 +1,9 @@
+template:
+  path: sns-topic.yaml
+parameters:
+  S3SourceBucketArn: !stack_output_external recover-input-bucket::BucketArn
+dependencies:
+  - prod/s3-input-bucket.yaml
+stack_name: "{{ stack_group_config.namespace }}-sns-input-to-sqs"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}

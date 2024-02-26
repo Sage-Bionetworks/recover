@@ -1,6 +1,6 @@
 template:
-  path: s3-event-config-lambda-role.yaml
-stack_name: "{{ stack_group_config.namespace }}-s3-event-config-lambda-role"
+  path: lambda-s3-event-config-role.yaml
+stack_name: "{{ stack_group_config.namespace }}-lambda-s3-event-config-role"
 parameters:
   S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
 stack_tags:
