@@ -71,11 +71,11 @@ class NotificationConfiguration:
         """
         Assign the ARN of this notification configuration to the `arn` property.
         """
-        if self.type == "Topic":
+        if self.type == NotificationConfigurationType.Topic.value:
             arn = self.value["TopicArn"]
-        elif self.type == "Queue":
+        elif self.type == NotificationConfigurationType.Queue.value:
             arn = self.value["QueueArn"]
-        elif self.type == "LambdaFunction":
+        elif self.type == NotificationConfigurationType.LambdaFunction.value:
             arn = self.value["LambdaFunctionArn"]
         else:
             raise ValueError(f"{self.type} is not a recognized notification configuration type.")
@@ -139,7 +139,7 @@ def get_notification_configuration(
     bucket_notification_configurations: BucketNotificationConfigurations,
     bucket_key_prefix: typing.Union[str,None]=None,
     bucket_key_suffix: typing.Union[str,None]=None,
-    ) -> typing.Union[NotificationConfiguration, None]:
+    ) -> typing.Union[NotificationConfiguration,None]:
     """
     Filter the list of existing notifications based on the unique S3 key prefix and suffix.
 
@@ -158,16 +158,16 @@ def get_notification_configuration(
         filter_rules = notification_configuration.value["Filter"]["Key"]["FilterRules"]
         rule_names = {rule["Name"] for rule in filter_rules}
         common_prefix_path, common_suffix_path = (False, False)
-        if "prefix" not in rule_names and bucket_key_prefix is None:
+        if "Prefix" not in rule_names and bucket_key_prefix is None:
             common_prefix_path = True
-        if "suffix" not in rule_names and bucket_key_suffix is None:
+        if "Suffix" not in rule_names and bucket_key_suffix is None:
             common_suffix_path = True
         for filter_rule in filter_rules:
-            if filter_rule["Name"] == "prefix" and bucket_key_prefix is not None:
+            if filter_rule["Name"] == "Prefix" and bucket_key_prefix is not None:
                 common_prefix_path = bool(
                         os.path.commonpath([filter_rule["Value"], bucket_key_prefix])
                 )
-            elif filter_rule["Name"] == "suffix" and bucket_key_suffix is not None:
+            elif filter_rule["Name"] == "Suffix" and bucket_key_suffix is not None:
                 common_suffix_path = bool(
                         os.path.commonpath([filter_rule["Value"], bucket_key_suffix])
                 )
@@ -191,6 +191,30 @@ def create_formatted_message(
     """
     return f"Bucket: {bucket}, DestinationType: {destination_type}, DestinationArn: {destination_arn}"
 
+def normalize_filter_rules(config: NotificationConfiguration):
+    """
+    Modify the filter rules of a notification configuration so that it is get/put agnostic.
+
+    There is a bug in moto/AWS where moto only allows filter rules with lowercase
+    `Name` values in put_bucket_notification_configuration calls. So to normalize
+    our notification configurations when comparing configurations obtained via a
+    GET with configurations to be utilized in a PUT (as we do in the function
+    `notification_configuration_matches`), we make the `Name` values lower case in
+    every filter rule.
+
+    Args:
+        config (NotificationConfiguration): A notification configuration to normalize
+
+    Returns:
+         NotificationConfiguration: The normalized notification configuration
+    """
+    filter_rules = config.value["Filter"]["Key"]["FilterRules"]
+    new_filter_rules = []
+    for rule in filter_rules:
+        rule["Name"] = rule["Name"].lower()
+        new_filter_rules.append(rule)
+    config.value["Filter"]["Key"]["FilterRules"] = new_filter_rules
+    return config
 
 def notification_configuration_matches(
     config: NotificationConfiguration,
@@ -198,7 +222,7 @@ def notification_configuration_matches(
     ) -> bool:
     """Determines if two S3 event notification configurations are functionally equivalent.
 
-    Two notifiction configurations are considered equivalent if:
+    Two notification configurations are considered equivalent if:
     1. They have the same filter rules
     2. They have the same destination (ARN)
     3. They are triggered by the same events
@@ -210,6 +234,8 @@ def notification_configuration_matches(
     Returns:
         bool: Whether the Events, ARN, and filter rules match.
     """
+    config = normalize_filter_rules(config)
+    other_config = normalize_filter_rules(other_config)
     arn_match = other_config.arn == config.arn
     events_match = (
             set(other_config.value["Events"]) ==
@@ -260,7 +286,7 @@ def add_notification(
     If the notification configuration already exists, and is functionally equivalent,
     then no action is taken. If the notification configuration already exists, but is not
     functionally equivalent (see function `notification_configuration_matches`), then a
-    RuntimeError is raised. In this case, the notifiction configuration must be deleted
+    RuntimeError is raised. In this case, the notification configuration must be deleted
     before being added.
 
     Args:
@@ -310,7 +336,7 @@ def add_notification(
             )
             return
         raise RuntimeError(
-            "There already exists an event configuration on S3 bucket {bucket} for "
+            f"There already exists an event configuration on S3 bucket {bucket} for "
             f"the key prefix {bucket_key_prefix} which differs from the event "
             "configuration which we wish to add."
         )

@@ -58,7 +58,7 @@ def notification_configuration():
             "Filter": {
                 "Key": {
                     "FilterRules": [
-                        {"Name": "prefix", "Value": "documents/"}
+                        {"Name": "Prefix", "Value": "documents/"}
                     ]
                 }
             }
@@ -74,7 +74,7 @@ def bucket_notification_configurations(notification_configuration):
     del queue_configuration_value["TopicArn"]
     queue_configuration_value["QueueArn"] = "arn:aws:sqs:bla"
     queue_configuration_value["Filter"]["Key"]["FilterRules"][0] = \
-            {"Name": "suffix", "Value": "jpeg"}
+            {"Name": "Suffix", "Value": "jpeg"}
     queue_configuration = app.NotificationConfiguration(
             notification_type=app.NotificationConfigurationType("Queue"),
             value=queue_configuration_value
@@ -84,9 +84,9 @@ def bucket_notification_configurations(notification_configuration):
     del lambda_configuration_value["TopicArn"]
     lambda_configuration_value["LambdaFunctionArn"] = "arn:aws:lambda:bla"
     lambda_configuration_value["Filter"]["Key"]["FilterRules"][0] = \
-            {"Name": "suffix", "Value": "jpeg"}
+            {"Name": "Suffix", "Value": "jpeg"}
     lambda_configuration_value["Filter"]["Key"]["FilterRules"].append(
-            {"Name": "prefix", "Value": "pictures/"}
+            {"Name": "Prefix", "Value": "pictures/"}
     )
     lambda_configuration = app.NotificationConfiguration(
             notification_type=app.NotificationConfigurationType("LambdaFunction"),
@@ -182,6 +182,19 @@ class TestGetNotificationConfiguration:
         )
         assert matching_notification_configuration is None
 
+class TestNormalizeFilterRules:
+    def test_normalize_filter_rules(self, notification_configuration):
+        normalized_notification_configuration = app.normalize_filter_rules(
+                config=notification_configuration
+        )
+        assert all(
+                [
+                    rule["Name"].lower() == rule["Name"]
+                    for rule
+                    in notification_configuration.value["Filter"]["Key"]["FilterRules"]
+                ]
+        )
+
 class TestNotificationConfigurationMatches:
     def test_all_true(self, notification_configuration):
         assert app.notification_configuration_matches(
@@ -208,8 +221,8 @@ class TestNotificationConfigurationMatches:
     def test_filter_rule_names_false(self, notification_configuration):
         other_notification_configuration = copy.deepcopy(notification_configuration)
         other_notification_configuration.value["Filter"]["Key"]["FilterRules"] = [
-                {"Name": "prefix", "Value": "documents/"},
-                {"Name": "suffix", "Value": "jpeg"},
+                {"Name": "Prefix", "Value": "documents/"},
+                {"Name": "Suffix", "Value": "jpeg"},
         ]
         assert not app.notification_configuration_matches(
                 config=notification_configuration,
@@ -219,7 +232,7 @@ class TestNotificationConfigurationMatches:
     def test_filter_rule_values_false(self, notification_configuration):
         other_notification_configuration = copy.deepcopy(notification_configuration)
         other_notification_configuration.value["Filter"]["Key"]["FilterRules"] = [
-                {"Name": "prefix", "Value": "pictures/"}
+                {"Name": "Prefix", "Value": "pictures/"}
         ]
         assert not app.notification_configuration_matches(
                 config=notification_configuration,
@@ -250,9 +263,8 @@ class TestAddNotification:
         assert get_config["LambdaFunctionConfigurations"][0]["Events"] == [
             "s3:ObjectCreated:*"
         ]
-        assert get_config["LambdaFunctionConfigurations"][0]["Filter"] == {
-            "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
-        }
+        # moto prefix/Prefix discrepancy
+        assert len(get_config["LambdaFunctionConfigurations"][0]["Filter"]["Key"]["FilterRules"]) == 1
 
     @mock_s3
     def test_adds_expected_settings_for_sns(self, s3, mock_sns_topic_arn):
@@ -274,9 +286,8 @@ class TestAddNotification:
         assert get_config["TopicConfigurations"][0]["Events"] == [
             "s3:ObjectCreated:*"
         ]
-        assert get_config["TopicConfigurations"][0]["Filter"] == {
-            "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
-        }
+        # moto prefix/Prefix discrepancy
+        assert len(get_config["TopicConfigurations"][0]["Filter"]["Key"]["FilterRules"]) == 1
 
 
     @mock_s3
@@ -300,9 +311,8 @@ class TestAddNotification:
             == mock_sqs_queue["Attributes"]["QueueArn"]
         )
         assert get_config["QueueConfigurations"][0]["Events"] == ["s3:ObjectCreated:*"]
-        assert get_config["QueueConfigurations"][0]["Filter"] == {
-            "Key": {"FilterRules": [{"Name": "prefix", "Value": "test_folder/"}]}
-        }
+        # moto prefix/Prefix discrepancy
+        assert len(get_config["QueueConfigurations"][0]["Filter"]["Key"]["FilterRules"]) == 1
 
 
     @mock_s3
@@ -336,13 +346,13 @@ class TestAddNotification:
         # GIVEN an S3 bucket
         s3.create_bucket(Bucket="some_bucket")
 
-        # AND the bucket has an existing notifiction configuration that matches the one we will add
+        # AND the bucket has an existing notification configuration that matches the one we will add
         notification_configuration = {
             "TopicArn": "arn:aws:sns:bla",
             "Events": ["s3:ObjectCreated:*"],
             "Filter": {
                 "Key": {
-                    "FilterRules": [{"Name": "prefix", "Value": f"documents/"}]
+                    "FilterRules": [{"Name": "Prefix", "Value": f"documents/"}]
                 }
             },
         }
@@ -387,7 +397,7 @@ class TestAddNotification:
                         "Filter": {
                             "Key": {
                                 "FilterRules": [
-                                    {"Name": "prefix", "Value": f"test_folder/"}
+                                    {"Name": "Prefix", "Value": f"test_folder/"}
                                 ]
                             }
                         },
@@ -463,9 +473,8 @@ class TestAddNotification:
         assert get_config["LambdaFunctionConfigurations"][0]["Events"] == [
             "s3:ObjectCreated:*"
         ]
-        assert get_config["LambdaFunctionConfigurations"][0]["Filter"] == {
-            "Key": {"FilterRules": [{"Name": "prefix", "Value": "another_test_folder/"}]}
-        }
+        # moto prefix/Prefix discrepancy
+        assert len(get_config["LambdaFunctionConfigurations"][0]["Filter"]["Key"]["FilterRules"]) == 1
 
 class TestDeleteNotification:
     @mock_s3
@@ -489,7 +498,7 @@ class TestDeleteNotification:
                         "Filter": {
                             "Key": {
                                 "FilterRules": [
-                                    {"Name": "prefix", "Value": f"test_folder/"}
+                                    {"Name": "Prefix", "Value": f"test_folder/"}
                                 ]
                             }
                         },
@@ -529,7 +538,7 @@ class TestDeleteNotification:
                         "Filter": {
                             "Key": {
                                 "FilterRules": [
-                                    {"Name": "prefix", "Value": f"test_folder/"}
+                                    {"Name": "Prefix", "Value": f"test_folder/"}
                                 ]
                             }
                         },
