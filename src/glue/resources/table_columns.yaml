@@ -330,6 +330,10 @@ tables:
         Type: string
       - Name: FirmwareVersion
         Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
     partition_keys:
       - Name: cohort
         Type: string
