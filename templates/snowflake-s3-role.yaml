@@ -17,11 +17,11 @@ Parameters:
     Description: Name of the S3 Parquet bucket
 
   AWSAccountId:
-    Type: String
+    Type: Number
     Description: The Snowflake AWS Account ID
 
   ExternalId:
-    Type: String
+    Type: Number
     Description: The External ID
 
 Resources:
