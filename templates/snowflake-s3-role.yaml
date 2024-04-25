@@ -34,11 +34,11 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: "arn:aws:iam::${AWSAccountId}:root"  # Replace EXTERNAL_ACCOUNT_ID with the account number of the trusted account
+              AWS: !Sub "arn:aws:iam::${AWSAccountId}:root"  # Replace EXTERNAL_ACCOUNT_ID with the account number of the trusted account
             Action: "sts:AssumeRole"
             Condition:
               StringEquals:
-                sts:ExternalId: ${ExternalId}  # Replace UNIQUE_EXTERNAL_ID with your provided external ID
+                sts:ExternalId: !Ref ExternalId  # Replace UNIQUE_EXTERNAL_ID with your provided external ID
 
       Policies:
       - PolicyName: snowflake-s3-iam-policy
