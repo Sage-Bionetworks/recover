@@ -21,7 +21,7 @@ Parameters:
     Description: The Snowflake AWS Account ID
 
   ExternalId:
-    Type: Number
+    Type: String
     Description: The External ID
 
 Resources:
