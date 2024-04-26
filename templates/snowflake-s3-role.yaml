@@ -34,11 +34,11 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${AWSAccountId}:root"  # Replace EXTERNAL_ACCOUNT_ID with the account number of the trusted account
+              AWS: !Ref AWSAccountId
             Action: "sts:AssumeRole"
             Condition:
               StringEquals:
-                sts:ExternalId: !Ref ExternalId  # Replace UNIQUE_EXTERNAL_ID with your provided external ID
+                sts:ExternalId: !Ref ExternalId
 
       Policies:
       - PolicyName: snowflake-s3-iam-policy
@@ -61,10 +61,7 @@ Resources:
             - !Sub arn:aws:s3:::${S3SourceBucketName}
             - !Sub arn:aws:s3:::${S3IntermediateBucketName}
             - !Sub arn:aws:s3:::${S3ParquetBucketName}
-            Condition:
-              StringLike:
-                s3:prefix:
-                - "*"
+
 Outputs:
 
   RoleName:
