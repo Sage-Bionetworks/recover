@@ -121,6 +121,10 @@ def create_table(
     )
     return table
 
+@pytest.fixture()
+def flat_data_type(glue_flat_table_name):
+    flat_data_type = glue_flat_table_name.split("_")[1]
+    return flat_data_type
 
 @pytest.fixture()
 def sample_table(
@@ -654,29 +658,29 @@ class TestJsonS3ToParquet:
             ["partition_" in field.name for field in nested_table.schema().fields]
         )
 
-    def test_drop_table_duplicates(self, sample_table, glue_context, logger_context):
+    def test_drop_table_duplicates(
+            self, sample_table, flat_data_type, glue_context, logger_context
+    ):
         table_no_duplicates = json_to_parquet.drop_table_duplicates(
             table=sample_table,
-            table_name=sample_table.name,
-            glue_context=glue_context,
+            data_type=flat_data_type,
             record_counts=defaultdict(list),
             logger_context=logger_context,
         )
-        table_no_duplicates_df = table_no_duplicates.toDF().toPandas()
+        table_no_duplicates_df = table_no_duplicates.toPandas()
         assert len(table_no_duplicates_df) == 3
         assert "Chicago" in set(table_no_duplicates_df.city)
 
     def test_drop_table_duplicates_inserted_date(
-        self, sample_table_inserted_date, glue_context, logger_context
+        self, sample_table_inserted_date, flat_data_type, glue_context, logger_context
     ):
         table_no_duplicates = json_to_parquet.drop_table_duplicates(
             table=sample_table_inserted_date,
-            table_name=sample_table_inserted_date.name,
-            glue_context=glue_context,
+            data_type=flat_data_type,
             record_counts=defaultdict(list),
             logger_context=logger_context,
         )
-        table_no_duplicates_df = table_no_duplicates.toDF().toPandas()
+        table_no_duplicates_df = table_no_duplicates.toPandas()
         assert len(table_no_duplicates_df) == 3
         assert set(["John", "Jane", "Bob_2"]) == set(
             table_no_duplicates_df["name"].tolist()
@@ -923,6 +927,7 @@ class TestJsonS3ToParquet:
         self,
         glue_context,
         glue_flat_table_name,
+        flat_data_type,
         glue_database_name,
         logger_context,
     ):
@@ -935,7 +940,9 @@ class TestJsonS3ToParquet:
         )
         table_after_drop = json_to_parquet.drop_deleted_healthkit_data(
             glue_context=glue_context,
-            table=table,
+            table=table.toDF(),
+            table_name=table.name,
+            data_type=flat_data_type,
             glue_database=glue_database_name,
             record_counts=defaultdict(list),
             logger_context=logger_context,
