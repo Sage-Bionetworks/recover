@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  SAM Template for the dispatch Lambda. The dispatch Lambda polls the input-to-dispatch SQS
+  queue and publishes to the dispatch SNS topic. Its purpose is to inspect the each export
+  and dispatch each file as a separate job to be consumed by the dispatch-to-raw Lambda.
+
+Parameters:
+
+  RoleArn:
+    Type: String
+    Description: ARN of the dispatch Lambda role.
+
+  SQSQueueArn:
+    Type: String
+    Description: ARN of the input-to-dispatch SQS queue.
+
+  DispatchSnsArn:
+    Type: String
+    Description: >
+      ARN of the Dispatch SNS Topic.
+
+  LambdaPythonVersion:
+    Type: String
+    Description: Python version to use for this lambda function
+    Default: "3.11"
+
+  LambdaBatchSize:
+    Type: Number
+    Default: 10
+    Description: >-
+      The maximum number of S3 messages in a SQS event that Lambda will process in a batch
+
+  LambdaMaximumBatchingWindowInSeconds:
+    Type: Number
+    Default: 300
+    Description: >-
+      The maximum amount of time in seconds Lambda will batch messages before polling
+      the SQS queue and processing them
+
+Resources:
+  DispatchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Zip
+      CodeUri: ./
+      Handler: app.lambda_handler
+      Runtime: !Sub "python${LambdaPythonVersion}"
+      Role: !Ref RoleArn
+      MemorySize: 256
+      EphemeralStorage:
+        Size: 2048
+      Timeout: 30
+      Environment:
+        Variables:
+          DISPATCH_SNS_ARN: !Ref DispatchSnsArn
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            BatchSize: !Ref LambdaBatchSize
+            MaximumBatchingWindowInSeconds: !Ref LambdaMaximumBatchingWindowInSeconds
+            Queue: !Ref SQSQueueArn
+
+Outputs:
+  DispatchFunctionArn:
+    Description: Arn of the dispatch Lambda.
+    Value: !GetAtt DispatchFunction.Arn
+    Export:
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-DispatchFunctionArn"
