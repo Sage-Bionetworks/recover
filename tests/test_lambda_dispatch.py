@@ -173,5 +173,3 @@ def test_main(event, temp_zip_file, s3_event, archive_path):
                 temp_zip_path=temp_zip_file.name
         )
         mock_publish.assert_called()
-
-

@@ -1,7 +1,7 @@
 # Dispatch Lambda
 
 The dispatch Lambda polls the input-to-dispatch SQS queue and publishes to the dispatch SNS topic.
-Its purpose is to inspect the each export and dispatch each file as a separate job to be consumed
+Its purpose is to inspect an export and dispatch each file as a separate job to eventually be consumed
 by the dispatch-to-raw Lambda.
 
 ## Development
@@ -18,8 +18,7 @@ To use the SAM CLI, you need the following tools.
 You may need the following for local testing.
 * [Python 3 installed](https://www.python.org/downloads/)
 
-You will also need to configure your AWS credentials,
-if you have not already done so.
+You will also need to configure your AWS credentials, if you have not already done so.
 
 ## Creating a local build
 
@@ -31,21 +30,6 @@ cd src/lambda_function/dispatch/
 sam build
 ```
 
-## Test events
+## Tests
 
-### Creating/modifying test events
-
-
-### Invoking test events
-
-To invoke the lambda with the test event:
-
-```bash
-cd src/lambda_function/dispatch
-sam local invoke
-```
-
-## Launching Lambda stack in AWS
-
-There are two stacks relevant to this Lambda: `dispatch-lambda` and `dispatch-lambda-role`.
-
+Tests are available in `tests/test_dispatch_lambda.py`.

@@ -1,0 +1,13 @@
+template:
+  path: lambda-dispatch-role.yaml
+stack_name: "{{ stack_group_config.namespace }}-lambda-dispatch-role"
+dependencies:
+  - prod/namespaced/sqs-input-to-dispatch.yaml
+  - prod/namespaced/sns-dispatch.yaml
+  - prod/s3-cloudformation-bucket.yaml
+parameters:
+  SQSQueueArn: !stack_output_external "{{ stack_group_config.namespace }}-sqs-input-to-dispatch::PrimaryQueueArn"
+  S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
+  SNSTopicArn: !stack_output_external "{{ stack_group_config.namespace }}-sns-dispatch::SnsTopicArn"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
