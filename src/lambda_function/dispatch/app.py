@@ -9,12 +9,56 @@ import json
 import logging
 import os
 import zipfile
+from typing import Optional # use | for type hints in 3.10+
 from urllib import parse
 
 import boto3
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+def filter_object_info(object_info: dict) -> Optional[dict]:
+    """
+    Filter out objects that should not be processed.
+
+    Returns None for:
+
+       - Records containing owner.txt
+       - Records that don't contain a specific object key like <path_to_file>/<file_name>
+       - Records that are missing the `Key` field.
+       - Records that are missing the `Bucket` field.
+
+    Args:
+        object_info (dict): Object information from source S3 bucket
+            as formatted by `get_object_info`.
+
+    Returns:
+        dict: `object_info` if it passes the filter criteria (i.e., acts as
+            identity function) otherwise returns None.
+    """
+    if not object_info["Key"]:
+        logger.info(
+            "This object_info record doesn't contain a source key "
+            f"and can't be processed.\nMessage: {object_info}",
+        )
+        return None
+    elif not object_info["Bucket"]:
+        logger.info(
+            "This object_info record doesn't contain a source bucket "
+            f"and can't be processed.\nMessage: {object_info}",
+        )
+        return None
+    elif "owner.txt" in object_info["Key"]:
+        logger.info(
+            f"This object_info record is an owner.txt and can't be processed.\nMessage: {object_info}"
+        )
+        return None
+    elif object_info["Key"].endswith("/"):
+        logger.info(
+            f"This object_info record is a directory and can't be processed.\nMessage: {object_info}"
+        )
+        return None
+    return object_info
 
 def get_object_info(s3_event: dict) -> dict:
     """
@@ -124,8 +168,13 @@ def main(
         sns_notification = json.loads(sqs_record["body"])
         sns_message = json.loads(sns_notification["Message"])
         logger.info(f"Received SNS message: {sns_message}")
-        for s3_event in sns_message["Records"]:
-            object_info = get_object_info(s3_event)
+        all_object_info_list = map(get_object_info, sns_message["Records"])
+        valid_object_info_list = [
+                object_info
+                for object_info in all_object_info_list
+                if filter_object_info(object_info) is not None
+        ]
+        for object_info in valid_object_info_list:
             s3_client.download_file(Filename=temp_zip_path, **object_info)
             logger.info(f"Getting archive contents for {object_info}")
             archive_contents = get_archive_contents(

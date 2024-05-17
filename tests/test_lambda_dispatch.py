@@ -135,6 +135,59 @@ def test_get_object_info_unicode_characters_in_key(s3_event):
     assert object_info["Key"] == \
             "main/2023-09-26T00:06:39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
 
+@pytest.mark.parametrize(
+    "object_info,expected",
+    [
+        (
+            {
+                "Bucket": "recover-dev-input-data",
+                "Key": "main/2023-01-12T22--02--17Z_77fefff8-b0e2-4c1b-b0c5-405554c92368",
+            },
+            {
+                "Bucket": "recover-dev-input-data",
+                "Key": "main/2023-01-12T22--02--17Z_77fefff8-b0e2-4c1b-b0c5-405554c92368",
+            },
+        ),
+        (
+            {
+                "Bucket": "recover-dev-input-data",
+                "Key": "main/v1/owner.txt",
+            },
+            None,
+        ),
+        (
+            {
+                "Bucket": "recover-dev-input-data",
+                "Key": "main/adults_v2/",
+            },
+            None,
+        ),
+        (
+            {
+                "Bucket": "recover-dev-input-data",
+                "Key": None,
+            },
+            None,
+        ),
+        (
+            {
+                "Bucket": None,
+                "Key": "main/2023-01-12T22--02--17Z_77fefff8-b0e2-4c1b-b0c5-405554c92368",
+            },
+            None,
+        ),
+    ],
+    ids=[
+        "correct_msg_format",
+        "owner_txt",
+        "directory",
+        "missing_key",
+        "missing_bucket",
+    ],
+)
+def test_that_filter_object_info_returns_expected_result(object_info, expected):
+        assert app.filter_object_info(object_info) == expected
+
 def test_get_archive_contents(archive_path, archive_json_paths):
     dummy_bucket = "dummy_bucket"
     dummy_key = "dummy_key"
