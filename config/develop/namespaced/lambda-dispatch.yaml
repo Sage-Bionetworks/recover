@@ -1,0 +1,15 @@
+template:
+  type: sam
+  path: src/lambda_function/dispatch/template.yaml
+  artifact_bucket_name: {{ stack_group_config.template_bucket_name }}
+  artifact_prefix: "{{ stack_group_config.namespace }}/src/lambda"
+dependencies:
+  - develop/namespaced/lambda-dispatch-role.yaml
+  - develop/namespaced/sqs-input-to-dispatch.yaml
+  - develop/s3-cloudformation-bucket.yaml
+stack_name: "{{ stack_group_config.namespace }}-lambda-dispatch"
+parameters:
+  RoleArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-dispatch-role::RoleArn"
+  SQSQueueArn: !stack_output_external "{{ stack_group_config.namespace }}-sqs-input-to-dispatch::PrimaryQueueArn"
+  DispatchSnsArn: !stack_output_external "{{ stack_group_config.namespace }}-sns-dispatch::SnsTopicArn"
+stack_tags: {{ stack_group_config.default_stack_tags }}

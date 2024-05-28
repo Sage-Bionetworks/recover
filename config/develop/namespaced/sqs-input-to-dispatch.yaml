@@ -4,9 +4,9 @@ parameters:
   MessageRetentionPeriod: "1209600"
   ReceiveMessageWaitTimeSeconds: "20"
   VisibilityTimeout: "120"
-  SNSTopicSubscription: !stack_output_external "{{ stack_group_config.namespace }}-sns-input-to-sqs::SnsTopicArn"
+  SNSTopicSubscription: !stack_output_external "{{ stack_group_config.namespace }}-sns-input::SnsTopicArn"
 dependencies:
-  - develop/namespaced/sns-topic.yaml
-stack_name: '{{ stack_group_config.namespace }}-sqs-input-to-raw'
+  - develop/namespaced/sns-input.yaml
+stack_name: "{{ stack_group_config.namespace }}-sqs-input-to-dispatch"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}

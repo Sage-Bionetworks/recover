@@ -1,0 +1,11 @@
+template:
+  path: sns-topic-policy.yaml
+stack_name: "{{ stack_group_config.namespace }}-sns-dispatch-policy"
+dependencies:
+  - develop/namespaced/lambda-dispatch.yaml
+  - develop/namespaced/sns-dispatch.yaml
+parameters:
+  SnsTopicArn: !stack_output_external "{{ stack_group_config.namespace }}-sns-dispatch::SnsTopicArn"
+  LambdaSourceArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-dispatch::DispatchFunctionArn"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}

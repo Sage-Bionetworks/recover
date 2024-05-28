@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Allows an SNS Topic to be used with S3 event notifications and/or Lambda triggers.
+
+Parameters:
+
+  SnsTopicArn:
+    Type: String
+    Description: The ARN of the SNS topic to apply this policy to.
+
+  S3SourceBucketArn:
+    Type: String
+    Default: ""
+    Description: >
+      ARN of an S3 bucket where source data are stored. Specifying this
+      parameter enables this SNS topic to have S3 event notifications published to it.
+
+  LambdaSourceArn:
+    Type: String
+    Default: ""
+    Description: ARN of the Lambda function which can trigger this SNS topic. Specifying this
+      parameter enables this SNS topic to have a Lambda publish to it.
+
+Conditions:
+
+  HasS3SourceBucketArn:
+    !Not [!Equals [!Ref S3SourceBucketArn, ""]]
+
+  HasLambdaSourceArn:
+    !Not [!Equals [!Ref LambdaSourceArn, ""]]
+
+Resources:
+
+  SnsTopicPolicyForS3:
+    Type: AWS::SNS::TopicPolicy
+    Condition: HasS3SourceBucketArn
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Input S3 bucket event notification to SNS
+            Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action:
+              - sns:Publish
+            Resource: !Ref SnsTopicArn
+            Condition:
+              ArnLike:
+                "aws:SourceArn": !Ref S3SourceBucketArn
+      Topics:
+        - !Ref SnsTopicArn
+
+  SnsTopicPolicyForLambda:
+    Type: AWS::SNS::TopicPolicy
+    Condition: HasLambdaSourceArn
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Lambda trigger to SNS
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sns:Publish
+            Resource: !Ref SnsTopicArn
+            Condition:
+              ArnLike:
+                "aws:SourceArn": !Ref LambdaSourceArn
+      Topics:
+        - !Ref SnsTopicArn

@@ -1,0 +1,11 @@
+template:
+  path: sns-topic-policy.yaml
+stack_name: "{{ stack_group_config.namespace }}-sns-input-policy"
+dependencies:
+  - develop/s3-input-bucket.yaml
+  - develop/namespaced/sns-input.yaml
+parameters:
+  SnsTopicArn: !stack_output_external "{{ stack_group_config.namespace }}-sns-input::SnsTopicArn"
+  S3SourceBucketArn: !stack_output_external "recover-dev-input-bucket::BucketArn"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
