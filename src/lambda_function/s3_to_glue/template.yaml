@@ -27,13 +27,13 @@ Parameters:
 
   LambdaBatchSize:
     Type: Number
-    Default: 10
+    Default: 1
     Description: >-
       The maximum number of S3 messages in a SQS event that Lambda will process in a batch
 
   LambdaMaximumBatchingWindowInSeconds:
     Type: Number
-    Default: 300
+    Default: 60
     Description: >-
       The maximum amount of time in seconds Lambda will batch messages before polling
       the SQS queue and processing them
