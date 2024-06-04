@@ -253,8 +253,12 @@ def drop_deleted_healthkit_data(
     deleted_data_type = f"{data_type}_deleted"
     try:
         glue_client.get_table(DatabaseName=glue_database, Name=deleted_table_name)
-    except glue_client.exceptions.EntityNotFoundException:
-        return table
+    except glue_client.exceptions.EntityNotFoundException as error:
+        logger.error(
+                f"Did not find table with name '{deleted_table_name}' ",
+                f"in database {glue_database}."
+        )
+        raise error
     deleted_table_logger_context = deepcopy(logger_context)
     deleted_table_logger_context["labels"]["glue_table_name"] = deleted_table_name
     deleted_table_logger_context["labels"]["type"] = deleted_data_type
@@ -265,6 +269,9 @@ def drop_deleted_healthkit_data(
         record_counts=record_counts,
         logger_context=deleted_table_logger_context,
     )
+    if deleted_table_raw.count() == 0:
+        logger.info(f"The table for data type {deleted_data_type} did not contain any records.")
+        return table
     # we use `data_type` rather than `deleted_data_type` here because they share
     # an index (we don't bother including `deleted_data_type` in `INDEX_FIELD_MAP`).
     deleted_table = drop_table_duplicates(
