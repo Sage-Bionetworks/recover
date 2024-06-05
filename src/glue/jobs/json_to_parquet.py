@@ -39,7 +39,7 @@ logger.propagate = False
 INDEX_FIELD_MAP = {
     "enrolledparticipants": ["ParticipantIdentifier"],
     "fitbitprofiles": ["ParticipantIdentifier", "ModifiedDate"],
-    "fitbitdevices": ["ParticipantIdentifier", "Date"],
+    "fitbitdevices": ["ParticipantIdentifier", "Date", "Device"],
     "fitbitactivitylogs": ["ParticipantIdentifier", "LogId"],
     "fitbitdailydata": ["ParticipantIdentifier", "Date"],
     "fitbitecg": ["ParticipantIdentifier", "FitbitEcgKey"],
