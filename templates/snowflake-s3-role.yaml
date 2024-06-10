@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: A Snowflake Role for the S3 to Snowflake Integration
+
+Parameters:
+
+  S3SourceBucketName:
+    Type: String
+    Description: Name of the S3 bucket where source data are stored.
+
+  S3IntermediateBucketName:
+    Type: String
+    Description: Name of the S3 intermediate (JSON) bucket
+
+  S3ParquetBucketName:
+    Type: String
+    Description: Name of the S3 Parquet bucket
+
+  AWSAccountId:
+    Type: String
+    Description: The Snowflake AWS Account ID
+
+  ExternalId:
+    Type: String
+    Description: The External ID
+
+Resources:
+
+  SnowflakeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref AWSAccountId
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+
+      Policies:
+      - PolicyName: snowflake-s3-iam-policy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            - s3:GetObjectVersion
+            Resource:
+            - !Sub arn:aws:s3:::${S3SourceBucketName}/*
+            - !Sub arn:aws:s3:::${S3IntermediateBucketName}/*
+            - !Sub arn:aws:s3:::${S3ParquetBucketName}/*
+          - Effect: Allow
+            Action:
+            - s3:ListBucket
+            - s3:GetBucketLocation
+            Resource:
+            - !Sub arn:aws:s3:::${S3SourceBucketName}
+            - !Sub arn:aws:s3:::${S3IntermediateBucketName}
+            - !Sub arn:aws:s3:::${S3ParquetBucketName}
+
+Outputs:
+
+  RoleName:
+    Value: !Ref SnowflakeRole
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleName'
+
+  RoleArn:
+    Value: !GetAtt SnowflakeRole.Arn
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleArn'
