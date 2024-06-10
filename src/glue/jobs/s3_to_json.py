@@ -18,7 +18,12 @@ import boto3
 import ecs_logging
 from awsglue.utils import getResolvedOptions
 
-DATA_TYPES_WITH_SUBTYPE = ["HealthKitV2Samples", "HealthKitV2Statistics"]
+DATA_TYPES_WITH_SUBTYPE = [
+        "HealthKitV2Samples",
+        "HealthKitV2Statistics",
+        "HealthKitV2Samples_Deleted",
+        "HealthKitV2Statistics_Deleted"
+]
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -761,16 +766,7 @@ def get_metadata(basename: str) -> dict:
                 datetime.datetime.strptime(basename_components[-1], "%Y%m%d")
     if metadata["type"] in DATA_TYPES_WITH_SUBTYPE:
         metadata["subtype"] = basename_components[1]
-    if (
-        metadata["type"]
-        in [
-            "HealthKitV2Samples",
-            "HealthKitV2Heartbeat",
-            "HealthKitV2Electrocardiogram",
-            "HealthKitV2Workouts",
-        ]
-        and basename_components[-2] == "Deleted"
-    ):
+    if "HealthKitV2" in metadata["type"] and basename_components[-2] == "Deleted":
         metadata["type"] = "{}_Deleted".format(metadata["type"])
     return metadata
 

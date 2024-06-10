@@ -6,12 +6,12 @@ template:
 dependencies:
   - prod/namespaced/lambda-s3-event-config-role.yaml
   - prod/s3-cloudformation-bucket.yaml
-  - prod/namespaced/sns-topic.yaml
+  - prod/namespaced/sns-input.yaml
 stack_name: '{{ stack_group_config.namespace }}-lambda-S3EventConfig'
 stack_tags: {{ stack_group_config.default_stack_tags }}
 parameters:
   Namespace: {{ stack_group_config.namespace }}
-  S3ToGlueDestinationArn: !stack_output_external "{{ stack_group_config.namespace }}-sns-input-to-sqs::SnsTopicArn"
+  S3ToGlueDestinationArn: !stack_output_external "{{ stack_group_config.namespace }}-sns-input::SnsTopicArn"
   S3ToGlueDestinationType: "Topic"
   S3EventConfigRoleArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-s3-event-config-role::RoleArn"
   S3SourceBucketName: {{ stack_group_config.input_bucket_name }}

@@ -67,6 +67,25 @@ tables:
     partition_keys:
       - Name: cohort
         Type: string
+  HealthKitV2Statistics_Deleted:
+    columns:
+      - Name: HealthKitStatisticKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: Type
+        Type: string
+      - Name: DeletedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   HealthKitV2Samples:
     columns:
       - Name: HealthKitSampleKey
@@ -108,6 +127,8 @@ tables:
         Type: string
       - Name: ParticipantID
         Type: string
+      - Name: Type
+        Type: string
       - Name: DeletedDate
         Type: string
       - Name: export_start_date
@@ -142,6 +163,23 @@ tables:
       - Name: AppleStandHoursGoal
         Type: double
       - Name: InsertedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
+  HealthKitV2ActivitySummaries_Deleted:
+    columns:
+      - Name: HealthKitActivitySummaryKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: DeletedDate
         Type: string
       - Name: export_start_date
         Type: string
@@ -189,6 +227,23 @@ tables:
     partition_keys:
       - Name: cohort
         Type: string
+  HealthKitV2Electrocardiogram_Deleted:
+    columns:
+      - Name: HealthKitECGSampleKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: DeletedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   HealthKitV2Workouts:
     columns:
       - Name: HealthKitWorkoutKey
@@ -220,6 +275,23 @@ tables:
     partition_keys:
       - Name: cohort
         Type: string
+  HealthKitV2Workouts_Deleted:
+    columns:
+      - Name: HealthKitWorkoutKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: DeletedDate
+        Type: string
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
   HealthKitV2Heartbeat:
     columns:
       - Name: HealthKitHeartbeatSampleKey
@@ -242,6 +314,23 @@ tables:
         Type: string
       - Name: Metadata
         Type: struct<HKAlgorithmVersion:string>
+      - Name: export_start_date
+        Type: string
+      - Name: export_end_date
+        Type: string
+    partition_keys:
+      - Name: cohort
+        Type: string
+  HealthKitV2Heartbeat_Deleted:
+    columns:
+      - Name: HealthKitHeartbeatSampleKey
+        Type: string
+      - Name: ParticipantIdentifier
+        Type: string
+      - Name: ParticipantID
+        Type: string
+      - Name: DeletedDate
+        Type: string
       - Name: export_start_date
         Type: string
       - Name: export_end_date

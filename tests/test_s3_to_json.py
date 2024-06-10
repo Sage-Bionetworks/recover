@@ -83,13 +83,17 @@ class TestS3ToJsonS3:
             "FitbitSleepLogs": "FitbitSleepLogs_20220111-20230103.json",
             "GoogleFitSamples": "GoogleFitSamples_20220111-20230103.json",
             "HealthKitV2ActivitySummaries": "HealthKitV2ActivitySummaries_20220111-20230103.json",
+            "HealthKitV2ActivitySummaries_Deleted": "HealthKitV2ActivitySummaries_Deleted_20220111-20230103.json",
             "HealthKitV2Electrocardiogram": "HealthKitV2Electrocardiogram_Samples_20220111-20230103.json",
+            "HealthKitV2Electrocardiogram_Deleted": "HealthKitV2Electrocardiogram_Samples_Deleted_20220111-20230103.json",
             "HealthKitV2Heartbeat": "HealthKitV2Heartbeat_Samples_20220401-20230112.json",
             "HealthKitV2Heartbeat_Deleted": "HealthKitV2Heartbeat_Samples_Deleted_20220401-20230112.json",
             "HealthKitV2Samples": "HealthKitV2Samples_AbdominalCramps_20220111-20230103.json",
             "HealthKitV2Samples_Deleted": "HealthKitV2Samples_AbdominalCramps_Deleted_20220111-20230103.json",
             "HealthKitV2Statistics": "HealthKitV2Statistics_HourlySteps_20201022-20211022.json",
+            "HealthKitV2Statistics_Deleted": "HealthKitV2Statistics_HourlySteps_Deleted_20201022-20211022.json",
             "HealthKitV2Workouts": "HealthKitV2Workouts_20220111-20230103.json",
+            "HealthKitV2Workouts_Deleted": "HealthKitV2Workouts_Deleted_20220111-20230103.json",
             "SymptomLog": "SymptomLog_20220401-20230112.json",
         }
         return json_file_basenames
@@ -577,8 +581,12 @@ class TestS3ToJsonS3:
         subtypes = [
             "subtype" in record.keys()
             for record in metadata
-            if record["type"]
-            not in ["HealthKitV2Samples", "HealthKitV2Samples_Deleted", "HealthKitV2Statistics"]
+            if record["type"] not in [
+                "HealthKitV2Samples",
+                "HealthKitV2Samples_Deleted",
+                "HealthKitV2Statistics",
+                "HealthKitV2Statistics_Deleted"
+            ]
         ]
         assert not any(subtypes),\
             "Some data types that are not HealthKitV2Samples or HealthKitV2Statistics have the metadata subtype key"

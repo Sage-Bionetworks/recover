@@ -3,22 +3,24 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
 Description: >
-  SAM Template for s3-to-glue lambda function
+  SAM Template for the dispatch Lambda. The dispatch Lambda polls the input-to-dispatch SQS
+  queue and publishes to the dispatch SNS topic. Its purpose is to inspect the each export
+  and dispatch each file as a separate job to be consumed by the dispatch-to-raw Lambda.
 
 Parameters:
 
+  RoleArn:
+    Type: String
+    Description: ARN of the dispatch Lambda role.
+
   SQSQueueArn:
     Type: String
-    Description: Arn of the SQS queue for lambda to poll messages from.
+    Description: ARN of the input-to-dispatch SQS queue.
 
-  S3ToGlueRoleArn:
-    Type: String
-    Description: Arn for the S3 to Glue Lambda Role
-
-  S3ToJsonWorkflowName:
+  DispatchSnsArn:
     Type: String
     Description: >
-      Name of the main glue workflow that runs glue jobs from S3 to JSON and JSON to Parquet
+      ARN of the Dispatch SNS Topic.
 
   LambdaPythonVersion:
     Type: String
@@ -27,30 +29,33 @@ Parameters:
 
   LambdaBatchSize:
     Type: Number
-    Default: 1
+    Default: 10
     Description: >-
       The maximum number of S3 messages in a SQS event that Lambda will process in a batch
 
   LambdaMaximumBatchingWindowInSeconds:
     Type: Number
-    Default: 60
+    Default: 300
     Description: >-
       The maximum amount of time in seconds Lambda will batch messages before polling
       the SQS queue and processing them
 
 Resources:
-  S3ToGlueFunction:
+  DispatchFunction:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Zip
       CodeUri: ./
       Handler: app.lambda_handler
       Runtime: !Sub "python${LambdaPythonVersion}"
-      Role: !Ref S3ToGlueRoleArn
+      Role: !Ref RoleArn
+      MemorySize: 256
+      EphemeralStorage:
+        Size: 2048
       Timeout: 30
       Environment:
         Variables:
-          S3_TO_JSON_WORKFLOW_NAME: !Ref S3ToJsonWorkflowName
+          DISPATCH_SNS_ARN: !Ref DispatchSnsArn
       Events:
         SQSEvent:
           Type: SQS
@@ -59,10 +64,9 @@ Resources:
             MaximumBatchingWindowInSeconds: !Ref LambdaMaximumBatchingWindowInSeconds
             Queue: !Ref SQSQueueArn
 
-
 Outputs:
-  S3ToGlueFunctionArn:
-    Description: Arn of the S3ToGlueFunction function
-    Value: !GetAtt S3ToGlueFunction.Arn
+  DispatchFunctionArn:
+    Description: Arn of the dispatch Lambda.
+    Value: !GetAtt DispatchFunction.Arn
     Export:
-      Name: !Sub "${AWS::Region}-${AWS::StackName}-S3ToGlueFunctionArn"
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-DispatchFunctionArn"

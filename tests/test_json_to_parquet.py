@@ -121,6 +121,20 @@ def create_table(
     )
     return table
 
+@pytest.fixture()
+def flat_data_type(glue_flat_table_name):
+    flat_data_type = glue_flat_table_name.split("_")[1]
+    return flat_data_type
+
+@pytest.fixture()
+def flat_inserted_date_data_type(glue_flat_inserted_date_table_name):
+    flat_inserted_date_data_type = glue_flat_inserted_date_table_name.split("_")[1]
+    return flat_inserted_date_data_type
+
+@pytest.fixture()
+def nested_data_type(glue_nested_table_name):
+    nested_data_type = glue_nested_table_name.split("_")[1]
+    return nested_data_type
 
 @pytest.fixture()
 def sample_table(
@@ -150,7 +164,6 @@ def sample_table_inserted_date(
     )
     return sample_table_inserted_date
 
-
 @pytest.fixture(scope="class")
 def glue_database_name(namespace):
     return f"{namespace}-pytest-database"
@@ -179,6 +192,10 @@ def glue_flat_inserted_date_table_name():
 @pytest.fixture(scope="class")
 def glue_deleted_table_name(glue_flat_table_name):
     return f"{glue_flat_table_name}_deleted"
+
+@pytest.fixture(scope="class")
+def glue_deleted_nested_table_name(glue_nested_table_name) -> str:
+    return f"{glue_nested_table_name}_deleted"
 
 
 @pytest.fixture(scope="class")
@@ -377,6 +394,13 @@ def glue_deleted_table_location(glue_database_path, glue_deleted_table_name):
     )
     return glue_deleted_table_location
 
+@pytest.fixture(scope="class")
+def glue_deleted_nested_table_location(glue_database_path, glue_deleted_nested_table_name):
+    glue_deleted_nested_table_location = (
+        os.path.join(glue_database_path, glue_deleted_nested_table_name.replace("_", "=", 1))
+        + "/"
+    )
+    return glue_deleted_nested_table_location
 
 @pytest.fixture(scope="class")
 def glue_deleted_table(
@@ -411,6 +435,38 @@ def glue_deleted_table(
     )
     return glue_table
 
+@pytest.fixture(scope="class")
+def glue_deleted_nested_table(
+    glue_database_name, glue_deleted_nested_table_name, glue_deleted_nested_table_location
+):
+    glue_client = boto3.client("glue")
+    glue_table = glue_client.create_table(
+        DatabaseName=glue_database_name,
+        TableInput={
+            "Name": glue_deleted_nested_table_name,
+            "Description": "An empty table for pytest unit tests.",
+            "Retention": 0,
+            "TableType": "EXTERNAL_TABLE",
+            "StorageDescriptor": {
+                "Location": glue_deleted_nested_table_location,
+                "InputFormat": "org.apache.hadoop.mapred.TextInputFormat",
+                "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+                "Compressed": False,
+                "StoredAsSubDirectories": False,
+                "Columns": [
+                    {"Name": "GlobalKey", "Type": "string"},
+                    {"Name": "export_end_date", "Type": "string"},
+                ],
+            },
+            "PartitionKeys": [{"Name": "cohort", "Type": "string"}],
+            "Parameters": {
+                "classification": "json",
+                "compressionType": "none",
+                "typeOfData": "file",
+            },
+        },
+    )
+    return glue_table
 
 def upload_test_data_to_s3(path, s3_bucket, table_location, data_cohort):
     s3_client = boto3.client("s3")
@@ -654,29 +710,29 @@ class TestJsonS3ToParquet:
             ["partition_" in field.name for field in nested_table.schema().fields]
         )
 
-    def test_drop_table_duplicates(self, sample_table, glue_context, logger_context):
+    def test_drop_table_duplicates(
+            self, sample_table, flat_data_type, glue_context, logger_context
+    ):
         table_no_duplicates = json_to_parquet.drop_table_duplicates(
             table=sample_table,
-            table_name=sample_table.name,
-            glue_context=glue_context,
+            data_type=flat_data_type,
             record_counts=defaultdict(list),
             logger_context=logger_context,
         )
-        table_no_duplicates_df = table_no_duplicates.toDF().toPandas()
+        table_no_duplicates_df = table_no_duplicates.toPandas()
         assert len(table_no_duplicates_df) == 3
         assert "Chicago" in set(table_no_duplicates_df.city)
 
     def test_drop_table_duplicates_inserted_date(
-        self, sample_table_inserted_date, glue_context, logger_context
+        self, sample_table_inserted_date, flat_data_type, glue_context, logger_context
     ):
         table_no_duplicates = json_to_parquet.drop_table_duplicates(
             table=sample_table_inserted_date,
-            table_name=sample_table_inserted_date.name,
-            glue_context=glue_context,
+            data_type=flat_data_type,
             record_counts=defaultdict(list),
             logger_context=logger_context,
         )
-        table_no_duplicates_df = table_no_duplicates.toDF().toPandas()
+        table_no_duplicates_df = table_no_duplicates.toPandas()
         assert len(table_no_duplicates_df) == 3
         assert set(["John", "Jane", "Bob_2"]) == set(
             table_no_duplicates_df["name"].tolist()
@@ -919,10 +975,11 @@ class TestJsonS3ToParquet:
                 Delete={"Objects": [{"Key": obj["Key"]} for obj in archived_objects]},
             )
 
-    def test_drop_deleted_healthkit_data(
+    def test_drop_deleted_healthkit_data_nonempty(
         self,
         glue_context,
         glue_flat_table_name,
+        flat_data_type,
         glue_database_name,
         logger_context,
     ):
@@ -935,12 +992,70 @@ class TestJsonS3ToParquet:
         )
         table_after_drop = json_to_parquet.drop_deleted_healthkit_data(
             glue_context=glue_context,
-            table=table,
+            table=table.toDF(),
+            table_name=table.name,
+            data_type=flat_data_type,
             glue_database=glue_database_name,
             record_counts=defaultdict(list),
             logger_context=logger_context,
         )
         assert table_after_drop.count() == 0
+
+    def test_drop_deleted_healthkit_data_empty(
+        self,
+        glue_context,
+        glue_nested_table_name,
+        nested_data_type,
+        glue_database_name,
+        glue_deleted_nested_table,
+        logger_context,
+    ):
+        # We do not upload any data for the deleted nested data type
+        # So we should receive our nested table back unaltered.
+        table = json_to_parquet.get_table(
+            table_name=glue_nested_table_name,
+            database_name=glue_database_name,
+            glue_context=glue_context,
+            record_counts=defaultdict(list),
+            logger_context=logger_context,
+        )
+        table_after_drop = json_to_parquet.drop_deleted_healthkit_data(
+            glue_context=glue_context,
+            table=table.toDF(),
+            table_name=table.name,
+            data_type=nested_data_type,
+            glue_database=glue_database_name,
+            record_counts=defaultdict(list),
+            logger_context=logger_context,
+        )
+        assert table_after_drop.count() == table.count()
+
+    def test_drop_deleted_healthkit_data_nonexistent_table(
+        self,
+        glue_context,
+        glue_flat_inserted_date_table_name,
+        flat_inserted_date_data_type,
+        glue_database_name,
+        logger_context,
+    ):
+        table = json_to_parquet.get_table(
+            table_name=glue_flat_inserted_date_table_name,
+            database_name=glue_database_name,
+            glue_context=glue_context,
+            record_counts=defaultdict(list),
+            logger_context=logger_context,
+        )
+        glue_client = boto3.client("glue")
+        with pytest.raises(glue_client.exceptions.EntityNotFoundException):
+            table_after_drop = json_to_parquet.drop_deleted_healthkit_data(
+                glue_context=glue_context,
+                table=table.toDF(),
+                table_name=table.name,
+                data_type=flat_inserted_date_data_type,
+                glue_database=glue_database_name,
+                record_counts=defaultdict(list),
+                logger_context=logger_context,
+            )
 
     def test_count_records_for_event_empty_table(self, sample_table, logger_context):
         spark_sample_table = sample_table.toDF()

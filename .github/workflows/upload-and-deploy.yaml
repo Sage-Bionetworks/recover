@@ -11,6 +11,7 @@ env:
   DEV_INPUT_BUCKET: recover-dev-input-data
   DEV_PROCESSED_BUCKET: recover-dev-processed-data
   PROD_INPUT_BUCKET: recover-input-data
+  INTEGRATION_TEST_NUM_EXPORTS: 28
 
 jobs:
 
@@ -21,7 +22,6 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
       - uses: pre-commit/action@v3.0.0
-
 
   upload-files:
     name: Upload files to S3 bucket in development
@@ -265,6 +265,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      EXPORT_S3_KEY_PREFIX: pilot-data
     steps:
       - name: Setup code, pipenv, aws
         uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
@@ -277,11 +279,30 @@ jobs:
         if: github.ref_name != 'main'
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
-      - name: Copies over test files from ingestion bucket
+      - name: Fetch the most recent exports.
+        id: recent-exports
+        run: |
+          # Retrieve the last ~2 weeks of exports from each cohort
+          # Ignore keys which end with "/" and which match "owner.txt"
+          echo "KEYS=$(
+            aws s3api list-objects-v2 \
+            --bucket $DEV_INPUT_BUCKET \
+            --prefix $EXPORT_S3_KEY_PREFIX \
+            --query '((sort_by(Contents[? !ends_with(Key, `/`) && !contains(Key, `owner.txt`)], &LastModified)[::-1])[:${{ env.INTEGRATION_TEST_NUM_EXPORTS }}])[*].Key' |
+            jq -c
+          )" >> "$GITHUB_OUTPUT"
+
+      - name: Copy most recent exports to this namespace
         run: >
-          aws s3 cp s3://recover-dev-ingestion/pilot-data/ s3://$DEV_INPUT_BUCKET/$NAMESPACE/
-          --recursive
-          --exclude "owner.txt"
+          echo '${{ steps.recent-exports.outputs.KEYS }}' | jq -r '.[]' | while read -r key; do
+            aws s3 cp "s3://$DEV_INPUT_BUCKET/$key" "s3://$DEV_INPUT_BUCKET/$NAMESPACE/${key#"$EXPORT_S3_KEY_PREFIX"/}";
+          done
+
+      - name: Write most recent exports to S3 cloudformation bucket
+        run: >
+          echo '${{ steps.recent-exports.outputs.KEYS }}' |
+          jq --arg bucket "s3://$DEV_INPUT_BUCKET/" '.[] |= $bucket + .' |
+          aws s3 cp - "s3://${{ vars.CFN_BUCKET }}/$NAMESPACE/integration_test_exports.json"
 
   sceptre-deploy-staging:
     name: Deploys to staging of prod using sceptre
@@ -293,7 +314,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-
     steps:
       - name: Setup code, pipenv, aws
         uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
@@ -325,6 +345,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      EXPORT_S3_KEY_PREFIX: main
     steps:
       - name: Setup code, pipenv, aws
         uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
@@ -333,22 +355,27 @@ jobs:
           role_session_name: integration-test-${{ github.run_id }}
           python_version: ${{ env.PYTHON_VERSION }}
 
-      - name: generate test events
-        run: >
-          pipenv run python src/lambda_function/s3_to_glue/events/generate_test_event.py
-          --input-bucket $PROD_INPUT_BUCKET
-          --input-key-prefix $NAMESPACE
-          --output-directory ./src/lambda_function/s3_to_glue/events/
-
-      - name: Setup sam
-        uses: aws-actions/setup-sam@v2
-
-      - name: sam build lambda
-        run: >
-          sam build
-          -t src/lambda_function/s3_to_glue/template.yaml
-
-      - name: Invoke Lambda
+      - name: Fetch the most recent exports.
+        id: recent-exports
         run: |
-          cd src/lambda_function/s3_to_glue/
-          sam local invoke -e events/records.json --parameter-overrides "S3ToJsonWorkflowName=staging-S3ToJsonWorkflow"
+          # Retrieve the last ~2 weeks of exports from each cohort
+          # Ignore keys which end with "/" and which match "owner.txt"
+          echo "KEYS=$(
+            aws s3api list-objects-v2 \
+            --bucket $PROD_INPUT_BUCKET \
+            --prefix "$EXPORT_S3_KEY_PREFIX/" \
+            --query '((sort_by(Contents[? !ends_with(Key, `/`) && !contains(Key, `owner.txt`)], &LastModified)[::-1])[:${{ env.INTEGRATION_TEST_NUM_EXPORTS }}])[*].Key' |
+            jq -c
+          )" >> "$GITHUB_OUTPUT"
+
+      - name: Copy most recent exports to this namespace
+        run: >
+          echo '${{ steps.recent-exports.outputs.KEYS }}' | jq -r '.[]' | while read -r key; do
+            aws s3 cp "s3://$PROD_INPUT_BUCKET/$key" "s3://$PROD_INPUT_BUCKET/staging/${key#"$EXPORT_S3_KEY_PREFIX"/}";
+          done
+
+      - name: Write most recent exports to S3 cloudformation bucket
+        run: >
+          echo '${{ steps.recent-exports.outputs.KEYS }}' |
+          jq --arg bucket "s3://$PROD_INPUT_BUCKET/" '.[] |= $bucket + .' |
+          aws s3 cp - "s3://${{ vars.CFN_BUCKET }}/staging/integration_test_exports.json"
