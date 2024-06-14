@@ -1,15 +1,20 @@
 import argparse
-from io import StringIO
+import datetime
+from io import BytesIO, StringIO
 import json
 import logging
 import os
 import sys
+from typing import Dict, List, Union
+import zipfile
 
 from awsglue.utils import getResolvedOptions
 import boto3
 import datacompy
 import pandas as pd
 from pyarrow import fs
+import pyarrow.compute as pc
+import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 
 logger = logging.getLogger()
@@ -18,30 +23,78 @@ logger.setLevel(logging.INFO)
 INDEX_FIELD_MAP = {
     "dataset_enrolledparticipants": ["ParticipantIdentifier"],
     "dataset_fitbitprofiles": ["ParticipantIdentifier", "ModifiedDate"],
-    "dataset_fitbitdevices": ["ParticipantIdentifier", "Date"],
-    "dataset_fitbitactivitylogs": ["LogId"],
+    "dataset_fitbitdevices": ["ParticipantIdentifier", "Date", "Device"],
+    "dataset_fitbitactivitylogs": ["ParticipantIdentifier", "LogId"],
     "dataset_fitbitdailydata": ["ParticipantIdentifier", "Date"],
+    "dataset_fitbitecg": ["ParticipantIdentifier", "FitbitEcgKey"],
     "dataset_fitbitintradaycombined": ["ParticipantIdentifier", "Type", "DateTime"],
     "dataset_fitbitrestingheartrates": ["ParticipantIdentifier", "Date"],
-    "dataset_fitbitsleeplogs": ["LogId"],
-    "dataset_healthkitv2characteristics": ["HealthKitCharacteristicKey"],
-    "dataset_healthkitv2samples": ["HealthKitSampleKey"],
-    "dataset_healthkitv2samples_deleted": ["HealthKitSampleKey"],
-    "dataset_healthkitv2heartbeat": ["HealthKitHeartbeatSampleKey"],
-    "dataset_healthkitv2statistics": ["HealthKitStatisticKey"],
-    "dataset_healthkitv2clinicalrecords": ["HealthKitClinicalRecordKey"],
-    "dataset_healthkitv2electrocardiogram": ["HealthKitECGSampleKey"],
-    "dataset_healthkitv2workouts": ["HealthKitWorkoutKey"],
-    "dataset_healthkitv2activitysummaries": ["HealthKitActivitySummaryKey"],
-    "dataset_googlefitsamples": ["GoogleFitSampleKey"],
-    "dataset_symptomlog": ["DataPointKey"],
+    "dataset_fitbitsleeplogs": ["ParticipantIdentifier", "LogId"],
+    "dataset_healthkitv2characteristics": [
+        "ParticipantIdentifier",
+        "HealthKitCharacteristicKey",
+    ],
+    "dataset_healthkitv2samples": ["ParticipantIdentifier", "HealthKitSampleKey"],
+    "dataset_healthkitv2heartbeat": ["ParticipantIdentifier", "HealthKitHeartbeatSampleKey"],
+    "dataset_healthkitv2statistics": ["ParticipantIdentifier", "HealthKitStatisticKey"],
+    "dataset_healthkitv2clinicalrecords": [
+        "ParticipantIdentifier",
+        "HealthKitClinicalRecordKey",
+    ],
+    "dataset_healthkitv2electrocardiogram": ["ParticipantIdentifier", "HealthKitECGSampleKey"],
+    "dataset_healthkitv2workouts": ["ParticipantIdentifier", "HealthKitWorkoutKey"],
+    "dataset_healthkitv2activitysummaries": [
+        "ParticipantIdentifier",
+        "HealthKitActivitySummaryKey",
+    ],
+    "dataset_garminactivitydetailssummary": ["ParticipantIdentifier", "SummaryId"],
+    "dataset_garminactivitysummary": ["ParticipantIdentifier", "SummaryId"],
+    "dataset_garminbloodpressuresummary": ["ParticipantIdentifier", "SummaryId"],
+    "dataset_garmindailysummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
+    "dataset_garminepochsummary": ["ParticipantIdentifier", "SummaryId"],
+    "dataset_garminhealthsnapshotsummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
+    "dataset_garminhrvsummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
+    "dataset_garminmanuallyupdatedactivitysummary": ["ParticipantIdentifier", "SummaryId"],
+    "dataset_garminmoveiqactivitysummary": ["ParticipantIdentifier", "SummaryId"],
+    "dataset_garminpulseoxsummary": ["ParticipantIdentifier", "SummaryId"],
+    "dataset_garminrespirationsummary": ["ParticipantIdentifier", "SummaryId"],
+    "dataset_garminsleepsummary": [
+        "ParticipantIdentifier",
+        "StartTimeInSeconds",
+        "DurationInSeconds",
+        "Validation",
+    ],
+    "dataset_garminstressdetailsummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
+    "dataset_garminthirdpartydailysummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
+    "dataset_garminusermetricssummary": ["ParticipantIdentifier", "CalenderDate"],
+    "dataset_googlefitsamples": ["ParticipantIdentifier", "GoogleFitSampleKey"],
+    "dataset_symptomlog": ["ParticipantIdentifier", "DataPointKey"],
+    # deleted data types
+    "dataset_healthkitv2samples_deleted": ["ParticipantIdentifier", "HealthKitSampleKey"],
+    "dataset_healthkitv2heartbeat_deleted":["ParticipantIdentifier", "HealthKitHeartbeatSampleKey"],
+    "dataset_healthkitv2statistics_deleted":["ParticipantIdentifier", "HealthKitStatisticKey"],
+    "dataset_healthkitv2electrocardiogram_deleted":["ParticipantIdentifier", "HealthKitECGSampleKey"],
+    "dataset_healthkitv2workouts_deleted":["ParticipantIdentifier", "HealthKitWorkoutKey"],
+    "dataset_healthkitv2activitysummaries_deleted": [
+        "ParticipantIdentifier",
+        "HealthKitActivitySummaryKey",
+    ],
+
 }
 
 
 def read_args() -> dict:
     """Returns the specific params that our code needs to run"""
     args = getResolvedOptions(
-        sys.argv, ["data-type", "staging-namespace", "main-namespace", "parquet-bucket"]
+        sys.argv,
+        [
+            "data-type",
+            "staging-namespace",
+            "main-namespace",
+            "parquet-bucket",
+            "input-bucket",
+            "cfn-bucket",
+        ],
     )
     for arg in args:
         validate_args(args[arg])
@@ -97,14 +150,16 @@ def get_duplicated_columns(dataset: pd.DataFrame) -> list:
 
 def has_common_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
     """Gets the list of common columns between two dataframes
-    TODO: Could look into depreciating this and using datacompy.intersect_columns function"""
+    TODO: Could look into depreciating this and using datacompy.intersect_columns function
+    """
     common_cols = staging_dataset.columns.intersection(main_dataset.columns).tolist()
     return common_cols != []
 
 
 def get_missing_cols(staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame) -> list:
     """Gets the list of missing columns present in main but not in staging
-    TODO: Could look into depreciating this and using datacompy.df2_unq_columns function"""
+    TODO: Could look into depreciating this and using datacompy.df2_unq_columns function
+    """
     missing_cols = main_dataset.columns.difference(staging_dataset.columns).tolist()
     return missing_cols
 
@@ -113,7 +168,8 @@ def get_additional_cols(
     staging_dataset: pd.DataFrame, main_dataset: pd.DataFrame
 ) -> list:
     """Gets the list of additional columns present in staging but not in main
-    TODO: Could look into depreciating this and using datacompy.df1_unq_columns function"""
+    TODO: Could look into depreciating this and using datacompy.df1_unq_columns function
+    """
     add_cols = staging_dataset.columns.difference(main_dataset.columns).tolist()
     return add_cols
 
@@ -148,6 +204,189 @@ def get_S3FileSystem_from_session(
         session_token=session_credentials.token,
     )
     return s3_fs
+
+
+def get_export_end_date(filename: str) -> str:
+    """Gets the export end date based on the filename
+
+    Args:
+        filename (str): name of the input json file
+
+    Returns:
+        str: export end date in isoformat
+    """
+    filename_components = os.path.splitext(filename)[0].split("_")
+    if len(filename_components) <= 1:
+        export_end_date = None
+    else:
+        if "-" in filename_components[-1]:
+            _, end_date = filename_components[-1].split("-")
+            end_date = datetime.datetime.strptime(end_date, "%Y%m%d")
+        else:
+            end_date = datetime.datetime.strptime(filename_components[-1], "%Y%m%d")
+        export_end_date = end_date.isoformat()
+    return export_end_date
+
+
+def get_cohort_from_s3_uri(s3_uri: str) -> str:
+    """Gets the cohort (pediatric_v1 or adults_v1)
+    from the s3 uri of the export
+
+    Args:
+        s3_uri (str): the S3 uri
+
+    Returns:
+        str: the cohort
+    """
+    cohort = None
+    if "adults_v1" in s3_uri:
+        cohort = "adults_v1"
+    elif "pediatric_v1" in s3_uri:
+        cohort = "pediatric_v1"
+    else:
+        pass
+    return cohort
+
+
+def get_data_type_from_filename(filename: str) -> Union[str, None]:
+    """_Gets the data type from the JSON filename
+
+    Args:
+        filename (str): JSON filename
+    Returns:
+        Union[str, None]: the data type if it's the top level data type
+        otherwise returns None as we currently don't support comparing
+        subtypes in data
+    """
+    filename_components = os.path.splitext(filename)[0].split("_")
+    data_type = f"dataset_{filename_components[0].lower()}"
+    if data_type in INDEX_FIELD_MAP.keys() and len(filename_components) < 3:
+        return data_type
+    else:
+        return None
+
+
+def get_json_files_in_zip_from_s3(s3, input_bucket: str, s3_uri: str) -> List[str]:
+    """_summary_
+
+    Args:
+        s3_uri (str): _description_
+
+    Returns:
+        list: _description_
+    """
+    # Get the object from S3
+    s3_key = s3_uri.split(f"s3://{input_bucket}/")[1]
+    s3_obj = s3.get_object(Bucket=input_bucket, Key=s3_key)
+
+    # Use BytesIO to treat the zip content as a file-like object
+    with zipfile.ZipFile(BytesIO(s3_obj["Body"].read())) as z:
+        # Open the specific JSON file within the zip file
+        non_empty_contents = [
+            f.filename
+            for f in z.filelist
+            if "/" not in f.filename
+            and "Manifest" not in f.filename
+            and f.file_size > 0
+        ]
+        return non_empty_contents
+
+
+def get_integration_test_exports_json(s3, cfn_bucket: str, staging_namespace: str):
+    """_summary_
+
+    Args:
+        s3 (_type_): _description_
+        cfn_bucket (str): _description_
+        staging_namespace (str): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # read in the json filelist
+    s3_response_object = s3.get_object(
+        Bucket=cfn_bucket, Key=f"{staging_namespace}/integration_test_exports.json"
+    )
+    json_content = s3_response_object["Body"].read().decode("utf-8")
+    filelist = json.loads(json_content)
+    return filelist
+
+
+def get_exports_filter_values(
+    s3, data_type: str, input_bucket: str, cfn_bucket: str, staging_namespace: str
+) -> Dict[str, list]:
+    """_summary_
+
+    Args:
+        s3 (_type_): _description_
+        data_type (str): _description_
+        input_bucket (str): _description_
+        cfn_bucket (str): _description_
+        staging_namespace (str): _description_
+
+    Returns:
+        Dict[str, list]: _description_
+    """
+    filelist = get_integration_test_exports_json(s3, cfn_bucket, staging_namespace)
+
+    # create the dictionary of export end dates and cohort
+    export_end_date_vals = {}
+    for s3_uri in filelist:
+        json_files = get_json_files_in_zip_from_s3(s3, input_bucket, s3_uri)
+        cur_cohort = get_cohort_from_s3_uri(s3_uri)
+        for json_file in json_files:
+            cur_data_type = get_data_type_from_filename(json_file)
+            cur_export_end_date = get_export_end_date(json_file)
+            if cur_data_type == data_type:
+                if cur_cohort in export_end_date_vals.keys():
+                    export_end_date_vals[cur_cohort].append(cur_export_end_date)
+                else:
+                    export_end_date_vals[cur_cohort] = [cur_export_end_date]
+            else:
+                continue
+
+    # create the filter using pyarrow and predicate pushdown
+    exports_filter = None
+    if export_end_date_vals:
+        for cohort, values in export_end_date_vals.items():
+            column_filter = (ds.field("cohort") == cohort) & (
+                ds.field("export_end_date").isin(values)
+            )
+            if exports_filter is None:
+                exports_filter = column_filter
+            else:
+                # Combine filters using logical OR
+                exports_filter = exports_filter | column_filter
+
+    return exports_filter
+
+
+def get_filtered_main_dataset(
+    exports_filter: dict, dataset_key: str, s3_filesystem: fs.S3FileSystem
+):
+    """
+    Returns a Parquet dataset on S3 as a pandas dataframe
+
+    Args:
+        dataset_key (str): The URI of the parquet dataset.
+        s3_filesystem (S3FileSystem): A fs.S3FileSystem object
+
+    Returns:
+        pandas.DataFrame
+
+    TODO: Currently, internal pyarrow things like to_table as a
+    result of the read_table function below takes a while as the dataset
+    grows bigger. Could find a way to optimize that.
+    """
+    # Create the dataset object pointing to the S3 location
+    table_source = dataset_key.split("s3://")[-1]
+    dataset = ds.dataset(
+        source=table_source, filesystem=s3_filesystem, format="parquet"
+    )
+
+    # Apply the filter and read the dataset into a table
+    filtered_table = dataset.to_table(filter=exports_filter)
+    return filtered_table.to_pandas()
 
 
 def get_parquet_dataset(
@@ -333,7 +572,7 @@ def compare_datasets_and_output_report(
     compare = datacompy.Compare(
         df1=staging_dataset,
         df2=main_dataset,
-        join_columns=INDEX_FIELD_MAP[main_data_type],
+        join_columns=INDEX_FIELD_MAP[main_data_type] + ["export_end_date"],
         abs_tol=0,  # Optional, defaults to 0
         rel_tol=0,  # Optional, defaults to 0
         df1_name=staging_namespace,  # Optional, defaults to 'df1'
@@ -410,6 +649,8 @@ def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
 
 
 def compare_datasets_by_data_type(
+    s3,
+    cfn_bucket: str,
     parquet_bucket: str,
     staging_namespace: str,
     main_namespace: str,
@@ -440,7 +681,14 @@ def compare_datasets_by_data_type(
         ),
         s3_filesystem=s3_filesystem,
     )
-    main_dataset = get_parquet_dataset(
+    filter_values = get_exports_filter_values(
+        s3=s3,
+        data_type=data_type,
+        cfn_bucket=cfn_bucket,
+        staging_namespace=staging_namespace,
+    )
+    main_dataset = get_filtered_main_dataset(
+        filter_values=filter_values,
         dataset_key=get_parquet_dataset_s3_path(
             parquet_bucket, main_namespace, data_type
         ),
@@ -514,6 +762,7 @@ def main():
     if data_types_to_compare:
         logger.info(f"Running comparison report for {data_type}")
         compare_dict = compare_datasets_by_data_type(
+            s3=s3,
             parquet_bucket=args["parquet_bucket"],
             staging_namespace=args["staging_namespace"],
             main_namespace=args["main_namespace"],

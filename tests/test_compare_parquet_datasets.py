@@ -1,12 +1,17 @@
-import argparse
+from io import BytesIO, StringIO
+import json
 from unittest import mock
+import zipfile
 
 import datacompy
 from moto import mock_s3
 import pandas as pd
 from pandas.testing import assert_frame_equal
-import pytest
+import pyarrow
 from pyarrow import fs, parquet
+import pyarrow.compute as pc
+import pyarrow.dataset as ds
+import pytest
 
 from src.glue.jobs import compare_parquet_datasets as compare_parquet
 
@@ -118,6 +123,323 @@ def test_that_get_parquet_dataset_returns_dataset_if_datasets_exist(
         )
 
 
+@pytest.mark.parametrize(
+    "filename,expected",
+    [
+        ("HealthKitV2ActivitySummaries_20221026-20221028.json", "2022-10-28T00:00:00"),
+        ("EnrolledParticipants_20221027.json", "2022-10-27T00:00:00"),
+        (
+            "HealthKitV2Samples_WalkingStepLength_Deleted_20221023-20221024.json",
+            "2022-10-24T00:00:00",
+        ),
+        (
+            "HealthKitV2Samples_WalkingStepLength_Deleted_20221024.json",
+            "2022-10-24T00:00:00",
+        ),
+        (
+            "HealthKitV2Samples.json",
+            None,
+        ),
+    ],
+    ids=[
+        "filename_with_date_range",
+        "filename_with_end_date",
+        "filename_with_subtype_and_date_range",
+        "filename_with_subtype_and_end_date",
+        "filename_with_no_date",
+    ],
+)
+def test_that_get_export_end_date_returns_expected(filename, expected):
+    result = compare_parquet.get_export_end_date(filename)
+    assert expected == result
+
+
+@pytest.mark.parametrize(
+    "s3_uri,expected",
+    [
+        (
+            "s3://recover-input-data/main/pediatric_v1/2024-06-09T00:15:TEST",
+            "pediatric_v1",
+        ),
+        ("s3://recover-input-data/main/adults_v1/2024-06-09T00:12:49TEST", "adults_v1"),
+        ("s3://recover-input-data/main/2024-06-09T00:12:49TEST", None),
+    ],
+    ids=[
+        "peds_cohort",
+        "adults_cohort",
+        "no_cohort",
+    ],
+)
+def test_that_get_cohort_from_s3_uri_returns_expected(s3_uri, expected):
+    result = compare_parquet.get_cohort_from_s3_uri(s3_uri)
+    assert expected == result
+
+
+@pytest.mark.parametrize(
+    "filename,expected",
+    [
+        (
+            "HealthKitV2ActivitySummaries_20221026-20221028.json",
+            "dataset_healthkitv2activitysummaries",
+        ),
+        ("EnrolledParticipants_20221027.json", "dataset_enrolledparticipants"),
+        (
+            "HealthKitV2Samples_WalkingStepLength_Deleted_20221024.json",
+            None,
+        ),
+    ],
+    ids=[
+        "data_type_with_date_range",
+        "data_type",
+        "data_type_with_subtype",
+    ],
+)
+def test_that_get_data_type_from_filename_returns_expected(filename, expected):
+    result = compare_parquet.get_data_type_from_filename(filename)
+    assert expected == result
+
+
+@mock_s3
+def test_that_get_json_files_in_zip_from_s3_returns_expected_filelist(s3):
+    # Set up the mock S3 service
+    input_bucket = "test-input-bucket"
+    s3.create_bucket(Bucket=input_bucket)
+
+    # Create a zip file with JSON files
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as z:
+        z.writestr("file1.json", '{"key": "value"}')
+        z.writestr("file2.json", '{"key2": "value2"}')
+        z.writestr("Manifest.json", '{"key2": "value2"}')
+        z.writestr("/folder/test", '{"key2": "value2"}')
+        z.writestr("empty.json", "")
+
+    zip_buffer.seek(0)
+
+    # Upload the zip file to the mock S3 bucket
+    s3_uri = f"s3://{input_bucket}/test.zip"
+    s3.put_object(Bucket=input_bucket, Key="test.zip", Body=zip_buffer.getvalue())
+
+    result = compare_parquet.get_json_files_in_zip_from_s3(s3, input_bucket, s3_uri)
+
+    # Verify the result
+    assert result == ["file1.json", "file2.json"]
+
+
+@mock_s3
+def test_that_get_integration_test_exports_json_success(s3):
+    staging_namespace = "staging"
+    # Set up the mock S3 service
+    mock_cfn_bucket = "test-cfn-bucket"
+    s3.create_bucket(Bucket=mock_cfn_bucket)
+
+    # Create a sample exports.json file content
+    exports_content = ["file1.json", "file2.json", "file3.json"]
+    exports_json = json.dumps(exports_content)
+
+    # Upload the exports.json file to the mock S3 bucket
+    s3.put_object(
+        Bucket=mock_cfn_bucket,
+        Key=f"{staging_namespace}/integration_test_exports.json",
+        Body=exports_json,
+    )
+
+    result = compare_parquet.get_integration_test_exports_json(
+        s3, mock_cfn_bucket, staging_namespace
+    )
+    assert result == exports_content
+
+
+@mock_s3
+def test_that_get_integration_test_exports_json_file_not_exist(s3):
+    # Set up the mock S3 service
+    mock_cfn_bucket = "test-cfn-bucket"
+    s3.create_bucket(Bucket=mock_cfn_bucket)
+    staging_namespace = "staging"
+
+    # Call the function and expect an exception
+    with pytest.raises(s3.exceptions.NoSuchKey):
+        compare_parquet.get_integration_test_exports_json(
+            s3, mock_cfn_bucket, staging_namespace
+        )
+
+
+@mock_s3
+@pytest.mark.parametrize(
+    "json_body",
+    [(""), ("{invalid json}")],
+    ids=[
+        "empty_json",
+        "invalid_json",
+    ],
+)
+def test_that_get_integration_test_exports_json_throws_json_decode_error(s3, json_body):
+    # Set up the mock S3 service
+    mock_cfn_bucket = "test-cfn-bucket"
+    s3.create_bucket(Bucket=mock_cfn_bucket)
+    staging_namespace = "staging"
+
+    # Upload an invalid exports.json file to the mock S3 bucket
+    s3.put_object(
+        Bucket=mock_cfn_bucket,
+        Key=f"{staging_namespace}/integration_test_exports.json",
+        Body=json_body,
+    )
+
+    # Call the function and expect a JSON decode error
+    with pytest.raises(json.JSONDecodeError):
+        compare_parquet.get_integration_test_exports_json(
+            s3, mock_cfn_bucket, staging_namespace
+        )
+
+
+@pytest.mark.parametrize(
+    "data_type, filelist, expected_filter",
+    [
+        (
+            "dataset_healthkitv2activitysummaries",
+            ["s3://bucket/adults_v1/file1.zip", "s3://bucket/pediatric_v1/file2.zip"],
+            (ds.field("cohort") == "adults_v1")
+            & (
+                ds.field("export_end_date").isin(
+                    ["2022-10-28T00:00:00", "2022-10-29T00:00:00"]
+                )
+            )
+            | (ds.field("cohort") == "pediatric_v1")
+            & (
+                ds.field("export_end_date").isin(
+                    ["2022-10-28T00:00:00", "2022-10-29T00:00:00"]
+                )
+            ),
+        ),
+        (
+            "dataset_enrolledparticipants",
+            ["s3://bucket/adults_v1/file1.zip"],
+            (ds.field("cohort") == "adults_v1")
+            & (ds.field("export_end_date").isin(["2022-10-27T00:00:00"])),
+        ),
+        (
+            "dataset_healthkitv2samples",
+            ["s3://bucket/pediatric_v1/file1.zip"],
+            (ds.field("cohort") == "pediatric_v1")
+            & (ds.field("export_end_date").isin(["2022-10-24T00:00:00"])),
+        ),
+        ("dataset_googlefitsamples", ["s3://bucket/adults_v1/file1.zip"], None),
+    ],
+    ids=[
+        "empty_filelist",
+        "adults_cohort_match",
+        "peds_cohort_match",
+        "no_data_type_match",
+    ],
+)
+def test_that_get_exports_filter_values_returns_expected_results(
+    s3, data_type, filelist, expected_filter
+):
+
+    with mock.patch.object(
+        compare_parquet, "get_integration_test_exports_json"
+    ) as patch_test_exports, mock.patch.object(
+        compare_parquet, "get_json_files_in_zip_from_s3"
+    ) as patch_get_json:
+        patch_test_exports.return_value = filelist
+        patch_get_json.return_value = [
+            "HealthKitV2ActivitySummaries_20221026-20221028.json",
+            "HealthKitV2ActivitySummaries_20221027-20221029.json",
+            "EnrolledParticipants_20221027.json",
+            "HealthKitV2Samples_20221024.json",
+        ]
+
+        exports_filter = compare_parquet.get_exports_filter_values(
+            s3,
+            data_type,
+            input_bucket="test_input_bucket",
+            cfn_bucket="test_cfn_bucket",
+            staging_namespace="staging",
+        )
+        # handle condition when the filter is None
+        if expected_filter is not None:
+            assert exports_filter.equals(expected_filter)
+        else:
+            assert exports_filter == expected_filter
+
+
+def test_that_get_filtered_main_dataset_raises_attr_error_if_no_datasets_exist():
+    """Mirrors the same test as above"""
+    pass
+
+
+def test_that_get_filtered_main_dataset_returns_expected_results(
+    s3
+):
+    """This will check that the main dataset is being chunked and filtered correctly
+    based on what is the staging dataset
+
+    Test cases:
+    - None staging dataset?
+    - empty staging dataset
+    - staging dataset with no UIDs match in main dataset
+    - staging dataset with some UIDs match in main dataset
+    - empty main dataset
+    - None main dataset?
+    - None exports_filter should get the entire dataset and throw no error
+
+    """
+
+    # Setup S3 bucket and data
+    mock_parquet_bucket = "test-processed-bucket"
+    dataset_key = "test-dataset/main_dataset.parquet"
+    s3.create_bucket(Bucket=mock_parquet_bucket)
+
+    # Create a sample dataframe and upload as a parquet dataset
+    test_data = pd.DataFrame(
+        {
+            "cohort": ["pediatric_v1", "adult_v1", "pediatric_v1"],
+            "export_end_date": [
+                "2022-10-24T00:00:00",
+                "2022-10-25T00:00:00",
+                "2022-10-23T00:00:00",
+            ],
+            "value": [1, 2, 3],
+        }
+    )
+
+    table = pyarrow.Table.from_pandas(test_data)
+
+    # create datasets
+    buffer = BytesIO()
+    table = pyarrow.Table.from_pandas(test_data)
+    parquet.write_table(table, buffer)
+    buffer.seek(0)
+    s3.put_object(Bucket=mock_parquet_bucket, Key=dataset_key, Body=buffer.getvalue())
+
+    exports_filter = (ds.field("cohort") == "pediatric_v1") & (
+        ds.field("export_end_date").isin(["2022-10-24T00:00:00", "2022-10-23T00:00:00"])
+    )
+
+        # Mock S3FileSystem to behave like a real S3 filesystem
+    with mock.patch('pyarrow.fs.S3FileSystem', autospec=True) as mock_s3_filesystem:
+        # Create an instance of the mock
+        mock_s3_filesystem_instance = mock_s3_filesystem.return_value
+
+        # Ensure it behaves like the real S3FileSystem
+        mock_s3_filesystem_instance.get_file_info.return_value = [mock.MagicMock()]
+        # Call the function to test
+        result = compare_parquet.get_filtered_main_dataset(
+            exports_filter,
+            f"s3://{mock_parquet_bucket}/{dataset_key}",
+            mock_s3_filesystem_instance,
+        )
+
+    # Verify the result
+    expected_data = pd.DataFrame({
+        "cohort": ["pediatric_v1", "pediatric_v1"],
+        "export_end_date": ["2022-10-24T00:00:00", "2022-10-23T00:00:00"],
+        "value": [1, 3],
+    })
+    pd.testing.assert_frame_equal(result, expected_data)
+
+
 @mock_s3
 def test_that_get_folders_in_s3_bucket_returns_empty_list_if_no_folders(
     s3, parquet_bucket_name
@@ -183,7 +505,7 @@ def test_that_get_missing_cols_returns_list_of_cols_if_missing_cols(
     test_missing_cols = compare_parquet.get_missing_cols(
         staging_dataset_with_missing_cols, valid_main_dataset
     )
-    assert test_missing_cols == ["EndDate", "StartDate"]
+    assert test_missing_cols == ["EndDate", "ParticipantIdentifier", "StartDate"]
 
 
 def test_that_get_additional_cols_returns_empty_list_if_no_add_cols(
@@ -289,7 +611,7 @@ def test_that_compare_row_diffs_returns_df_if_columns_are_not_diff(
     compare = datacompy.Compare(
         df1=staging_dataset_with_diff_num_of_rows,
         df2=valid_main_dataset,
-        join_columns="LogId",
+        join_columns=["LogId", "ParticipantIdentifier"],
         df1_name="staging",  # Optional, defaults to 'df1'
         df2_name="main",  # Optional, defaults to 'df2'
         cast_column_names_lower=False,
@@ -298,9 +620,10 @@ def test_that_compare_row_diffs_returns_df_if_columns_are_not_diff(
     main_rows = compare_parquet.compare_row_diffs(compare, namespace="main")
     assert staging_rows.empty
     assert_frame_equal(
-        main_rows.sort_values(by='LogId').reset_index(drop=True),
+        main_rows.sort_values(by="LogId").reset_index(drop=True),
         pd.DataFrame(
             {
+                "ParticipantIdentifier": ["X000001", "X000002"],
                 "LogId": [
                     "46096730542",
                     "51739302864",
@@ -316,7 +639,9 @@ def test_that_compare_row_diffs_returns_df_if_columns_are_not_diff(
                 "ActiveDuration": ["2256000", "2208000"],
                 "Calories": ["473", "478"],
             }
-        ).sort_values(by='LogId').reset_index(drop=True),
+        )
+        .sort_values(by="LogId")
+        .reset_index(drop=True),
     )
 
 
@@ -345,9 +670,9 @@ def test_that_compare_column_names_returns_msg_if_cols_are_diff(
 
     assert compare_msg == [
         "dataset_fitbitactivitylogs: Staging dataset has the following missing columns:\n"
-        "['ActiveDuration', 'Calories', 'EndDate', 'LogId', 'StartDate']",
+        "['ActiveDuration', 'Calories', 'EndDate', 'LogId', 'ParticipantIdentifier', 'StartDate']",
         "dataset_fitbitactivitylogs: Staging dataset has the following additional columns:\n"
-        "['OriginalDuration', 'ParticipantIdentifier', 'Steps']",
+        "['OriginalDuration', 'Steps']",
     ]
 
 
@@ -517,13 +842,20 @@ def test_that_add_additional_msg_to_comparison_report_throws_error_if_msg_type_n
 
 
 def test_that_compare_datasets_by_data_type_returns_correct_msg_if_input_is_empty(
-    parquet_bucket_name, staging_dataset_empty
+    s3, parquet_bucket_name, staging_dataset_empty
 ):
     with mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
         return_value=staging_dataset_empty,
-    ) as mock_parquet:
+    ), mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.get_exports_filter_values",
+    ), mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.get_filtered_main_dataset",
+        return_value=staging_dataset_empty,
+    ):
         compare_dict = compare_parquet.compare_datasets_by_data_type(
+            s3=s3,
+            cfn_bucket="test_cfn_bucket",
             parquet_bucket=parquet_bucket_name,
             staging_namespace="staging",
             main_namespace="main",
@@ -540,13 +872,20 @@ def test_that_compare_datasets_by_data_type_returns_correct_msg_if_input_is_empt
 
 @mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
 def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_if_input_is_valid(
-    mocked_compare_datasets, parquet_bucket_name, valid_staging_dataset
+    mocked_compare_datasets, parquet_bucket_name, valid_staging_dataset, s3
 ):
     with mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
         return_value=valid_staging_dataset,
-    ) as mock_parquet:
+    ), mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.get_exports_filter_values",
+    ), mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.get_filtered_main_dataset",
+        return_value=valid_staging_dataset,
+    ):
         compare_parquet.compare_datasets_by_data_type(
+            s3=s3,
+            cfn_bucket="test_cfn_bucket",
             parquet_bucket=parquet_bucket_name,
             staging_namespace="staging",
             main_namespace="main",
@@ -565,12 +904,20 @@ def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_da
     mocked_compare_datasets,
     parquet_bucket_name,
     valid_staging_dataset,
+    s3,
 ):
     with mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
         return_value=valid_staging_dataset,
-    ) as mock_parquet:
+    ), mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.get_exports_filter_values",
+    ), mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.get_filtered_main_dataset",
+        return_value=valid_staging_dataset,
+    ):
         compare_parquet.compare_datasets_by_data_type(
+            s3=s3,
+            cfn_bucket="test_cfn_bucket",
             parquet_bucket=parquet_bucket_name,
             staging_namespace="staging",
             main_namespace="main",

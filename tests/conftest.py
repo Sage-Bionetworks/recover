@@ -65,6 +65,7 @@ def dataset_fixture(request):
 def valid_staging_dataset():
     yield pd.DataFrame(
         {
+            "ParticipantIdentifier": ["X000000", "X000001", "X000002"],
             "LogId": [
                 "44984262767",
                 "46096730542",
@@ -90,6 +91,7 @@ def valid_staging_dataset():
 def valid_main_dataset():
     yield pd.DataFrame(
         {
+            "ParticipantIdentifier": ["X000000", "X000001", "X000002"],
             "LogId": [
                 "44984262767",
                 "46096730542",
@@ -130,6 +132,7 @@ def staging_dataset_with_missing_cols():
 def staging_dataset_with_add_cols():
     yield pd.DataFrame(
         {
+            "ParticipantIdentifier": ["X000000", "X000001", "X000002"],
             "LogId": [
                 "44984262767",
                 "46096730542",
@@ -156,38 +159,8 @@ def staging_dataset_with_add_cols():
 def staging_dataset_with_no_common_cols():
     yield pd.DataFrame(
         {
-            "ParticipantIdentifier": [
-                "MDH-9352-3209",
-                "MDH-9352-3209",
-                "MDH-9352-3209",
-            ],
             "Steps": ["866", "6074", "5744"],
             "OriginalDuration": ["768000", "2256000", "2208000"],
-        }
-    )
-
-
-@pytest.fixture()
-def staging_dataset_with_diff_data_type_cols():
-    yield pd.DataFrame(
-        {
-            "LogId": [
-                "44984262767",
-                "46096730542",
-                "51739302864",
-            ],
-            "StartDate": [
-                "2021-12-24T14:27:39+00:00",
-                "2022-02-18T08:26:54+00:00",
-                "2022-10-28T11:58:50+00:00",
-            ],
-            "EndDate": [
-                "2021-12-24T14:40:27+00:00",
-                "2022-02-18T09:04:30+00:00",
-                "2022-10-28T12:35:38+00:00",
-            ],
-            "ActiveDuration": [768000, 2256000, 2208000],
-            "Calories": [89.0, 473.0, 478.0],
         }
     )
 
@@ -196,6 +169,7 @@ def staging_dataset_with_diff_data_type_cols():
 def staging_dataset_with_diff_num_of_rows():
     yield pd.DataFrame(
         {
+            "ParticipantIdentifier": ["X000000"],
             "LogId": ["44984262767"],
             "StartDate": ["2021-12-24T14:27:39+00:00"],
             "EndDate": ["2021-12-24T14:40:27+00:00"],
@@ -232,20 +206,10 @@ def staging_dataset_with_dup_indexes():
 
 
 @pytest.fixture()
-def staging_dataset_with_all_col_val_diff():
+def staging_dataset_with_empty_columns():
     yield pd.DataFrame(
         {
-            "LogId": ["44984262767", "44984262767"],
-            "StartDate": ["2021-12-24T14:27:39+00:00", "2021-12-24T14:27:39+00:00"],
-            "EndDate": ["TESTING1", "TESTING2"],
-        }
-    )
-
-
-@pytest.fixture()
-def staging_dataset_with_empty_columns():
-    return pd.DataFrame(
-        {
+            "ParticipantIdentifier": [],
             "LogId": [],
             "StartDate": [],
             "EndDate": [],
@@ -255,7 +219,7 @@ def staging_dataset_with_empty_columns():
 
 @pytest.fixture()
 def staging_dataset_empty():
-    return pd.DataFrame()
+    yield pd.DataFrame()
 
 
 def pytest_addoption(parser):

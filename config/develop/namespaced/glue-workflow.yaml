@@ -16,6 +16,7 @@ parameters:
   S3ToJsonJobName: !stack_output_external "{{ stack_group_config.namespace }}-glue-job-S3ToJsonS3::JobName"
   CompareParquetStagingNamespace: {{ stack_group_config.namespace }}
   CompareParquetMainNamespace: "main"
+  CloudformationBucketName: {{ stack_group_config.template_bucket_name }}
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
