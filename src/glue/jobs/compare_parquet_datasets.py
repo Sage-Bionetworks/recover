@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import sys
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 import zipfile
 
 from awsglue.utils import getResolvedOptions
@@ -35,13 +35,19 @@ INDEX_FIELD_MAP = {
         "HealthKitCharacteristicKey",
     ],
     "dataset_healthkitv2samples": ["ParticipantIdentifier", "HealthKitSampleKey"],
-    "dataset_healthkitv2heartbeat": ["ParticipantIdentifier", "HealthKitHeartbeatSampleKey"],
+    "dataset_healthkitv2heartbeat": [
+        "ParticipantIdentifier",
+        "HealthKitHeartbeatSampleKey",
+    ],
     "dataset_healthkitv2statistics": ["ParticipantIdentifier", "HealthKitStatisticKey"],
     "dataset_healthkitv2clinicalrecords": [
         "ParticipantIdentifier",
         "HealthKitClinicalRecordKey",
     ],
-    "dataset_healthkitv2electrocardiogram": ["ParticipantIdentifier", "HealthKitECGSampleKey"],
+    "dataset_healthkitv2electrocardiogram": [
+        "ParticipantIdentifier",
+        "HealthKitECGSampleKey",
+    ],
     "dataset_healthkitv2workouts": ["ParticipantIdentifier", "HealthKitWorkoutKey"],
     "dataset_healthkitv2activitysummaries": [
         "ParticipantIdentifier",
@@ -52,9 +58,15 @@ INDEX_FIELD_MAP = {
     "dataset_garminbloodpressuresummary": ["ParticipantIdentifier", "SummaryId"],
     "dataset_garmindailysummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
     "dataset_garminepochsummary": ["ParticipantIdentifier", "SummaryId"],
-    "dataset_garminhealthsnapshotsummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
+    "dataset_garminhealthsnapshotsummary": [
+        "ParticipantIdentifier",
+        "StartTimeInSeconds",
+    ],
     "dataset_garminhrvsummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
-    "dataset_garminmanuallyupdatedactivitysummary": ["ParticipantIdentifier", "SummaryId"],
+    "dataset_garminmanuallyupdatedactivitysummary": [
+        "ParticipantIdentifier",
+        "SummaryId",
+    ],
     "dataset_garminmoveiqactivitysummary": ["ParticipantIdentifier", "SummaryId"],
     "dataset_garminpulseoxsummary": ["ParticipantIdentifier", "SummaryId"],
     "dataset_garminrespirationsummary": ["ParticipantIdentifier", "SummaryId"],
@@ -64,22 +76,42 @@ INDEX_FIELD_MAP = {
         "DurationInSeconds",
         "Validation",
     ],
-    "dataset_garminstressdetailsummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
-    "dataset_garminthirdpartydailysummary": ["ParticipantIdentifier", "StartTimeInSeconds"],
+    "dataset_garminstressdetailsummary": [
+        "ParticipantIdentifier",
+        "StartTimeInSeconds",
+    ],
+    "dataset_garminthirdpartydailysummary": [
+        "ParticipantIdentifier",
+        "StartTimeInSeconds",
+    ],
     "dataset_garminusermetricssummary": ["ParticipantIdentifier", "CalenderDate"],
     "dataset_googlefitsamples": ["ParticipantIdentifier", "GoogleFitSampleKey"],
     "dataset_symptomlog": ["ParticipantIdentifier", "DataPointKey"],
     # deleted data types
-    "dataset_healthkitv2samples_deleted": ["ParticipantIdentifier", "HealthKitSampleKey"],
-    "dataset_healthkitv2heartbeat_deleted":["ParticipantIdentifier", "HealthKitHeartbeatSampleKey"],
-    "dataset_healthkitv2statistics_deleted":["ParticipantIdentifier", "HealthKitStatisticKey"],
-    "dataset_healthkitv2electrocardiogram_deleted":["ParticipantIdentifier", "HealthKitECGSampleKey"],
-    "dataset_healthkitv2workouts_deleted":["ParticipantIdentifier", "HealthKitWorkoutKey"],
+    "dataset_healthkitv2samples_deleted": [
+        "ParticipantIdentifier",
+        "HealthKitSampleKey",
+    ],
+    "dataset_healthkitv2heartbeat_deleted": [
+        "ParticipantIdentifier",
+        "HealthKitHeartbeatSampleKey",
+    ],
+    "dataset_healthkitv2statistics_deleted": [
+        "ParticipantIdentifier",
+        "HealthKitStatisticKey",
+    ],
+    "dataset_healthkitv2electrocardiogram_deleted": [
+        "ParticipantIdentifier",
+        "HealthKitECGSampleKey",
+    ],
+    "dataset_healthkitv2workouts_deleted": [
+        "ParticipantIdentifier",
+        "HealthKitWorkoutKey",
+    ],
     "dataset_healthkitv2activitysummaries_deleted": [
         "ParticipantIdentifier",
         "HealthKitActivitySummaryKey",
     ],
-
 }
 
 
@@ -206,14 +238,20 @@ def get_S3FileSystem_from_session(
     return s3_fs
 
 
-def get_export_end_date(filename: str) -> str:
-    """Gets the export end date based on the filename
+def get_export_end_date(filename: str) -> Union[str, None]:
+    """Gets the export end date (converted to isoformat) based on the filename.
+
+        We can have filenames with with:
+        - {DateType}_{YYYYMMDD}-{YYYYMMDD}.json
+        - {DateType}_{YYYYMMDD}.json format
+        This function does handling for both. The export end date is always the
+        last component of the filename.
 
     Args:
         filename (str): name of the input json file
 
     Returns:
-        str: export end date in isoformat
+        Union[str, None]: export end date in isoformat if it exists
     """
     filename_components = os.path.splitext(filename)[0].split("_")
     if len(filename_components) <= 1:
@@ -228,15 +266,18 @@ def get_export_end_date(filename: str) -> str:
     return export_end_date
 
 
-def get_cohort_from_s3_uri(s3_uri: str) -> str:
+def get_cohort_from_s3_uri(s3_uri: str) -> Union[str, None]:
     """Gets the cohort (pediatric_v1 or adults_v1)
-    from the s3 uri of the export
+    from the s3 uri of the export.
+
+    The s3 uri of the export has the following expected format:
+    s3://{bucket_name}/{namespace}/{cohort}/{export_name}
 
     Args:
         s3_uri (str): the S3 uri
 
     Returns:
-        str: the cohort
+        Union[str, None]: the cohort if it exists
     """
     cohort = None
     if "adults_v1" in s3_uri:
@@ -249,31 +290,50 @@ def get_cohort_from_s3_uri(s3_uri: str) -> str:
 
 
 def get_data_type_from_filename(filename: str) -> Union[str, None]:
-    """_Gets the data type from the JSON filename
+    """Gets the data type from the JSON filename.
+
+    A filename can be of the following format:
+    {DataType}_[{DataSubType}_][Deleted_]{YYYYMMDD}[-{YYYYMMDD}].json
+
+    Since we don't have support for DataSubType, we only support top
+    level datatypes or healthkitv2 datatypes with deleted samples
+    (e.g: healthkitv2samples_deleted)
 
     Args:
         filename (str): JSON filename
+
     Returns:
-        Union[str, None]: the data type if it's the top level data type
-        otherwise returns None as we currently don't support comparing
-        subtypes in data
+        Union[str, None]: the data type otherwise returns None as we
+        currently don't support comparingsubtypes in data
     """
     filename_components = os.path.splitext(filename)[0].split("_")
-    data_type = f"dataset_{filename_components[0].lower()}"
-    if data_type in INDEX_FIELD_MAP.keys() and len(filename_components) < 3:
-        return data_type
+
+    data_type = filename_components[0]
+    if "healthkitv2" in data_type and filename_components[-2] == "Deleted":
+        data_type = "{}_deleted".format(data_type)
+    formatted_data_type = f"dataset_{filename_components[0].lower()}"
+
+    if formatted_data_type in INDEX_FIELD_MAP.keys() and len(filename_components) < 3:
+        return formatted_data_type
     else:
         return None
 
 
-def get_json_files_in_zip_from_s3(s3, input_bucket: str, s3_uri: str) -> List[str]:
-    """_summary_
-
+def get_json_files_in_zip_from_s3(
+    s3: boto3.client, input_bucket: str, s3_uri: str
+) -> List[str]:
+    """Parses through a zipped export and gets the list of json files.
+        Accepted JSON files cannot be:
+            - 0 file size
+            - be a folder (have / in the name)
+            - Have 'Manifest' in the filename
     Args:
-        s3_uri (str): _description_
+        s3 (boto3.client): s3 client connection
+        input_bucket (str): name of the input bucket containing the zipped exports
+        s3_uri (str): s3 uri to the zipped export
 
     Returns:
-        list: _description_
+        List[str]: list of json file names
     """
     # Get the object from S3
     s3_key = s3_uri.split(f"s3://{input_bucket}/")[1]
@@ -292,16 +352,20 @@ def get_json_files_in_zip_from_s3(s3, input_bucket: str, s3_uri: str) -> List[st
         return non_empty_contents
 
 
-def get_integration_test_exports_json(s3, cfn_bucket: str, staging_namespace: str):
-    """_summary_
+def get_integration_test_exports_json(
+    s3: boto3.client, cfn_bucket: str, staging_namespace: str
+) -> List[str]:
+    """Reads in the integration test exports json from the cloudformation
+        bucket that contains the ~2 weeks of production data exports
+        to use in the staging pipeline
 
     Args:
-        s3 (_type_): _description_
-        cfn_bucket (str): _description_
-        staging_namespace (str): _description_
+        s3 (boto3.client): s3 client connection
+        cfn_bucket (str): cloudformation bucket name
+        staging_namespace (str): name of namespace containing the "new" data
 
     Returns:
-        _type_: _description_
+        List[str]: list of the json exports
     """
     # read in the json filelist
     s3_response_object = s3.get_object(
@@ -313,19 +377,28 @@ def get_integration_test_exports_json(s3, cfn_bucket: str, staging_namespace: st
 
 
 def get_exports_filter_values(
-    s3, data_type: str, input_bucket: str, cfn_bucket: str, staging_namespace: str
-) -> Dict[str, list]:
-    """_summary_
+    s3: boto3.client,
+    data_type: str,
+    input_bucket: str,
+    cfn_bucket: str,
+    staging_namespace: str,
+) -> ds.Expression:
+    """Parses through the json exports and gets the filter values
+    for the cohort and export_end_date to filter on for our
+    main parquet dataset. These filter values (dict) are then
+    converted into filter conditions in the form of a
+    pyarrow.dataset.Expression object
 
     Args:
-        s3 (_type_): _description_
-        data_type (str): _description_
-        input_bucket (str): _description_
-        cfn_bucket (str): _description_
-        staging_namespace (str): _description_
+        s3 (boto3.client): s3 client connection
+        data_type (str): data type of the dataset
+        input_bucket (str): input data bucket name
+        cfn_bucket (str): cloudformation bucket name
+        staging_namespace (str): name of namespace containing the "new" data
 
     Returns:
-        Dict[str, list]: _description_
+        ds.Expression: a pyarrow dataset expression object that contains
+        the filter conditions that can be applied to pyarrow datasets
     """
     filelist = get_integration_test_exports_json(s3, cfn_bucket, staging_namespace)
 
@@ -362,21 +435,20 @@ def get_exports_filter_values(
 
 
 def get_filtered_main_dataset(
-    exports_filter: dict, dataset_key: str, s3_filesystem: fs.S3FileSystem
-):
-    """
-    Returns a Parquet dataset on S3 as a pandas dataframe
+    exports_filter: ds.Expression, dataset_key: str, s3_filesystem: fs.S3FileSystem
+) -> pd.DataFrame:
+    """Returns the filtered main dataset on S3 as a pandas dataframe.
+    The main dataset is filtered using the exports_filter prior to being
+    read into memory.
 
     Args:
+        exports_filter (ds.Expression): A pyarrow dataset expression object
+        that contains the filter conditions that can be applied to pyarrow datasets
         dataset_key (str): The URI of the parquet dataset.
         s3_filesystem (S3FileSystem): A fs.S3FileSystem object
 
     Returns:
-        pandas.DataFrame
-
-    TODO: Currently, internal pyarrow things like to_table as a
-    result of the read_table function below takes a while as the dataset
-    grows bigger. Could find a way to optimize that.
+        pd.DataFrame: the filtered table as a pandas dataframe
     """
     # Create the dataset object pointing to the S3 location
     table_source = dataset_key.split("s3://")[-1]
