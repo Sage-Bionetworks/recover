@@ -18,8 +18,8 @@ from pyarrow import fs
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-COHORTS = {"adults": "adults_v1", "pediatric": "pediatric_v1"}
-
+ADULTS = "adults_v1"
+PEDIATRIC = "pediatric_v1"
 INDEX_FIELD_MAP = {
     "dataset_enrolledparticipants": ["ParticipantIdentifier"],
     "dataset_fitbitprofiles": ["ParticipantIdentifier", "ModifiedDate"],
@@ -285,10 +285,10 @@ def get_cohort_from_s3_uri(s3_uri: str) -> Union[str, None]:
         Union[str, None]: the cohort if it exists
     """
     cohort = None
-    if COHORTS["adults"] in s3_uri:
-        cohort = COHORTS["adults"]
-    elif COHORTS["pediatric"] in s3_uri:
-        cohort = COHORTS["pediatric"]
+    if ADULTS  in s3_uri:
+        cohort = ADULTS
+    elif PEDIATRIC  in s3_uri:
+        cohort = PEDIATRIC
     else:
         pass
     return cohort
