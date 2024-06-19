@@ -7,6 +7,7 @@ dependencies:
   - prod/namespaced/glue-job-JSONToParquet.yaml
   - prod/namespaced/glue-job-compare-parquet.yaml
   - prod/glue-job-role.yaml
+  - prod/s3-cloudformation-bucket.yaml
 parameters:
   Namespace: {{ stack_group_config.namespace }}
   JsonBucketName: {{ stack_group_config.intermediate_bucket_name }}
