@@ -285,7 +285,7 @@ Resources:
             "--input-bucket": !Ref S3SourceBucketName
             "--cfn-bucket": !Ref CloudformationBucketName
             "--parquet-bucket": !Ref ParquetBucketName
-            "--additional-python-modules": "datacompy~=0.8"
+            "--additional-python-modules": "datacompy~=0.8 flask~=2.0 flask-cors~=3.0"
         {% endfor %}
       Description: This trigger runs after completion of all JSON to Parquet jobs
       Type: CONDITIONAL

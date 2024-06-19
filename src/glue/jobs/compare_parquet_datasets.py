@@ -20,6 +20,11 @@ import pyarrow.parquet as pq
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+COHORTS = {
+    "adults": "adults_v1",
+    "pediatric" : "pediatric_v1"
+}
+
 INDEX_FIELD_MAP = {
     "dataset_enrolledparticipants": ["ParticipantIdentifier"],
     "dataset_fitbitprofiles": ["ParticipantIdentifier", "ModifiedDate"],
@@ -253,16 +258,21 @@ def get_export_end_date(filename: str) -> Union[str, None]:
     Returns:
         Union[str, None]: export end date in isoformat if it exists
     """
+    if (
+        filename is None
+        or filename == ""
+        or len(os.path.splitext(filename)[0].split("_")) <= 1
+    ):
+        return None
+
     filename_components = os.path.splitext(filename)[0].split("_")
-    if len(filename_components) <= 1:
-        export_end_date = None
+
+    if "-" in filename_components[-1]:
+        _, end_date = filename_components[-1].split("-")
+        end_date = datetime.datetime.strptime(end_date, "%Y%m%d")
     else:
-        if "-" in filename_components[-1]:
-            _, end_date = filename_components[-1].split("-")
-            end_date = datetime.datetime.strptime(end_date, "%Y%m%d")
-        else:
-            end_date = datetime.datetime.strptime(filename_components[-1], "%Y%m%d")
-        export_end_date = end_date.isoformat()
+        end_date = datetime.datetime.strptime(filename_components[-1], "%Y%m%d")
+    export_end_date = end_date.isoformat()
     return export_end_date
 
 
@@ -280,10 +290,10 @@ def get_cohort_from_s3_uri(s3_uri: str) -> Union[str, None]:
         Union[str, None]: the cohort if it exists
     """
     cohort = None
-    if "adults_v1" in s3_uri:
-        cohort = "adults_v1"
-    elif "pediatric_v1" in s3_uri:
-        cohort = "pediatric_v1"
+    if COHORTS["adults"] in s3_uri:
+        cohort =  COHORTS["adults"]
+    elif COHORTS["pediatric"] in s3_uri:
+        cohort = COHORTS["pediatric"]
     else:
         pass
     return cohort
@@ -297,7 +307,9 @@ def get_data_type_from_filename(filename: str) -> Union[str, None]:
 
     Since we don't have support for DataSubType, we only support top
     level datatypes or healthkitv2 datatypes with deleted samples
-    (e.g: healthkitv2samples_deleted)
+    (e.g: healthkitv2samples_deleted) but because we only have the subtypes
+    of the dataset in the exports, we can still use that to get the metadata
+    we need.
 
     Args:
         filename (str): JSON filename
@@ -307,13 +319,13 @@ def get_data_type_from_filename(filename: str) -> Union[str, None]:
         currently don't support comparingsubtypes in data
     """
     filename_components = os.path.splitext(filename)[0].split("_")
-
     data_type = filename_components[0]
-    if "healthkitv2" in data_type and filename_components[-2] == "Deleted":
-        data_type = "{}_deleted".format(data_type)
-    formatted_data_type = f"dataset_{filename_components[0].lower()}"
 
-    if formatted_data_type in INDEX_FIELD_MAP.keys() and len(filename_components) < 3:
+    if "HealthKitV2" in data_type and filename_components[-2] == "Deleted":
+        data_type = f"{data_type}_Deleted"
+    formatted_data_type = f"dataset_{data_type.lower()}"
+
+    if formatted_data_type in INDEX_FIELD_MAP.keys():
         return formatted_data_type
     else:
         return None
@@ -644,7 +656,7 @@ def compare_datasets_and_output_report(
     compare = datacompy.Compare(
         df1=staging_dataset,
         df2=main_dataset,
-        join_columns=INDEX_FIELD_MAP[main_data_type] + ["export_end_date"],
+        join_columns=INDEX_FIELD_MAP[main_data_type],
         abs_tol=0,  # Optional, defaults to 0
         rel_tol=0,  # Optional, defaults to 0
         df1_name=staging_namespace,  # Optional, defaults to 'df1'

@@ -16,6 +16,32 @@ import pytest
 from src.glue.jobs import compare_parquet_datasets as compare_parquet
 
 
+def add_data_to_mock_bucket(
+    mock_s3_client: "boto3.client",
+    input_data: pd.DataFrame,
+    mock_bucket_name: str,
+    dataset_key: str,
+) -> None:
+    """Helper function that creates a mock bucket and
+        adds test data to mock s3 bucket
+
+    Args:
+        s3_client (boto3.client): mock s3 client
+        input_data (pd.DataFrame): test data
+        mock_bucket_name (str): mock s3 bucket name to use
+        dataset_key (str): path in mock s3 bucket to put data
+    """
+    mock_s3_client.create_bucket(Bucket=mock_bucket_name)
+    # Create a sample dataframe and upload as a parquet dataset
+    buffer = BytesIO()
+    table = pyarrow.Table.from_pandas(input_data)
+    parquet.write_table(table, buffer)
+    buffer.seek(0)
+    mock_s3_client.put_object(
+        Bucket=mock_bucket_name, Key=dataset_key, Body=buffer.getvalue()
+    )
+
+
 def test_that_validate_args_raises_exception_when_input_value_is_empty_string():
     with pytest.raises(ValueError):
         compare_parquet.validate_args(value="")
@@ -87,42 +113,6 @@ def test_that_get_S3FileSystem_from_session_returns_filesystem_when_credentials_
     assert isinstance(filesystem, fs.S3FileSystem)
 
 
-@mock_s3
-def test_that_get_parquet_dataset_raises_attr_error_if_no_datasets_exist(
-    s3, mock_s3_filesystem, parquet_bucket_name
-):
-    file_key = "staging/parquet/dataset_fitbitactivitylogs/test.parquet"
-    with mock.patch.object(parquet, "read_table", return_value=None) as mock_method:
-        with pytest.raises(AttributeError):
-            parquet_dataset = compare_parquet.get_parquet_dataset(
-                dataset_key=f"{parquet_bucket_name}/{file_key}",
-                s3_filesystem=mock_s3_filesystem,
-            )
-
-
-@mock_s3
-def test_that_get_parquet_dataset_returns_dataset_if_datasets_exist(
-    s3,
-    mock_s3_filesystem,
-    valid_staging_parquet_object,
-    valid_staging_dataset,
-    parquet_bucket_name,
-):
-    file_key = "staging/parquet/dataset_fitbitactivitylogs/test.parquet"
-    with mock.patch.object(
-        parquet, "read_table", return_value=valid_staging_parquet_object
-    ) as mock_method:
-        parquet_dataset = compare_parquet.get_parquet_dataset(
-            dataset_key=f"{parquet_bucket_name}/{file_key}",
-            s3_filesystem=mock_s3_filesystem,
-        )
-
-        assert_frame_equal(
-            parquet_dataset.reset_index(drop=True),
-            valid_staging_dataset.reset_index(drop=True),
-        )
-
-
 @pytest.mark.parametrize(
     "filename,expected",
     [
@@ -140,6 +130,14 @@ def test_that_get_parquet_dataset_returns_dataset_if_datasets_exist(
             "HealthKitV2Samples.json",
             None,
         ),
+        (
+            "",
+            None,
+        ),
+        (
+            None,
+            None,
+        ),
     ],
     ids=[
         "filename_with_date_range",
@@ -147,6 +145,8 @@ def test_that_get_parquet_dataset_returns_dataset_if_datasets_exist(
         "filename_with_subtype_and_date_range",
         "filename_with_subtype_and_end_date",
         "filename_with_no_date",
+        "filename_is_empty",
+        "filename_is_none",
     ],
 )
 def test_that_get_export_end_date_returns_expected(filename, expected):
@@ -185,13 +185,23 @@ def test_that_get_cohort_from_s3_uri_returns_expected(s3_uri, expected):
         ("EnrolledParticipants_20221027.json", "dataset_enrolledparticipants"),
         (
             "HealthKitV2Samples_WalkingStepLength_Deleted_20221024.json",
+            "dataset_healthkitv2samples_deleted",
+        ),
+        (
+            "HealthKitV2Workouts_Deleted_20221024.json",
+            "dataset_healthkitv2workouts_deleted",
+        ),
+        (
+            "NonexistentDataType_20221024.json",
             None,
         ),
     ],
     ids=[
         "data_type_with_date_range",
         "data_type",
-        "data_type_with_subtype",
+        "data_type_with_deleted_subtype",
+        "deleted_data_type",
+        "invalid_data_type",
     ],
 )
 def test_that_get_data_type_from_filename_returns_expected(filename, expected):
@@ -322,15 +332,26 @@ def test_that_get_integration_test_exports_json_throws_json_decode_error(s3, jso
             "dataset_healthkitv2samples",
             ["s3://bucket/pediatric_v1/file1.zip"],
             (ds.field("cohort") == "pediatric_v1")
-            & (ds.field("export_end_date").isin(["2022-10-24T00:00:00"])),
+            & (
+                ds.field("export_end_date").isin(
+                    ["2022-10-29T00:00:00", "2022-10-24T00:00:00"]
+                )
+            ),
         ),
         ("dataset_googlefitsamples", ["s3://bucket/adults_v1/file1.zip"], None),
+        (
+            "dataset_healthkitv2samples_deleted",
+            ["s3://bucket/pediatric_v1/file1.zip"],
+            (ds.field("cohort") == "pediatric_v1")
+            & (ds.field("export_end_date").isin(["2022-10-24T00:00:00"])),
+        ),
     ],
     ids=[
         "empty_filelist",
         "adults_cohort_match",
         "peds_cohort_match",
         "no_data_type_match",
+        "deleted_data_type_match",
     ],
 )
 def test_that_get_exports_filter_values_returns_expected_results(
@@ -346,8 +367,10 @@ def test_that_get_exports_filter_values_returns_expected_results(
         patch_get_json.return_value = [
             "HealthKitV2ActivitySummaries_20221026-20221028.json",
             "HealthKitV2ActivitySummaries_20221027-20221029.json",
+            "HealthKitV2Samples_BloodPressureDiastolic_20221027-20221029.json",
             "EnrolledParticipants_20221027.json",
-            "HealthKitV2Samples_20221024.json",
+            "HealthKitV2Samples_AppleExerciseTime_20221024.json",
+            "HealthKitV2Samples_AppleExerciseTime_Deleted_20221024.json",
         ]
 
         exports_filter = compare_parquet.get_exports_filter_values(
@@ -364,80 +387,224 @@ def test_that_get_exports_filter_values_returns_expected_results(
             assert exports_filter == expected_filter
 
 
-def test_that_get_filtered_main_dataset_raises_attr_error_if_no_datasets_exist():
-    """Mirrors the same test as above"""
-    pass
-
-
+@pytest.mark.parametrize(
+    "input_data, exports_filter, expected_filtered_data",
+    [
+        (
+            pd.DataFrame(
+                {
+                    "cohort": ["pediatric_v1", "adult_v1", "pediatric_v1"],
+                    "export_end_date": [
+                        "2022-10-24T00:00:00",
+                        "2022-10-25T00:00:00",
+                        "2022-10-23T00:00:00",
+                    ],
+                    "value": [1, 2, 3],
+                }
+            ),
+            (ds.field("cohort") == "pediatric_v1")
+            & (
+                ds.field("export_end_date").isin(
+                    ["2022-10-24T00:00:00", "2022-10-23T00:00:00"]
+                )
+            ),
+            pd.DataFrame(
+                {
+                    "cohort": ["pediatric_v1", "pediatric_v1"],
+                    "export_end_date": ["2022-10-24T00:00:00", "2022-10-23T00:00:00"],
+                    "value": [1, 3],
+                }
+            ),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "cohort": ["pediatric_v1"],
+                    "export_end_date": [
+                        "2022-10-24T00:00:00",
+                    ],
+                    "value": [1],
+                }
+            ),
+            None,
+            pd.DataFrame(
+                {
+                    "cohort": ["pediatric_v1"],
+                    "export_end_date": [
+                        "2022-10-24T00:00:00",
+                    ],
+                    "value": [1],
+                }
+            ),
+        ),
+        (
+            pd.DataFrame(),
+            None,
+            pd.DataFrame(),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "cohort": ["pediatric_v1"],
+                    "export_end_date": [
+                        "2022-10-24T00:00:00",
+                    ],
+                    "value": [1],
+                }
+            ),
+            (ds.field("cohort") == "adults_v1")
+            & (ds.field("export_end_date").isin(["2022-10-24T00:00:00"])),
+            pd.DataFrame(
+                {
+                    "cohort": pd.Series(dtype="object"),
+                    "export_end_date": pd.Series(dtype="object"),
+                    "value": pd.Series(dtype="int64"),
+                }
+            ),
+        ),
+    ],
+    ids=[
+        "regular_filter",
+        "no_filter",
+        "empty_df_no_filter",
+        "empty_cols_after_filter",
+    ],
+)
 def test_that_get_filtered_main_dataset_returns_expected_results(
-    s3
+    mock_s3_for_filesystem,
+    mock_s3_filesystem,
+    input_data,
+    exports_filter,
+    expected_filtered_data,
 ):
     """This will check that the main dataset is being chunked and filtered correctly
     based on what is the staging dataset
-
-    Test cases:
-    - None staging dataset?
-    - empty staging dataset
-    - staging dataset with no UIDs match in main dataset
-    - staging dataset with some UIDs match in main dataset
-    - empty main dataset
-    - None main dataset?
-    - None exports_filter should get the entire dataset and throw no error
-
     """
 
     # Setup S3 bucket and data
     mock_parquet_bucket = "test-processed-bucket"
-    dataset_key = "test-dataset/main_dataset.parquet"
-    s3.create_bucket(Bucket=mock_parquet_bucket)
+    dataset_key = "test_dataset/main_dataset.parquet"
 
-    # Create a sample dataframe and upload as a parquet dataset
-    test_data = pd.DataFrame(
-        {
-            "cohort": ["pediatric_v1", "adult_v1", "pediatric_v1"],
-            "export_end_date": [
-                "2022-10-24T00:00:00",
-                "2022-10-25T00:00:00",
-                "2022-10-23T00:00:00",
-            ],
-            "value": [1, 2, 3],
-        }
+    add_data_to_mock_bucket(
+        mock_s3_client=mock_s3_for_filesystem,
+        input_data=input_data,
+        mock_bucket_name=mock_parquet_bucket,
+        dataset_key=dataset_key,
     )
+    # Ensure the object is uploaded
+    obj_list = mock_s3_for_filesystem.list_objects_v2(Bucket=mock_parquet_bucket)
+    assert any(obj["Key"] == dataset_key for obj in obj_list.get("Contents", []))
 
-    table = pyarrow.Table.from_pandas(test_data)
-
-    # create datasets
-    buffer = BytesIO()
-    table = pyarrow.Table.from_pandas(test_data)
-    parquet.write_table(table, buffer)
-    buffer.seek(0)
-    s3.put_object(Bucket=mock_parquet_bucket, Key=dataset_key, Body=buffer.getvalue())
-
-    exports_filter = (ds.field("cohort") == "pediatric_v1") & (
-        ds.field("export_end_date").isin(["2022-10-24T00:00:00", "2022-10-23T00:00:00"])
+    # Directly access the S3 object to ensure it's there
+    response = mock_s3_for_filesystem.get_object(
+        Bucket=mock_parquet_bucket, Key=dataset_key
     )
+    assert response["Body"].read() is not None
 
-        # Mock S3FileSystem to behave like a real S3 filesystem
-    with mock.patch('pyarrow.fs.S3FileSystem', autospec=True) as mock_s3_filesystem:
-        # Create an instance of the mock
-        mock_s3_filesystem_instance = mock_s3_filesystem.return_value
-
-        # Ensure it behaves like the real S3FileSystem
-        mock_s3_filesystem_instance.get_file_info.return_value = [mock.MagicMock()]
-        # Call the function to test
-        result = compare_parquet.get_filtered_main_dataset(
-            exports_filter,
-            f"s3://{mock_parquet_bucket}/{dataset_key}",
-            mock_s3_filesystem_instance,
-        )
+    # Call the function to test
+    result = compare_parquet.get_filtered_main_dataset(
+        exports_filter=exports_filter,
+        dataset_key=f"s3://{mock_parquet_bucket}/{dataset_key}",
+        s3_filesystem=mock_s3_filesystem,
+    )
 
     # Verify the result
-    expected_data = pd.DataFrame({
-        "cohort": ["pediatric_v1", "pediatric_v1"],
-        "export_end_date": ["2022-10-24T00:00:00", "2022-10-23T00:00:00"],
-        "value": [1, 3],
-    })
-    pd.testing.assert_frame_equal(result, expected_data)
+    pd.testing.assert_frame_equal(
+        result, expected_filtered_data, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
+    "input_data, exports_filter, expected_exception",
+    [
+        (
+            pd.DataFrame(),
+            (ds.field("cohort") == "adults_v1")
+            & (ds.field("export_end_date").isin(["2022-10-24T00:00:00"])),
+            pyarrow.lib.ArrowInvalid,
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "cohort": pd.Series(dtype="object"),
+                    "export_end_date": pd.Series(dtype="object"),
+                    "value": pd.Series(dtype="int64"),
+                }
+            ),
+            (ds.field("cohort") == "adults_v1")
+            & (ds.field("export_end_date").isin(["2022-10-24T00:00:00"])),
+            pyarrow.lib.ArrowNotImplementedError,
+        ),
+    ],
+    ids=[
+        "empty_df_before_filter",
+        "empty_cols_before_filter",
+    ],
+)
+def test_that_get_filtered_main_dataset_raises_expected_exceptions(
+    mock_s3_for_filesystem,
+    mock_s3_filesystem,
+    input_data,
+    exports_filter,
+    expected_exception,
+):
+    """These are the test cases that will end up with pyarrow
+    exceptions when trying to get the filtered main dataset
+    """
+    # Setup S3 bucket and data
+    mock_parquet_bucket = "test-processed-bucket"
+    dataset_key = "test_dataset/main_dataset.parquet"
+
+    add_data_to_mock_bucket(
+        mock_s3_client=mock_s3_for_filesystem,
+        input_data=input_data,
+        mock_bucket_name=mock_parquet_bucket,
+        dataset_key=dataset_key,
+    )
+
+    with pytest.raises(expected_exception):
+        compare_parquet.get_filtered_main_dataset(
+            exports_filter=exports_filter,
+            dataset_key=f"s3://{mock_parquet_bucket}/{dataset_key}",
+            s3_filesystem=mock_s3_filesystem,
+        )
+
+
+@mock_s3
+def test_that_get_parquet_dataset_raises_attr_error_if_no_datasets_exist(
+    mock_s3_filesystem, parquet_bucket_name
+):
+    file_key = "staging/parquet/dataset_fitbitactivitylogs/test.parquet"
+    with mock.patch.object(parquet, "read_table", return_value=None) as mock_method:
+        with pytest.raises(AttributeError):
+            compare_parquet.get_parquet_dataset(
+                dataset_key=f"{parquet_bucket_name}/{file_key}",
+                s3_filesystem=mock_s3_filesystem,
+            )
+
+
+def test_that_get_parquet_dataset_returns_dataset_if_datasets_exist(
+    mock_s3_for_filesystem,
+    mock_s3_filesystem,
+    valid_staging_dataset,
+    parquet_bucket_name,
+):
+    file_key = "staging/parquet/dataset_fitbitactivitylogs/test.parquet"
+    add_data_to_mock_bucket(
+        mock_s3_client=mock_s3_for_filesystem,
+        input_data=valid_staging_dataset,
+        mock_bucket_name=parquet_bucket_name,
+        dataset_key=file_key,
+    )
+    parquet_dataset = compare_parquet.get_parquet_dataset(
+            dataset_key=f"{parquet_bucket_name}/{file_key}",
+            s3_filesystem=mock_s3_filesystem,
+        )
+
+    assert_frame_equal(
+        parquet_dataset.reset_index(drop=True),
+        valid_staging_dataset.reset_index(drop=True),
+    )
 
 
 @mock_s3
