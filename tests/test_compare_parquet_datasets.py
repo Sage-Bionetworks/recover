@@ -1,17 +1,17 @@
-from io import BytesIO
 import json
-from unittest import mock
 import zipfile
+from io import BytesIO
+from unittest import mock
 
 import datacompy
-from moto import mock_s3
-from moto.server import ThreadedMotoServer
 import pandas as pd
-from pandas.testing import assert_frame_equal
 import pyarrow
-from pyarrow import fs, parquet
 import pyarrow.dataset as ds
 import pytest
+from moto import mock_s3
+from moto.server import ThreadedMotoServer
+from pandas.testing import assert_frame_equal
+from pyarrow import fs, parquet
 
 from src.glue.jobs import compare_parquet_datasets as compare_parquet
 

@@ -17,3 +17,11 @@ repos:
     rev: v1.4.1
     hooks:
       - id: remove-tabs
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.10.1
+    hooks:
+      - id: isort
+        name: isort (python)
+        entry: isort
+        language: python
+        types: [python]

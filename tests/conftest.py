@@ -1,8 +1,8 @@
 import boto3
-import pytest
 import pandas as pd
-from pyarrow import parquet
+import pytest
 from moto import mock_s3
+from pyarrow import parquet
 
 
 @pytest.fixture()

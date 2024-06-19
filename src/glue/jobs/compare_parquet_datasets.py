@@ -1,19 +1,19 @@
 import datetime
-from io import BytesIO, StringIO
 import json
 import logging
 import os
 import sys
-from typing import List, Union
 import zipfile
+from io import BytesIO, StringIO
+from typing import List, Union
 
-from awsglue.utils import getResolvedOptions
 import boto3
 import datacompy
 import pandas as pd
-from pyarrow import fs
 import pyarrow.dataset as ds
 import pyarrow.parquet as pq
+from awsglue.utils import getResolvedOptions
+from pyarrow import fs
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
