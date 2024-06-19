@@ -6,28 +6,6 @@ import pytest
 import pandas as pd
 from pyarrow import fs, parquet
 from moto import mock_s3
-from moto.server import ThreadedMotoServer
-
-
-@pytest.fixture(scope="module")
-def mock_moto_server():
-    """A moto server to mock S3 interactions.
-
-    We cannot use the moto because pyarrow's S3 FileSystem
-    is not based on boto3 at all. Instead we use the moto_server
-    feature
-    (http://docs.getmoto.org/en/latest/docs/getting_started.html#stand-alone-server-mode),
-    which gives us an endpoint url, that can be used to construct a
-    pyarrow S3FileSystem that interacts with the moto server.
-
-    References:
-        https://github.com/apache/arrow/issues/31811
-    """
-
-    server = ThreadedMotoServer(port=3000)
-    server.start()
-    yield "http://127.0.0.1:3000"
-    server.stop()
 
 
 @pytest.fixture()
@@ -58,27 +36,6 @@ def mock_aws_session(mock_aws_credentials):
 @pytest.fixture
 def parquet_bucket_name():
     yield "test-parquet-bucket"
-
-
-@pytest.fixture
-def mock_s3_for_filesystem(mock_aws_session, mock_moto_server):
-    s3_client = mock_aws_session.client(
-        "s3", region_name="us-east-1", endpoint_url=mock_moto_server
-    )
-    yield s3_client
-
-
-@pytest.fixture
-def mock_s3_filesystem(mock_aws_credentials, mock_aws_session, mock_moto_server):
-    session_credentials = mock_aws_session.get_credentials()
-    filesystem = fs.S3FileSystem(
-        region="us-east-1",
-        access_key=session_credentials.access_key,
-        secret_key=session_credentials.secret_key,
-        session_token=session_credentials.token,
-        endpoint_override=mock_moto_server,
-    )
-    yield filesystem
 
 
 @pytest.fixture(scope="function")
