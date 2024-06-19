@@ -733,6 +733,7 @@ def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
 def compare_datasets_by_data_type(
     s3,
     cfn_bucket: str,
+    input_bucket : str,
     parquet_bucket: str,
     staging_namespace: str,
     main_namespace: str,
@@ -742,6 +743,8 @@ def compare_datasets_by_data_type(
     """This runs the bulk of the comparison functions from beginning to end by data type
 
     Args:
+        cfn_bucket (str): name of the bucket containing the
+        input_bucket (str): name of the bucket containing the input data
         parquet_bucket (str): name of the bucket containing the parquet datasets
         staging_namespace (str): name of namespace containing the "new" data
         main_namespace (str): name of namespace containing the "established" data
@@ -766,6 +769,7 @@ def compare_datasets_by_data_type(
     filter_values = get_exports_filter_values(
         s3=s3,
         data_type=data_type,
+        input_bucket=input_bucket,
         cfn_bucket=cfn_bucket,
         staging_namespace=staging_namespace,
     )
@@ -790,7 +794,7 @@ def compare_datasets_by_data_type(
     # check that they have columns in common to compare
     elif not has_common_cols(staging_dataset, main_dataset):
         comparison_report = (
-            f"{staging_namespace} dataset and {main_namespace} have no columns in common."
+            f"{staging_namespace} dataset and {main_namespace} dataset have no columns in common."
             f" Comparison cannot continue."
         )
         compare = None
@@ -845,6 +849,8 @@ def main():
         logger.info(f"Running comparison report for {data_type}")
         compare_dict = compare_datasets_by_data_type(
             s3=s3,
+            cfn_bucket=args["cfn_bucket"],
+            input_bucket=args["input_bucket"],
             parquet_bucket=args["parquet_bucket"],
             staging_namespace=args["staging_namespace"],
             main_namespace=args["main_namespace"],

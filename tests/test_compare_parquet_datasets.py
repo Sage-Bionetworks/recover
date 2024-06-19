@@ -83,13 +83,11 @@ def add_data_to_mock_bucket(
         Bucket=mock_bucket_name, Key=dataset_key, Body=buffer.getvalue()
     )
     # Ensure the object is uploaded
-    obj_list =  mock_s3_client.list_objects_v2(Bucket=mock_bucket_name)
+    obj_list = mock_s3_client.list_objects_v2(Bucket=mock_bucket_name)
     assert any(obj["Key"] == dataset_key for obj in obj_list.get("Contents", []))
 
     # Directly access the S3 object to ensure it's there
-    response =  mock_s3_client.get_object(
-        Bucket=mock_bucket_name, Key=dataset_key
-    )
+    response = mock_s3_client.get_object(Bucket=mock_bucket_name, Key=dataset_key)
     assert response["Body"].read() is not None
 
 
@@ -639,9 +637,9 @@ def test_that_get_parquet_dataset_returns_dataset_if_datasets_exist(
         dataset_key=file_key,
     )
     parquet_dataset = compare_parquet.get_parquet_dataset(
-            dataset_key=f"{parquet_bucket_name}/{file_key}",
-            s3_filesystem=mock_s3_filesystem,
-        )
+        dataset_key=f"{parquet_bucket_name}/{file_key}",
+        s3_filesystem=mock_s3_filesystem,
+    )
 
     assert_frame_equal(
         parquet_dataset.reset_index(drop=True),
@@ -1045,13 +1043,14 @@ def test_that_add_additional_msg_to_comparison_report_throws_error_if_msg_type_n
     comparison_report = "some string\n\n"
     add_msgs = ["one message", "two message"]
     with pytest.raises(ValueError):
-        result = compare_parquet.add_additional_msg_to_comparison_report(
+        compare_parquet.add_additional_msg_to_comparison_report(
             comparison_report, add_msgs, msg_type="invalid_msg_type"
         )
 
 
-def test_that_compare_datasets_by_data_type_returns_correct_msg_if_input_is_empty(
-    s3, parquet_bucket_name, staging_dataset_empty
+@mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
+def test_that_compare_datasets_by_data_type_returns_correct_msg_if_input_is_invalid(
+    mocked_compare_datasets, s3, parquet_bucket_name, staging_dataset_empty
 ):
     with mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
@@ -1065,18 +1064,21 @@ def test_that_compare_datasets_by_data_type_returns_correct_msg_if_input_is_empt
         compare_dict = compare_parquet.compare_datasets_by_data_type(
             s3=s3,
             cfn_bucket="test_cfn_bucket",
+            input_bucket="test_input_bucket",
             parquet_bucket=parquet_bucket_name,
             staging_namespace="staging",
             main_namespace="main",
             s3_filesystem=None,
             data_type="dataset_fitbitactivitylogs",
         )
+        assert compare_dict["compare_obj"] == None
         assert compare_dict["comparison_report"] == (
             "\n\nParquet Dataset Comparison running for Data Type: dataset_fitbitactivitylogs\n"
             "-----------------------------------------------------------------\n\n"
             "staging dataset has no data. Comparison cannot continue.\n"
             "main dataset has no data. Comparison cannot continue."
         )
+        mocked_compare_datasets.assert_not_called()
 
 
 @mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
@@ -1086,30 +1088,58 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
     with mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_parquet_dataset",
         return_value=valid_staging_dataset,
-    ), mock.patch(
+    ) as patch_get_parquet_data, mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_exports_filter_values",
-    ), mock.patch(
+        return_value="some_filter",
+    ) as patch_get_filter, mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_filtered_main_dataset",
         return_value=valid_staging_dataset,
-    ):
+    ) as patch_get_filtered_data, mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.is_valid_dataset",
+    ) as patch_check_valid:
         compare_parquet.compare_datasets_by_data_type(
             s3=s3,
             cfn_bucket="test_cfn_bucket",
+            input_bucket="test_input_bucket",
             parquet_bucket=parquet_bucket_name,
             staging_namespace="staging",
             main_namespace="main",
             s3_filesystem=None,
             data_type="dataset_fitbitactivitylogs",
         )
-        mocked_compare_datasets.assert_called_once()
+        patch_get_parquet_data.assert_called_once_with(
+            dataset_key=f"s3://{parquet_bucket_name}/staging/parquet/dataset_fitbitactivitylogs",
+            s3_filesystem=None,
+        )
+        patch_get_filter.assert_called_once_with(
+            s3=s3,
+            data_type="dataset_fitbitactivitylogs",
+            input_bucket="test_input_bucket",
+            cfn_bucket="test_cfn_bucket",
+            staging_namespace="staging",
+        )
+        patch_get_filtered_data.assert_called_once_with(
+            filter_values="some_filter",
+            dataset_key=f"s3://{parquet_bucket_name}/main/parquet/dataset_fitbitactivitylogs",
+            s3_filesystem=None,
+        )
+        patch_check_valid.assert_has_calls(
+            [
+                mock.call(valid_staging_dataset, "staging"),
+                mock.call(valid_staging_dataset, "main"),
+            ]
+        )
+        mocked_compare_datasets.assert_called_once_with(
+            data_type="dataset_fitbitactivitylogs",
+            staging_dataset=valid_staging_dataset,
+            main_dataset=valid_staging_dataset,
+            staging_namespace="staging",
+            main_namespace="main",
+        )
 
 
 @mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
-@mock.patch(
-    "src.glue.jobs.compare_parquet_datasets.has_common_cols", return_value=False
-)
 def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_data_type_if_input_has_no_common_cols(
-    mocked_has_common_cols,
     mocked_compare_datasets,
     parquet_bucket_name,
     valid_staging_dataset,
@@ -1123,10 +1153,14 @@ def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_da
     ), mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_filtered_main_dataset",
         return_value=valid_staging_dataset,
+    ), mock.patch(
+        "src.glue.jobs.compare_parquet_datasets.has_common_cols",
+        return_value=False,
     ):
-        compare_parquet.compare_datasets_by_data_type(
+        result = compare_parquet.compare_datasets_by_data_type(
             s3=s3,
             cfn_bucket="test_cfn_bucket",
+            input_bucket="test_input_bucket",
             parquet_bucket=parquet_bucket_name,
             staging_namespace="staging",
             main_namespace="main",
@@ -1134,3 +1168,10 @@ def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_da
             data_type="dataset_fitbitactivitylogs",
         )
         mocked_compare_datasets.assert_not_called()
+        assert result["compare_obj"] == None
+        assert result["comparison_report"] == (
+            "\n\nParquet Dataset Comparison running for Data Type: dataset_fitbitactivitylogs\n"
+            "-----------------------------------------------------------------\n\n"
+            "staging dataset and main dataset have no columns in common."
+            " Comparison cannot continue."
+        )
