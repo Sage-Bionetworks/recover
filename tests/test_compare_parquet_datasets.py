@@ -1,4 +1,4 @@
-from io import BytesIO, StringIO
+from io import BytesIO
 import json
 from unittest import mock
 import zipfile
@@ -10,7 +10,6 @@ import pandas as pd
 from pandas.testing import assert_frame_equal
 import pyarrow
 from pyarrow import fs, parquet
-import pyarrow.compute as pc
 import pyarrow.dataset as ds
 import pytest
 
@@ -83,6 +82,15 @@ def add_data_to_mock_bucket(
     mock_s3_client.put_object(
         Bucket=mock_bucket_name, Key=dataset_key, Body=buffer.getvalue()
     )
+    # Ensure the object is uploaded
+    obj_list =  mock_s3_client.list_objects_v2(Bucket=mock_bucket_name)
+    assert any(obj["Key"] == dataset_key for obj in obj_list.get("Contents", []))
+
+    # Directly access the S3 object to ensure it's there
+    response =  mock_s3_client.get_object(
+        Bucket=mock_bucket_name, Key=dataset_key
+    )
+    assert response["Body"].read() is not None
 
 
 def test_that_validate_args_raises_exception_when_input_value_is_empty_string():
@@ -534,15 +542,6 @@ def test_that_get_filtered_main_dataset_returns_expected_results(
         mock_bucket_name=mock_parquet_bucket,
         dataset_key=dataset_key,
     )
-    # Ensure the object is uploaded
-    obj_list = mock_s3_for_filesystem.list_objects_v2(Bucket=mock_parquet_bucket)
-    assert any(obj["Key"] == dataset_key for obj in obj_list.get("Contents", []))
-
-    # Directly access the S3 object to ensure it's there
-    response = mock_s3_for_filesystem.get_object(
-        Bucket=mock_parquet_bucket, Key=dataset_key
-    )
-    assert response["Body"].read() is not None
 
     # Call the function to test
     result = compare_parquet.get_filtered_main_dataset(

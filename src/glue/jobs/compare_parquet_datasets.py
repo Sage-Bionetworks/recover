@@ -1,11 +1,10 @@
-import argparse
 import datetime
 from io import BytesIO, StringIO
 import json
 import logging
 import os
 import sys
-from typing import Dict, List, Optional, Union
+from typing import List, Union
 import zipfile
 
 from awsglue.utils import getResolvedOptions
@@ -13,7 +12,6 @@ import boto3
 import datacompy
 import pandas as pd
 from pyarrow import fs
-import pyarrow.compute as pc
 import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 

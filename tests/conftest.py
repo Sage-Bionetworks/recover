@@ -1,10 +1,7 @@
-import os
-from unittest import mock
-
 import boto3
 import pytest
 import pandas as pd
-from pyarrow import fs, parquet
+from pyarrow import parquet
 from moto import mock_s3
 
 
