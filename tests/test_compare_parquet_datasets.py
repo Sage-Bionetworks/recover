@@ -1119,7 +1119,7 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
             staging_namespace="staging",
         )
         patch_get_filtered_data.assert_called_once_with(
-            filter_values="some_filter",
+            exports_filter="some_filter",
             dataset_key=f"s3://{parquet_bucket_name}/main/parquet/dataset_fitbitactivitylogs",
             s3_filesystem=None,
         )

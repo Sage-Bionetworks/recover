@@ -18,10 +18,7 @@ import pyarrow.parquet as pq
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-COHORTS = {
-    "adults": "adults_v1",
-    "pediatric" : "pediatric_v1"
-}
+COHORTS = {"adults": "adults_v1", "pediatric": "pediatric_v1"}
 
 INDEX_FIELD_MAP = {
     "dataset_enrolledparticipants": ["ParticipantIdentifier"],
@@ -289,7 +286,7 @@ def get_cohort_from_s3_uri(s3_uri: str) -> Union[str, None]:
     """
     cohort = None
     if COHORTS["adults"] in s3_uri:
-        cohort =  COHORTS["adults"]
+        cohort = COHORTS["adults"]
     elif COHORTS["pediatric"] in s3_uri:
         cohort = COHORTS["pediatric"]
     else:
@@ -411,7 +408,6 @@ def get_exports_filter_values(
         the filter conditions that can be applied to pyarrow datasets
     """
     filelist = get_integration_test_exports_json(s3, cfn_bucket, staging_namespace)
-
     # create the dictionary of export end dates and cohort
     export_end_date_vals = {}
     for s3_uri in filelist:
@@ -440,7 +436,6 @@ def get_exports_filter_values(
             else:
                 # Combine filters using logical OR
                 exports_filter = exports_filter | column_filter
-
     return exports_filter
 
 
@@ -463,7 +458,10 @@ def get_filtered_main_dataset(
     # Create the dataset object pointing to the S3 location
     table_source = dataset_key.split("s3://")[-1]
     dataset = ds.dataset(
-        source=table_source, filesystem=s3_filesystem, format="parquet"
+        source=table_source,
+        filesystem=s3_filesystem,
+        format="parquet",
+        partitioning="hive", # allows us to read in partitions as columns
     )
 
     # Apply the filter and read the dataset into a table
@@ -733,7 +731,7 @@ def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
 def compare_datasets_by_data_type(
     s3,
     cfn_bucket: str,
-    input_bucket : str,
+    input_bucket: str,
     parquet_bucket: str,
     staging_namespace: str,
     main_namespace: str,
@@ -774,7 +772,7 @@ def compare_datasets_by_data_type(
         staging_namespace=staging_namespace,
     )
     main_dataset = get_filtered_main_dataset(
-        filter_values=filter_values,
+        exports_filter=filter_values,
         dataset_key=get_parquet_dataset_s3_path(
             parquet_bucket, main_namespace, data_type
         ),
@@ -832,7 +830,6 @@ def main():
     aws_session = boto3.session.Session(region_name="us-east-1")
     fs = get_S3FileSystem_from_session(aws_session)
     data_type = args["data_type"]
-
     data_types_to_compare = get_data_types_to_compare(
         s3,
         args["parquet_bucket"],
