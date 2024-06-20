@@ -234,11 +234,11 @@ def test_that_get_cohort_from_s3_uri_returns_expected(s3_uri, expected):
         ("EnrolledParticipants_20221027.json", "dataset_enrolledparticipants"),
         (
             "HealthKitV2Samples_WalkingStepLength_Deleted_20221024.json",
-            "dataset_healthkitv2samples_deleted",
+            None,
         ),
         (
             "HealthKitV2Workouts_Deleted_20221024.json",
-            "dataset_healthkitv2workouts_deleted",
+            None,
         ),
         (
             "NonexistentDataType_20221024.json",
@@ -391,8 +391,7 @@ def test_that_get_integration_test_exports_json_throws_json_decode_error(s3, jso
         (
             "dataset_healthkitv2samples_deleted",
             ["s3://bucket/pediatric_v1/file1.zip"],
-            (ds.field("cohort") == "pediatric_v1")
-            & (ds.field("export_end_date").isin(["2022-10-24T00:00:00"])),
+            None,
         ),
     ],
     ids=[

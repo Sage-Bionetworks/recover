@@ -87,31 +87,6 @@ INDEX_FIELD_MAP = {
     "dataset_garminusermetricssummary": ["ParticipantIdentifier", "CalenderDate"],
     "dataset_googlefitsamples": ["ParticipantIdentifier", "GoogleFitSampleKey"],
     "dataset_symptomlog": ["ParticipantIdentifier", "DataPointKey"],
-    # deleted data types
-    "dataset_healthkitv2samples_deleted": [
-        "ParticipantIdentifier",
-        "HealthKitSampleKey",
-    ],
-    "dataset_healthkitv2heartbeat_deleted": [
-        "ParticipantIdentifier",
-        "HealthKitHeartbeatSampleKey",
-    ],
-    "dataset_healthkitv2statistics_deleted": [
-        "ParticipantIdentifier",
-        "HealthKitStatisticKey",
-    ],
-    "dataset_healthkitv2electrocardiogram_deleted": [
-        "ParticipantIdentifier",
-        "HealthKitECGSampleKey",
-    ],
-    "dataset_healthkitv2workouts_deleted": [
-        "ParticipantIdentifier",
-        "HealthKitWorkoutKey",
-    ],
-    "dataset_healthkitv2activitysummaries_deleted": [
-        "ParticipantIdentifier",
-        "HealthKitActivitySummaryKey",
-    ],
 }
 
 
@@ -301,10 +276,10 @@ def get_data_type_from_filename(filename: str) -> Union[str, None]:
     {DataType}_[{DataSubType}_][Deleted_]{YYYYMMDD}[-{YYYYMMDD}].json
 
     Since we don't have support for DataSubType, we only support top
-    level datatypes or healthkitv2 datatypes with deleted samples
-    (e.g: healthkitv2samples_deleted) but because we only have the subtypes
+    level datatypes but because we only have the subtypes
     of the dataset in the exports, we can still use that to get the metadata
-    we need.
+    we need. We parse out deleted healthkit data types as we don't process them
+    into parquet.
 
     Args:
         filename (str): JSON filename
