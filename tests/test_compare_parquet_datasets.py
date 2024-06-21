@@ -518,7 +518,7 @@ def test_that_get_exports_filter_values_returns_expected_results(
         "empty_cols_after_filter",
     ],
 )
-def test_that_get_filtered_main_dataset_returns_expected_results(
+def test_that_get_parquet_dataset_returns_expected_results(
     mock_s3_for_filesystem,
     mock_s3_filesystem,
     input_data,
@@ -541,8 +541,8 @@ def test_that_get_filtered_main_dataset_returns_expected_results(
     )
 
     # Call the function to test
-    result = compare_parquet.get_filtered_main_dataset(
-        exports_filter=exports_filter,
+    result = compare_parquet.get_parquet_dataset(
+        filter=exports_filter,
         dataset_key=f"s3://{mock_parquet_bucket}/{dataset_key}",
         s3_filesystem=mock_s3_filesystem,
     )
@@ -580,7 +580,7 @@ def test_that_get_filtered_main_dataset_returns_expected_results(
         "empty_cols_before_filter",
     ],
 )
-def test_that_get_filtered_main_dataset_raises_expected_exceptions(
+def test_that_get_parquet_dataset_raises_expected_exceptions(
     mock_s3_for_filesystem,
     mock_s3_filesystem,
     input_data,
@@ -588,7 +588,7 @@ def test_that_get_filtered_main_dataset_raises_expected_exceptions(
     expected_exception,
 ):
     """These are the test cases that will end up with pyarrow
-    exceptions when trying to get the filtered main dataset
+    exceptions when trying to get the dataset
     """
     # Setup S3 bucket and data
     mock_parquet_bucket = "test-processed-bucket"
@@ -602,8 +602,8 @@ def test_that_get_filtered_main_dataset_raises_expected_exceptions(
     )
 
     with pytest.raises(expected_exception):
-        compare_parquet.get_filtered_main_dataset(
-            exports_filter=exports_filter,
+        compare_parquet.get_parquet_dataset(
+            filter=exports_filter,
             dataset_key=f"s3://{mock_parquet_bucket}/{dataset_key}",
             s3_filesystem=mock_s3_filesystem,
         )
@@ -614,36 +614,12 @@ def test_that_get_parquet_dataset_raises_attr_error_if_no_datasets_exist(
     mock_s3_filesystem, parquet_bucket_name
 ):
     file_key = "staging/parquet/dataset_fitbitactivitylogs/test.parquet"
-    with mock.patch.object(parquet, "read_table", return_value=None) as mock_method:
+    with mock.patch.object(ds, "dataset", return_value=None):
         with pytest.raises(AttributeError):
             compare_parquet.get_parquet_dataset(
                 dataset_key=f"{parquet_bucket_name}/{file_key}",
                 s3_filesystem=mock_s3_filesystem,
             )
-
-
-def test_that_get_parquet_dataset_returns_dataset_if_datasets_exist(
-    mock_s3_for_filesystem,
-    mock_s3_filesystem,
-    valid_staging_dataset,
-    parquet_bucket_name,
-):
-    file_key = "staging/parquet/dataset_fitbitactivitylogs/test.parquet"
-    add_data_to_mock_bucket(
-        mock_s3_client=mock_s3_for_filesystem,
-        input_data=valid_staging_dataset,
-        mock_bucket_name=parquet_bucket_name,
-        dataset_key=file_key,
-    )
-    parquet_dataset = compare_parquet.get_parquet_dataset(
-        dataset_key=f"{parquet_bucket_name}/{file_key}",
-        s3_filesystem=mock_s3_filesystem,
-    )
-
-    assert_frame_equal(
-        parquet_dataset.reset_index(drop=True),
-        valid_staging_dataset.reset_index(drop=True),
-    )
 
 
 @mock_s3
@@ -1056,9 +1032,6 @@ def test_that_compare_datasets_by_data_type_returns_correct_msg_if_input_is_inva
         return_value=staging_dataset_empty,
     ), mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_exports_filter_values",
-    ), mock.patch(
-        "src.glue.jobs.compare_parquet_datasets.get_filtered_main_dataset",
-        return_value=staging_dataset_empty,
     ):
         compare_dict = compare_parquet.compare_datasets_by_data_type(
             s3=s3,
@@ -1091,9 +1064,6 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
         "src.glue.jobs.compare_parquet_datasets.get_exports_filter_values",
         return_value="some_filter",
     ) as patch_get_filter, mock.patch(
-        "src.glue.jobs.compare_parquet_datasets.get_filtered_main_dataset",
-        return_value=valid_staging_dataset,
-    ) as patch_get_filtered_data, mock.patch(
         "src.glue.jobs.compare_parquet_datasets.is_valid_dataset",
     ) as patch_check_valid:
         compare_parquet.compare_datasets_by_data_type(
@@ -1106,9 +1076,18 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
             s3_filesystem=None,
             data_type="dataset_fitbitactivitylogs",
         )
-        patch_get_parquet_data.assert_called_once_with(
-            dataset_key=f"s3://{parquet_bucket_name}/staging/parquet/dataset_fitbitactivitylogs",
-            s3_filesystem=None,
+        patch_get_parquet_data.assert_has_calls(
+            [
+                mock.call(
+                    dataset_key=f"s3://{parquet_bucket_name}/staging/parquet/dataset_fitbitactivitylogs",
+                    s3_filesystem=None,
+                ),
+                mock.call(
+                    filter="some_filter",
+                    dataset_key=f"s3://{parquet_bucket_name}/main/parquet/dataset_fitbitactivitylogs",
+                    s3_filesystem=None,
+                ),
+            ]
         )
         patch_get_filter.assert_called_once_with(
             s3=s3,
@@ -1116,11 +1095,6 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
             input_bucket="test_input_bucket",
             cfn_bucket="test_cfn_bucket",
             staging_namespace="staging",
-        )
-        patch_get_filtered_data.assert_called_once_with(
-            exports_filter="some_filter",
-            dataset_key=f"s3://{parquet_bucket_name}/main/parquet/dataset_fitbitactivitylogs",
-            s3_filesystem=None,
         )
         patch_check_valid.assert_has_calls(
             [
@@ -1149,9 +1123,6 @@ def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_da
         return_value=valid_staging_dataset,
     ), mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_exports_filter_values",
-    ), mock.patch(
-        "src.glue.jobs.compare_parquet_datasets.get_filtered_main_dataset",
-        return_value=valid_staging_dataset,
     ), mock.patch(
         "src.glue.jobs.compare_parquet_datasets.has_common_cols",
         return_value=False,

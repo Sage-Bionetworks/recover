@@ -260,9 +260,9 @@ def get_cohort_from_s3_uri(s3_uri: str) -> Union[str, None]:
         Union[str, None]: the cohort if it exists
     """
     cohort = None
-    if ADULTS  in s3_uri:
+    if ADULTS in s3_uri:
         cohort = ADULTS
-    elif PEDIATRIC  in s3_uri:
+    elif PEDIATRIC in s3_uri:
         cohort = PEDIATRIC
     else:
         pass
@@ -414,18 +414,20 @@ def get_exports_filter_values(
     return exports_filter
 
 
-def get_filtered_main_dataset(
-    exports_filter: ds.Expression, dataset_key: str, s3_filesystem: fs.S3FileSystem
+def get_parquet_dataset(
+    dataset_key: str,
+    s3_filesystem: fs.S3FileSystem,
+    filter: ds.Expression = None,
 ) -> pd.DataFrame:
-    """Returns the filtered main dataset on S3 as a pandas dataframe.
-    The main dataset is filtered using the exports_filter prior to being
+    """Returns a parquet dataset on S3 as a pandas dataframe.
+    The main dataset is optionally filtered using the exports_filter prior to being
     read into memory.
 
     Args:
-        exports_filter (ds.Expression): A pyarrow dataset expression object
-        that contains the filter conditions that can be applied to pyarrow datasets
         dataset_key (str): The URI of the parquet dataset.
         s3_filesystem (S3FileSystem): A fs.S3FileSystem object
+        filter (ds.Expression, optional): A pyarrow dataset expression object
+            to filter the dataset on. Defaults to None.
 
     Returns:
         pd.DataFrame: the filtered table as a pandas dataframe
@@ -436,34 +438,12 @@ def get_filtered_main_dataset(
         source=table_source,
         filesystem=s3_filesystem,
         format="parquet",
-        partitioning="hive", # allows us to read in partitions as columns
+        partitioning="hive",  # allows us to read in partitions as columns
     )
 
-    # Apply the filter and read the dataset into a table
-    filtered_table = dataset.to_table(filter=exports_filter)
+    # Apply any filter and read the dataset into a table
+    filtered_table = dataset.to_table(filter=filter)
     return filtered_table.to_pandas()
-
-
-def get_parquet_dataset(
-    dataset_key: str, s3_filesystem: fs.S3FileSystem
-) -> pd.DataFrame:
-    """
-    Returns a Parquet dataset on S3 as a pandas dataframe
-
-    Args:
-        dataset_key (str): The URI of the parquet dataset.
-        s3_filesystem (S3FileSystem): A fs.S3FileSystem object
-
-    Returns:
-        pandas.DataFrame
-
-    TODO: Currently, internal pyarrow things like to_table as a
-    result of the read_table function below takes a while as the dataset
-    grows bigger. Could find a way to optimize that.
-    """
-    table_source = dataset_key.split("s3://")[-1]
-    parquet_dataset = pq.read_table(source=table_source, filesystem=s3_filesystem)
-    return parquet_dataset.to_pandas()
 
 
 def get_folders_in_s3_bucket(
@@ -704,7 +684,7 @@ def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
 
 
 def compare_datasets_by_data_type(
-    s3,
+    s3: boto3.client,
     cfn_bucket: str,
     input_bucket: str,
     parquet_bucket: str,
@@ -716,7 +696,8 @@ def compare_datasets_by_data_type(
     """This runs the bulk of the comparison functions from beginning to end by data type
 
     Args:
-        cfn_bucket (str): name of the bucket containing the
+        s3 (boto3.client): s3 client connection
+        cfn_bucket (str): name of the bucket containing the integration test exports
         input_bucket (str): name of the bucket containing the input data
         parquet_bucket (str): name of the bucket containing the parquet datasets
         staging_namespace (str): name of namespace containing the "new" data
@@ -733,12 +714,6 @@ def compare_datasets_by_data_type(
         f"\n\nParquet Dataset Comparison running for Data Type: {data_type}"
         f"\n-----------------------------------------------------------------\n\n"
     )
-    staging_dataset = get_parquet_dataset(
-        dataset_key=get_parquet_dataset_s3_path(
-            parquet_bucket, staging_namespace, data_type
-        ),
-        s3_filesystem=s3_filesystem,
-    )
     filter_values = get_exports_filter_values(
         s3=s3,
         data_type=data_type,
@@ -746,8 +721,14 @@ def compare_datasets_by_data_type(
         cfn_bucket=cfn_bucket,
         staging_namespace=staging_namespace,
     )
-    main_dataset = get_filtered_main_dataset(
-        exports_filter=filter_values,
+    staging_dataset = get_parquet_dataset(
+        dataset_key=get_parquet_dataset_s3_path(
+            parquet_bucket, staging_namespace, data_type
+        ),
+        s3_filesystem=s3_filesystem,
+    )
+    main_dataset = get_parquet_dataset(
+        filter=filter_values,
         dataset_key=get_parquet_dataset_s3_path(
             parquet_bucket, main_namespace, data_type
         ),
