@@ -1120,7 +1120,7 @@ def test_that_upload_reports_to_s3_has_expected_calls(s3):
         compare_parquet.upload_reports_to_s3(
             s3=s3,
             reports=reports,
-            parquet_bucket_name="my_bucket",
+            parquet_bucket="my_bucket",
             data_type="my_data_type",
             staging_namespace="my_namespace",
         )

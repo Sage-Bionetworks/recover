@@ -418,7 +418,7 @@ def get_exports_filter_values(
 
 
 def convert_filter_values_to_expression(filter_values: Dict[str, str]) -> ds.Expression:
-    """ Converts the dict of the keys, values to filter on
+    """Converts the dict of the keys, values to filter on
         into filter conditions in the form of a pyarrow.dataset.Expression object
 
         The expression object takes the following structure for a single condition:
@@ -747,28 +747,24 @@ def upload_reports_to_s3(
     s3: boto3.client,
     reports: List[NamedTuple],
     data_type: str,
-    parquet_bucket_name: str,
+    parquet_bucket: str,
     staging_namespace: str,
 ) -> None:
-    """Uploads the various comparison reports to S3 bucket. We currently
-        support the following reports:
-            - main datacompy comparison report
-            - row differences in staging dataset
-            - row differences in main dataset
-            - duplicated data in staging dataset
-            - duplicated data in main dataset
+    """Uploads the various comparison reports to S3 bucket.
 
     Args:
-        s3 (boto3.client): _description_
-        compare_dict (Dict[str, datacompy.Compare]): _description_
-        data_type (str): _description_
-        parquet_bucket_name (str): _description_
-        staging_namespace (str): _description_
+        s3 (boto3.client): s3 client connection
+        reports (List[NamedTuple]): List of report which contain content(str) and
+        file_name(str). Content is the string body of the report and file_name is the
+        name of the file to be saved to S3.
+        data_type (str): data type to be compared for the given datasets
+        parquet_bucket (str): name of the bucket containing the parquet datasets
+        staging_namespace (str): name of namespace containing the "new" data
     """
     for report in reports:
         if report.content:
             s3.put_object(
-                Bucket=parquet_bucket_name,
+                Bucket=parquet_bucket,
                 Key=get_s3_file_key_for_comparison_results(
                     staging_namespace=staging_namespace,
                     data_type=data_type,
