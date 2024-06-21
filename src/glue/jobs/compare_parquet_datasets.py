@@ -104,6 +104,7 @@ def read_args() -> dict:
             "cfn-bucket",
         ],
     )
+
     for arg in args:
         validate_args(args[arg])
     return args
@@ -741,19 +742,24 @@ def compare_datasets_by_data_type(
     }
 
 
-def has_parquet_files(s3: boto3.client, bucket_name: str, prefix: str) -> bool:
+def has_parquet_files(
+    s3: boto3.client, bucket_name: str, namespace: str, data_type: str
+) -> bool:
     """Quick check that a s3 folder location has parquet data
 
     Args:
         s3 (boto3.client): s3 client connection
         bucket_name (str): name of the bucket
-        prefix (str): prefix of the path to the files
+        namespace (str): namespace of the path to the files
+        data_type (str): data type
 
     Returns:
         bool: Whether this folder location has data
     """
     # List objects within a specific S3 bucket and prefix (folder)
-    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+    response = s3.list_objects_v2(
+        Bucket=bucket_name, Prefix=os.path.join(namespace, "parquet", data_type)
+    )
 
     # Check if 'Contents' is in the response, which means there are objects in the folder
     if "Contents" in response:
@@ -761,6 +767,7 @@ def has_parquet_files(s3: boto3.client, bucket_name: str, prefix: str) -> bool:
             # Check if the object key ends with .parquet
             if obj["Key"].endswith(".parquet"):
                 return True
+
     return False
 
 
@@ -805,15 +812,15 @@ def main():
     staging_has_parquet_files = has_parquet_files(
         s3,
         bucket_name=args["parquet_bucket"],
-        prefix=get_parquet_dataset_s3_path(
-            args["parquet_bucket"], args["staging_namespace"], data_type
-        ))
+        namespace=args["staging_namespace"],
+        data_type=data_type,
+    )
     main_has_parquet_files = has_parquet_files(
         s3,
         bucket_name=args["parquet_bucket"],
-        prefix=get_parquet_dataset_s3_path(
-            args["parquet_bucket"], args["main_namespace"], data_type
-        ))
+        namespace=args["main_namespace"],
+        data_type=data_type,
+    )
     if staging_has_parquet_files and main_has_parquet_files:
         compare_dict = compare_datasets_by_data_type(
             s3=s3,

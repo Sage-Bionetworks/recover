@@ -1083,24 +1083,29 @@ def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_da
             " Comparison cannot continue."
         )
 
+def test_that_has_parquet_files_returns_false_with_incorrect_location(mock_s3_bucket):
+    s3, mock_bucket = mock_s3_bucket
+    s3.put_object(Bucket=mock_bucket, Key="incorrect_location/file1.parquet", Body="data")
+    assert compare_parquet.has_parquet_files(s3, mock_bucket, "test", "test_data") == False
+
 
 def test_that_has_parquet_files_returns_false_with_no_files(mock_s3_bucket):
     s3, mock_bucket = mock_s3_bucket
-    assert compare_parquet.has_parquet_files(s3, mock_bucket, "some/prefix/") == False
+    assert compare_parquet.has_parquet_files(s3, mock_bucket, "test", "test_data") == False
 
 
 def test_that_has_parquet_files_returns_false_with_no_parquet_files(mock_s3_bucket):
     s3, mock_bucket = mock_s3_bucket
-    s3.put_object(Bucket=mock_bucket, Key="some/prefix/file1.txt", Body="data")
-    s3.put_object(Bucket=mock_bucket, Key="some/prefix/file2.csv", Body="data")
-    assert compare_parquet.has_parquet_files(s3, mock_bucket, "some/prefix/") == False
+    s3.put_object(Bucket=mock_bucket, Key="test/parquet/test_data/file1.txt", Body="data")
+    s3.put_object(Bucket=mock_bucket, Key="test/parquet/test_data/file2.csv", Body="data")
+    assert compare_parquet.has_parquet_files(s3, mock_bucket, "test", "test_data") == False
 
 
 def test_that_has_parquet_files_returns_true_with_parquet_files(mock_s3_bucket):
     s3, mock_bucket = mock_s3_bucket
-    s3.put_object(Bucket=mock_bucket, Key="some/prefix/file1.parquet", Body="data")
-    s3.put_object(Bucket=mock_bucket, Key="some/prefix/file2.txt", Body="data")
-    assert compare_parquet.has_parquet_files(s3, mock_bucket, "some/prefix/") == True
+    s3.put_object(Bucket=mock_bucket, Key="test/parquet/test_data/file1.parquet", Body="data")
+    s3.put_object(Bucket=mock_bucket, Key="test/parquet/test_data/file2.txt", Body="data")
+    assert compare_parquet.has_parquet_files(s3, mock_bucket, "test", "test_data") == True
 
 
 def test_that_upload_reports_to_s3_has_expected_calls(s3):
