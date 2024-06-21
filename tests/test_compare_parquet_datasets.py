@@ -1029,7 +1029,7 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
                     s3_filesystem=None,
                 ),
                 mock.call(
-                    filter="some_filter",
+                    filter_values="some_filter",
                     dataset_key=f"s3://{parquet_bucket_name}/main/parquet/dataset_fitbitactivitylogs",
                     s3_filesystem=None,
                 ),

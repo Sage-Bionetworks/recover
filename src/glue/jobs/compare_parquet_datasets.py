@@ -691,7 +691,7 @@ def compare_datasets_by_data_type(
         s3_filesystem=s3_filesystem,
     )
     main_dataset = get_parquet_dataset(
-        filter=filter_values,
+        filter_values=filter_values,
         dataset_key=get_parquet_dataset_s3_path(
             parquet_bucket, main_namespace, data_type
         ),
@@ -818,7 +818,7 @@ def main():
         s3=s3,
         reports=reports,
         data_type=data_type,
-        parquet_bucket_name=args["parquet_bucket"],
+        parquet_bucket=args["parquet_bucket"],
         staging_namespace=args["staging_namespace"],
     )
     return
