@@ -277,8 +277,6 @@ def get_cohort_from_s3_uri(s3_uri: str) -> Union[str, None]:
         cohort = ADULTS
     elif PEDIATRIC in s3_uri:
         cohort = PEDIATRIC
-    else:
-        pass
     return cohort
 
 
@@ -743,6 +741,29 @@ def compare_datasets_by_data_type(
     }
 
 
+def has_parquet_files(s3: boto3.client, bucket_name: str, prefix: str) -> bool:
+    """Quick check that a s3 folder location has parquet data
+
+    Args:
+        s3 (boto3.client): s3 client connection
+        bucket_name (str): name of the bucket
+        prefix (str): prefix of the path to the files
+
+    Returns:
+        bool: Whether this folder location has data
+    """
+    # List objects within a specific S3 bucket and prefix (folder)
+    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+
+    # Check if 'Contents' is in the response, which means there are objects in the folder
+    if "Contents" in response:
+        for obj in response["Contents"]:
+            # Check if the object key ends with .parquet
+            if obj["Key"].endswith(".parquet"):
+                return True
+    return False
+
+
 def upload_reports_to_s3(
     s3: boto3.client,
     reports: List[NamedTuple],
@@ -781,46 +802,62 @@ def main():
     fs = get_S3FileSystem_from_session(aws_session)
     data_type = args["data_type"]
     logger.info(f"Running comparison report for {data_type}")
-    compare_dict = compare_datasets_by_data_type(
-        s3=s3,
-        cfn_bucket=args["cfn_bucket"],
-        input_bucket=args["input_bucket"],
-        parquet_bucket=args["parquet_bucket"],
-        staging_namespace=args["staging_namespace"],
-        main_namespace=args["main_namespace"],
-        s3_filesystem=fs,
-        data_type=data_type,
-    )
-    # List of reports with their corresponding parameters
-    ReportParams = namedtuple("ReportParams", ["file_name", "content"])
-    staging_row_diffs = convert_dataframe_to_text(
-        compare_row_diffs(compare_dict["compare_obj"], namespace="staging")
-    )
-    main_row_diffs = convert_dataframe_to_text(
-        compare_row_diffs(compare_dict["compare_obj"], namespace="main")
-    )
-    staging_dups = convert_dataframe_to_text(
-        get_duplicates(compare_dict["compare_obj"], namespace="staging")
-    )
-    main_dups = convert_dataframe_to_text(
-        get_duplicates(compare_dict["compare_obj"], namespace="main")
-    )
-    reports = [
-        ReportParams(
-            content=compare_dict["comparison_report"], file_name="parquet_compare.txt"
-        ),
-        ReportParams(content=staging_row_diffs, file_name="all_diff_staging_rows.csv"),
-        ReportParams(content=main_row_diffs, file_name="all_diff_main_rows.csv"),
-        ReportParams(content=staging_dups, file_name="all_dups_staging_rows.csv"),
-        ReportParams(content=main_dups, file_name="all_dups_main_rows.csv"),
-    ]
-    upload_reports_to_s3(
-        s3=s3,
-        reports=reports,
-        data_type=data_type,
-        parquet_bucket=args["parquet_bucket"],
-        staging_namespace=args["staging_namespace"],
-    )
+    staging_has_parquet_files = has_parquet_files(
+        s3,
+        bucket_name=args["parquet_bucket"],
+        prefix=get_parquet_dataset_s3_path(
+            args["parquet_bucket"], args["staging_namespace"], data_type
+        ))
+    main_has_parquet_files = has_parquet_files(
+        s3,
+        bucket_name=args["parquet_bucket"],
+        prefix=get_parquet_dataset_s3_path(
+            args["parquet_bucket"], args["main_namespace"], data_type
+        ))
+    if staging_has_parquet_files and main_has_parquet_files:
+        compare_dict = compare_datasets_by_data_type(
+            s3=s3,
+            cfn_bucket=args["cfn_bucket"],
+            input_bucket=args["input_bucket"],
+            parquet_bucket=args["parquet_bucket"],
+            staging_namespace=args["staging_namespace"],
+            main_namespace=args["main_namespace"],
+            s3_filesystem=fs,
+            data_type=data_type,
+        )
+        # List of reports with their corresponding parameters
+        ReportParams = namedtuple("ReportParams", ["file_name", "content"])
+        staging_row_diffs = convert_dataframe_to_text(
+            compare_row_diffs(compare_dict["compare_obj"], namespace="staging")
+        )
+        main_row_diffs = convert_dataframe_to_text(
+            compare_row_diffs(compare_dict["compare_obj"], namespace="main")
+        )
+        staging_dups = convert_dataframe_to_text(
+            get_duplicates(compare_dict["compare_obj"], namespace="staging")
+        )
+        main_dups = convert_dataframe_to_text(
+            get_duplicates(compare_dict["compare_obj"], namespace="main")
+        )
+        reports = [
+            ReportParams(
+                content=compare_dict["comparison_report"],
+                file_name="parquet_compare.txt",
+            ),
+            ReportParams(
+                content=staging_row_diffs, file_name="all_diff_staging_rows.csv"
+            ),
+            ReportParams(content=main_row_diffs, file_name="all_diff_main_rows.csv"),
+            ReportParams(content=staging_dups, file_name="all_dups_staging_rows.csv"),
+            ReportParams(content=main_dups, file_name="all_dups_main_rows.csv"),
+        ]
+        upload_reports_to_s3(
+            s3=s3,
+            reports=reports,
+            data_type=data_type,
+            parquet_bucket=args["parquet_bucket"],
+            staging_namespace=args["staging_namespace"],
+        )
     return
 
 

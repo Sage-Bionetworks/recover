@@ -259,11 +259,9 @@ def test_that_get_data_type_from_filename_returns_expected(filename, expected):
     assert expected == result
 
 
-@mock_s3
-def test_that_get_json_files_in_zip_from_s3_returns_expected_filelist(s3):
+def test_that_get_json_files_in_zip_from_s3_returns_expected_filelist(mock_s3_bucket):
     # Set up the mock S3 service
-    input_bucket = "test-input-bucket"
-    s3.create_bucket(Bucket=input_bucket)
+    s3, mock_bucket = mock_s3_bucket
 
     # Create a zip file with JSON files
     zip_buffer = BytesIO()
@@ -277,21 +275,18 @@ def test_that_get_json_files_in_zip_from_s3_returns_expected_filelist(s3):
     zip_buffer.seek(0)
 
     # Upload the zip file to the mock S3 bucket
-    s3_uri = f"s3://{input_bucket}/test.zip"
-    s3.put_object(Bucket=input_bucket, Key="test.zip", Body=zip_buffer.getvalue())
+    s3_uri = f"s3://{mock_bucket}/test.zip"
+    s3.put_object(Bucket=mock_bucket, Key="test.zip", Body=zip_buffer.getvalue())
 
-    result = compare_parquet.get_json_files_in_zip_from_s3(s3, input_bucket, s3_uri)
+    result = compare_parquet.get_json_files_in_zip_from_s3(s3, mock_bucket, s3_uri)
 
     # Verify the result
     assert result == ["file1.json", "file2.json"]
 
 
-@mock_s3
-def test_that_get_integration_test_exports_json_success(s3):
+def test_that_get_integration_test_exports_json_success(mock_s3_bucket):
     staging_namespace = "staging"
-    # Set up the mock S3 service
-    mock_cfn_bucket = "test-cfn-bucket"
-    s3.create_bucket(Bucket=mock_cfn_bucket)
+    s3, mock_bucket = mock_s3_bucket
 
     # Create a sample exports.json file content
     exports_content = ["file1.json", "file2.json", "file3.json"]
@@ -299,32 +294,28 @@ def test_that_get_integration_test_exports_json_success(s3):
 
     # Upload the exports.json file to the mock S3 bucket
     s3.put_object(
-        Bucket=mock_cfn_bucket,
+        Bucket=mock_bucket,
         Key=f"{staging_namespace}/integration_test_exports.json",
         Body=exports_json,
     )
 
     result = compare_parquet.get_integration_test_exports_json(
-        s3, mock_cfn_bucket, staging_namespace
+        s3, mock_bucket, staging_namespace
     )
     assert result == exports_content
 
 
-@mock_s3
-def test_that_get_integration_test_exports_json_file_not_exist(s3):
-    # Set up the mock S3 service
-    mock_cfn_bucket = "test-cfn-bucket"
-    s3.create_bucket(Bucket=mock_cfn_bucket)
+def test_that_get_integration_test_exports_json_file_not_exist(mock_s3_bucket):
+    s3, mock_bucket = mock_s3_bucket
     staging_namespace = "staging"
 
     # Call the function and expect an exception
     with pytest.raises(s3.exceptions.NoSuchKey):
         compare_parquet.get_integration_test_exports_json(
-            s3, mock_cfn_bucket, staging_namespace
+            s3, mock_bucket, staging_namespace
         )
 
 
-@mock_s3
 @pytest.mark.parametrize(
     "json_body",
     [(""), ("{invalid json}")],
@@ -333,15 +324,15 @@ def test_that_get_integration_test_exports_json_file_not_exist(s3):
         "invalid_json",
     ],
 )
-def test_that_get_integration_test_exports_json_throws_json_decode_error(s3, json_body):
-    # Set up the mock S3 service
-    mock_cfn_bucket = "test-cfn-bucket"
-    s3.create_bucket(Bucket=mock_cfn_bucket)
+def test_that_get_integration_test_exports_json_throws_json_decode_error(
+    json_body, mock_s3_bucket
+):
+    s3, mock_bucket = mock_s3_bucket
     staging_namespace = "staging"
 
     # Upload an invalid exports.json file to the mock S3 bucket
     s3.put_object(
-        Bucket=mock_cfn_bucket,
+        Bucket=mock_bucket,
         Key=f"{staging_namespace}/integration_test_exports.json",
         Body=json_body,
     )
@@ -349,7 +340,7 @@ def test_that_get_integration_test_exports_json_throws_json_decode_error(s3, jso
     # Call the function and expect a JSON decode error
     with pytest.raises(json.JSONDecodeError):
         compare_parquet.get_integration_test_exports_json(
-            s3, mock_cfn_bucket, staging_namespace
+            s3, mock_bucket, staging_namespace
         )
 
 
@@ -735,7 +726,7 @@ def test_that_get_additional_cols_returns_list_of_cols_if_add_cols(
     [
         (pd.DataFrame(dict(col1=[1, 2], col2=[3, 4])), ",col1,col2\n0,1,3\n1,2,4\n"),
         (pd.DataFrame(), ""),
-        (pd.DataFrame(columns = ["col1", "col2"]), ""),
+        (pd.DataFrame(columns=["col1", "col2"]), ""),
     ],
     ids=["non_empty_df", "empty_df", "empty_cols"],
 )
@@ -745,13 +736,13 @@ def test_that_dataframe_to_text_returns_expected_str(input_dataset, expected_str
 
 
 def test_that_dataframe_to_text_returns_valid_format_for_s3_put_object(
-    s3, parquet_bucket_name, valid_staging_dataset
+    mock_s3_bucket, valid_staging_dataset
 ):
     # shouldn't throw a botocore.exceptions.ParamValidationError
-    s3.create_bucket(Bucket=parquet_bucket_name)
+    s3, mock_bucket = mock_s3_bucket
     staging_content = compare_parquet.convert_dataframe_to_text(valid_staging_dataset)
     s3.put_object(
-        Bucket=parquet_bucket_name,
+        Bucket=mock_bucket,
         Key=f"staging/parquet/dataset_fitbitactivitylogs/test.csv",
         Body=staging_content,
     )
@@ -1091,6 +1082,25 @@ def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_da
             "staging dataset and main dataset have no columns in common."
             " Comparison cannot continue."
         )
+
+
+def test_that_has_parquet_files_returns_false_with_no_files(mock_s3_bucket):
+    s3, mock_bucket = mock_s3_bucket
+    assert compare_parquet.has_parquet_files(s3, mock_bucket, "some/prefix/") == False
+
+
+def test_that_has_parquet_files_returns_false_with_no_parquet_files(mock_s3_bucket):
+    s3, mock_bucket = mock_s3_bucket
+    s3.put_object(Bucket=mock_bucket, Key="some/prefix/file1.txt", Body="data")
+    s3.put_object(Bucket=mock_bucket, Key="some/prefix/file2.csv", Body="data")
+    assert compare_parquet.has_parquet_files(s3, mock_bucket, "some/prefix/") == False
+
+
+def test_that_has_parquet_files_returns_true_with_parquet_files(mock_s3_bucket):
+    s3, mock_bucket = mock_s3_bucket
+    s3.put_object(Bucket=mock_bucket, Key="some/prefix/file1.parquet", Body="data")
+    s3.put_object(Bucket=mock_bucket, Key="some/prefix/file2.txt", Body="data")
+    assert compare_parquet.has_parquet_files(s3, mock_bucket, "some/prefix/") == True
 
 
 def test_that_upload_reports_to_s3_has_expected_calls(s3):

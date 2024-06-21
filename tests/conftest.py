@@ -49,6 +49,17 @@ def dataset_fixture(request):
     return request.getfixturevalue(request.param)
 
 
+@pytest.fixture
+def mock_s3_bucket():
+    """This allows us to persist the bucket and s3 client
+    """
+    with mock_s3():
+        s3 = boto3.client('s3', region_name='us-east-1')
+        bucket_name = 'test-bucket'
+        s3.create_bucket(Bucket=bucket_name)
+        yield s3, bucket_name
+
+
 @pytest.fixture()
 def valid_staging_dataset():
     yield pd.DataFrame(
