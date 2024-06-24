@@ -1,5 +1,6 @@
 from collections import namedtuple
 import json
+import re
 import zipfile
 from io import BytesIO
 from unittest import mock
@@ -69,7 +70,7 @@ def add_data_to_mock_bucket(
         adds test data to mock s3 bucket
 
     Args:
-        s3_client (boto3.client): mock s3 client
+        mock_s3_client (boto3.client): mock s3 client
         input_data (pd.DataFrame): test data
         mock_bucket_name (str): mock s3 bucket name to use
         dataset_key (str): path in mock s3 bucket to put data
@@ -259,10 +260,9 @@ def test_that_get_data_type_from_filename_returns_expected(filename, expected):
     assert expected == result
 
 
-def test_that_get_json_files_in_zip_from_s3_returns_expected_filelist(mock_s3_bucket):
-    # Set up the mock S3 service
-    s3, mock_bucket = mock_s3_bucket
-
+def test_that_get_json_files_in_zip_from_s3_returns_expected_filelist(
+    mock_s3_environment, mock_s3_bucket
+):
     # Create a zip file with JSON files
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, "w") as z:
@@ -275,44 +275,50 @@ def test_that_get_json_files_in_zip_from_s3_returns_expected_filelist(mock_s3_bu
     zip_buffer.seek(0)
 
     # Upload the zip file to the mock S3 bucket
-    s3_uri = f"s3://{mock_bucket}/test.zip"
-    s3.put_object(Bucket=mock_bucket, Key="test.zip", Body=zip_buffer.getvalue())
+    s3_uri = f"s3://{mock_s3_bucket}/test.zip"
+    mock_s3_environment.put_object(
+        Bucket=mock_s3_bucket, Key="test.zip", Body=zip_buffer.getvalue()
+    )
 
-    result = compare_parquet.get_json_files_in_zip_from_s3(s3, mock_bucket, s3_uri)
+    result = compare_parquet.get_json_files_in_zip_from_s3(
+        mock_s3_environment, mock_s3_bucket, s3_uri
+    )
 
     # Verify the result
     assert result == ["file1.json", "file2.json"]
 
 
-def test_that_get_integration_test_exports_json_success(mock_s3_bucket):
+def test_that_get_integration_test_exports_json_success(
+    mock_s3_environment, mock_s3_bucket
+):
     staging_namespace = "staging"
-    s3, mock_bucket = mock_s3_bucket
 
     # Create a sample exports.json file content
     exports_content = ["file1.json", "file2.json", "file3.json"]
     exports_json = json.dumps(exports_content)
 
     # Upload the exports.json file to the mock S3 bucket
-    s3.put_object(
-        Bucket=mock_bucket,
+    mock_s3_environment.put_object(
+        Bucket=mock_s3_bucket,
         Key=f"{staging_namespace}/integration_test_exports.json",
         Body=exports_json,
     )
 
     result = compare_parquet.get_integration_test_exports_json(
-        s3, mock_bucket, staging_namespace
+        mock_s3_environment, mock_s3_bucket, staging_namespace
     )
     assert result == exports_content
 
 
-def test_that_get_integration_test_exports_json_file_not_exist(mock_s3_bucket):
-    s3, mock_bucket = mock_s3_bucket
+def test_that_get_integration_test_exports_json_file_not_exist(
+    mock_s3_environment, mock_s3_bucket
+):
     staging_namespace = "staging"
 
     # Call the function and expect an exception
-    with pytest.raises(s3.exceptions.NoSuchKey):
+    with pytest.raises(mock_s3_environment.exceptions.NoSuchKey):
         compare_parquet.get_integration_test_exports_json(
-            s3, mock_bucket, staging_namespace
+            mock_s3_environment, mock_s3_bucket, staging_namespace
         )
 
 
@@ -325,14 +331,13 @@ def test_that_get_integration_test_exports_json_file_not_exist(mock_s3_bucket):
     ],
 )
 def test_that_get_integration_test_exports_json_throws_json_decode_error(
-    json_body, mock_s3_bucket
+    json_body, mock_s3_environment, mock_s3_bucket
 ):
-    s3, mock_bucket = mock_s3_bucket
     staging_namespace = "staging"
 
     # Upload an invalid exports.json file to the mock S3 bucket
-    s3.put_object(
-        Bucket=mock_bucket,
+    mock_s3_environment.put_object(
+        Bucket=mock_s3_bucket,
         Key=f"{staging_namespace}/integration_test_exports.json",
         Body=json_body,
     )
@@ -340,7 +345,7 @@ def test_that_get_integration_test_exports_json_throws_json_decode_error(
     # Call the function and expect a JSON decode error
     with pytest.raises(json.JSONDecodeError):
         compare_parquet.get_integration_test_exports_json(
-            s3, mock_bucket, staging_namespace
+            mock_s3_environment, mock_s3_bucket, staging_namespace
         )
 
 
@@ -556,6 +561,23 @@ def test_that_convert_filter_values_to_expression_returns_correct_exp(
                 }
             ),
         ),
+        (
+            pd.DataFrame(
+                {
+                    "cohort": pd.Series(dtype="object"),
+                    "export_end_date": pd.Series(dtype="object"),
+                    "value": pd.Series(dtype="int64"),
+                }
+            ),
+            {},
+            pd.DataFrame(
+                {
+                    "cohort": pd.Series(dtype="object"),
+                    "export_end_date": pd.Series(dtype="object"),
+                    "value": pd.Series(dtype="int64"),
+                }
+            ),
+        ),
     ],
     ids=[
         "regular_filter",
@@ -563,11 +585,13 @@ def test_that_convert_filter_values_to_expression_returns_correct_exp(
         "no_filter",
         "empty_df_no_filter",
         "empty_cols_after_filter",
+        "empty_cols_no_filter",
     ],
 )
 def test_that_get_parquet_dataset_returns_expected_results(
     mock_s3_for_filesystem,
     mock_s3_filesystem,
+    mock_s3_bucket,
     input_data,
     filter_values,
     expected_filtered_data,
@@ -575,22 +599,19 @@ def test_that_get_parquet_dataset_returns_expected_results(
     """This will check that the main dataset is being chunked and filtered correctly
     based on what is the staging dataset
     """
-
-    # Setup S3 bucket and data
-    mock_parquet_bucket = "test-processed-bucket"
     dataset_key = "test_dataset/main_dataset.parquet"
 
     add_data_to_mock_bucket(
         mock_s3_client=mock_s3_for_filesystem,
         input_data=input_data,
-        mock_bucket_name=mock_parquet_bucket,
+        mock_bucket_name=mock_s3_bucket,
         dataset_key=dataset_key,
     )
 
     # Call the function to test
     result = compare_parquet.get_parquet_dataset(
         filter_values=filter_values,
-        dataset_key=f"s3://{mock_parquet_bucket}/{dataset_key}",
+        dataset_key=f"s3://{mock_s3_bucket}/{dataset_key}",
         s3_filesystem=mock_s3_filesystem,
     )
 
@@ -628,6 +649,7 @@ def test_that_get_parquet_dataset_returns_expected_results(
 def test_that_get_parquet_dataset_raises_expected_exceptions(
     mock_s3_for_filesystem,
     mock_s3_filesystem,
+    mock_s3_bucket,
     input_data,
     filter_values,
     expected_exception,
@@ -635,21 +657,19 @@ def test_that_get_parquet_dataset_raises_expected_exceptions(
     """These are the test cases that will end up with pyarrow
     exceptions when trying to get the dataset
     """
-    # Setup S3 bucket and data
-    mock_parquet_bucket = "test-processed-bucket"
     dataset_key = "test_dataset/main_dataset.parquet"
 
     add_data_to_mock_bucket(
         mock_s3_client=mock_s3_for_filesystem,
         input_data=input_data,
-        mock_bucket_name=mock_parquet_bucket,
+        mock_bucket_name=mock_s3_bucket,
         dataset_key=dataset_key,
     )
 
     with pytest.raises(expected_exception):
         compare_parquet.get_parquet_dataset(
             filter_values=filter_values,
-            dataset_key=f"s3://{mock_parquet_bucket}/{dataset_key}",
+            dataset_key=f"s3://{mock_s3_bucket}/{dataset_key}",
             s3_filesystem=mock_s3_filesystem,
         )
 
@@ -736,13 +756,12 @@ def test_that_dataframe_to_text_returns_expected_str(input_dataset, expected_str
 
 
 def test_that_dataframe_to_text_returns_valid_format_for_s3_put_object(
-    mock_s3_bucket, valid_staging_dataset
+    mock_s3_bucket, mock_s3_environment, valid_staging_dataset
 ):
     # shouldn't throw a botocore.exceptions.ParamValidationError
-    s3, mock_bucket = mock_s3_bucket
     staging_content = compare_parquet.convert_dataframe_to_text(valid_staging_dataset)
-    s3.put_object(
-        Bucket=mock_bucket,
+    mock_s3_environment.put_object(
+        Bucket=mock_s3_bucket,
         Key=f"staging/parquet/dataset_fitbitactivitylogs/test.csv",
         Body=staging_content,
     )
@@ -880,42 +899,36 @@ def test_that_compare_column_names_returns_msg_if_cols_are_diff(
     ]
 
 
-def test_that_is_valid_dataset_returns_true_if_dataset_is_valid(valid_staging_dataset):
-    is_valid_result = compare_parquet.is_valid_dataset(valid_staging_dataset, "staging")
-    assert is_valid_result["result"]
-    assert is_valid_result["msg"] == "staging dataset has been validated."
-
-
-def test_that_is_valid_dataset_returns_false_if_dataset_is_empty(staging_dataset_empty):
-    is_valid_result = compare_parquet.is_valid_dataset(staging_dataset_empty, "staging")
-    assert is_valid_result["result"] is False
-    assert (
-        is_valid_result["msg"]
-        == "staging dataset has no data. Comparison cannot continue."
-    )
-
-
-def test_that_is_valid_dataset_returns_false_if_dataset_has_dup_cols(
-    staging_dataset_with_dup_cols,
+@pytest.mark.parametrize(
+    "dataset_fixture,expected_error",
+    [
+        (
+            "staging_dataset_empty",
+            "The staging dataset is empty. Comparison cannot continue.",
+        ),
+        (
+            "staging_dataset_with_empty_columns",
+            "The staging dataset is empty. Comparison cannot continue.",
+        ),
+        (
+            "staging_dataset_with_dup_cols",
+            "staging dataset has duplicated columns. Comparison cannot continue.\nDuplicated columns:['EndDate']",
+        ),
+    ],
+    ids=["empty_df_no_rows_no_cols", "empty_df_no_rows", "df_dup_cols"],
+    indirect=["dataset_fixture"],
+)
+def test_that_check_for_valid_dataset_raises_exception_if_dataset_is_invalid(
+    dataset_fixture, expected_error
 ):
-    is_valid_result = compare_parquet.is_valid_dataset(
-        staging_dataset_with_dup_cols, "staging"
-    )
-    assert is_valid_result["result"] is False
-    assert is_valid_result["msg"] == (
-        "staging dataset has duplicated columns. Comparison cannot continue.\n"
-        "Duplicated columns:['EndDate']"
-    )
+    with pytest.raises(ValueError, match=re.escape(expected_error)):
+        compare_parquet.check_for_valid_dataset(dataset_fixture, "staging")
 
 
-def test_that_is_valid_dataset_returns_true_if_dataset_has_empty_cols(
-    staging_dataset_with_empty_columns,
+def test_that_check_for_valid_dataset_raises_no_exception_if_dataset_is_valid(
+    valid_staging_dataset,
 ):
-    is_valid_result = compare_parquet.is_valid_dataset(
-        staging_dataset_with_empty_columns, "staging"
-    )
-    assert is_valid_result["result"]
-    assert is_valid_result["msg"] == "staging dataset has been validated."
+    compare_parquet.check_for_valid_dataset(valid_staging_dataset, "staging")
 
 
 @pytest.mark.parametrize(
@@ -970,24 +983,21 @@ def test_that_compare_datasets_by_data_type_returns_correct_msg_if_input_is_inva
     ), mock.patch(
         "src.glue.jobs.compare_parquet_datasets.get_exports_filter_values",
     ):
-        compare_dict = compare_parquet.compare_datasets_by_data_type(
-            s3=s3,
-            cfn_bucket="test_cfn_bucket",
-            input_bucket="test_input_bucket",
-            parquet_bucket=parquet_bucket_name,
-            staging_namespace="staging",
-            main_namespace="main",
-            s3_filesystem=None,
-            data_type="dataset_fitbitactivitylogs",
-        )
-        assert compare_dict["compare_obj"] == None
-        assert compare_dict["comparison_report"] == (
-            "\n\nParquet Dataset Comparison running for Data Type: dataset_fitbitactivitylogs\n"
-            "-----------------------------------------------------------------\n\n"
-            "staging dataset has no data. Comparison cannot continue.\n"
-            "main dataset has no data. Comparison cannot continue."
-        )
-        mocked_compare_datasets.assert_not_called()
+        with pytest.raises(
+            ValueError,
+            match="The staging dataset is empty. Comparison cannot continue.",
+        ):
+            compare_parquet.compare_datasets_by_data_type(
+                s3=s3,
+                cfn_bucket="test_cfn_bucket",
+                input_bucket="test_input_bucket",
+                parquet_bucket=parquet_bucket_name,
+                staging_namespace="staging",
+                main_namespace="main",
+                s3_filesystem=None,
+                data_type="dataset_fitbitactivitylogs",
+            )
+            mocked_compare_datasets.assert_not_called()
 
 
 @mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
@@ -1001,7 +1011,7 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
         "src.glue.jobs.compare_parquet_datasets.get_exports_filter_values",
         return_value="some_filter",
     ) as patch_get_filter, mock.patch(
-        "src.glue.jobs.compare_parquet_datasets.is_valid_dataset",
+        "src.glue.jobs.compare_parquet_datasets.check_for_valid_dataset",
     ) as patch_check_valid:
         compare_parquet.compare_datasets_by_data_type(
             s3=s3,
@@ -1049,7 +1059,7 @@ def test_that_compare_datasets_by_data_type_calls_compare_datasets_by_data_type_
 
 
 @mock.patch("src.glue.jobs.compare_parquet_datasets.compare_datasets_and_output_report")
-def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_data_type_if_input_has_no_common_cols(
+def test_that_compare_datasets_by_data_type_raises_exception_if_input_has_no_common_cols(
     mocked_compare_datasets,
     parquet_bucket_name,
     valid_staging_dataset,
@@ -1064,48 +1074,79 @@ def test_that_compare_datasets_by_data_type_does_not_call_compare_datasets_by_da
         "src.glue.jobs.compare_parquet_datasets.has_common_cols",
         return_value=False,
     ):
-        result = compare_parquet.compare_datasets_by_data_type(
-            s3=s3,
-            cfn_bucket="test_cfn_bucket",
-            input_bucket="test_input_bucket",
-            parquet_bucket=parquet_bucket_name,
-            staging_namespace="staging",
-            main_namespace="main",
-            s3_filesystem=None,
-            data_type="dataset_fitbitactivitylogs",
+        with pytest.raises(
+            ValueError, match="Datasets have no common columns to merge on."
+        ):
+            compare_parquet.compare_datasets_by_data_type(
+                s3=s3,
+                cfn_bucket="test_cfn_bucket",
+                input_bucket="test_input_bucket",
+                parquet_bucket=parquet_bucket_name,
+                staging_namespace="staging",
+                main_namespace="main",
+                s3_filesystem=None,
+                data_type="dataset_fitbitactivitylogs",
+            )
+            mocked_compare_datasets.assert_not_called()
+
+
+def test_that_has_parquet_files_returns_false_with_incorrect_location(
+    mock_s3_environment, mock_s3_bucket
+):
+    mock_s3_environment.put_object(
+        Bucket=mock_s3_bucket, Key="incorrect_location/file1.parquet", Body="data"
+    )
+    assert (
+        compare_parquet.has_parquet_files(
+            mock_s3_environment, mock_s3_bucket, "test", "test_data"
         )
-        mocked_compare_datasets.assert_not_called()
-        assert result["compare_obj"] == None
-        assert result["comparison_report"] == (
-            "\n\nParquet Dataset Comparison running for Data Type: dataset_fitbitactivitylogs\n"
-            "-----------------------------------------------------------------\n\n"
-            "staging dataset and main dataset have no columns in common."
-            " Comparison cannot continue."
+        == False
+    )
+
+
+def test_that_has_parquet_files_returns_false_with_no_files(
+    mock_s3_environment, mock_s3_bucket
+):
+    assert (
+        compare_parquet.has_parquet_files(
+            mock_s3_environment, mock_s3_bucket, "test", "test_data"
         )
-
-def test_that_has_parquet_files_returns_false_with_incorrect_location(mock_s3_bucket):
-    s3, mock_bucket = mock_s3_bucket
-    s3.put_object(Bucket=mock_bucket, Key="incorrect_location/file1.parquet", Body="data")
-    assert compare_parquet.has_parquet_files(s3, mock_bucket, "test", "test_data") == False
+        == False
+    )
 
 
-def test_that_has_parquet_files_returns_false_with_no_files(mock_s3_bucket):
-    s3, mock_bucket = mock_s3_bucket
-    assert compare_parquet.has_parquet_files(s3, mock_bucket, "test", "test_data") == False
+def test_that_has_parquet_files_returns_false_with_no_parquet_files(
+    mock_s3_environment, mock_s3_bucket
+):
+    mock_s3_environment.put_object(
+        Bucket=mock_s3_bucket, Key="test/parquet/test_data/file1.txt", Body="data"
+    )
+    mock_s3_environment.put_object(
+        Bucket=mock_s3_bucket, Key="test/parquet/test_data/file2.csv", Body="data"
+    )
+    assert (
+        compare_parquet.has_parquet_files(
+            mock_s3_environment, mock_s3_bucket, "test", "test_data"
+        )
+        == False
+    )
 
 
-def test_that_has_parquet_files_returns_false_with_no_parquet_files(mock_s3_bucket):
-    s3, mock_bucket = mock_s3_bucket
-    s3.put_object(Bucket=mock_bucket, Key="test/parquet/test_data/file1.txt", Body="data")
-    s3.put_object(Bucket=mock_bucket, Key="test/parquet/test_data/file2.csv", Body="data")
-    assert compare_parquet.has_parquet_files(s3, mock_bucket, "test", "test_data") == False
-
-
-def test_that_has_parquet_files_returns_true_with_parquet_files(mock_s3_bucket):
-    s3, mock_bucket = mock_s3_bucket
-    s3.put_object(Bucket=mock_bucket, Key="test/parquet/test_data/file1.parquet", Body="data")
-    s3.put_object(Bucket=mock_bucket, Key="test/parquet/test_data/file2.txt", Body="data")
-    assert compare_parquet.has_parquet_files(s3, mock_bucket, "test", "test_data") == True
+def test_that_has_parquet_files_returns_true_with_parquet_files(
+    mock_s3_environment, mock_s3_bucket
+):
+    mock_s3_environment.put_object(
+        Bucket=mock_s3_bucket, Key="test/parquet/test_data/file1.parquet", Body="data"
+    )
+    mock_s3_environment.put_object(
+        Bucket=mock_s3_bucket, Key="test/parquet/test_data/file2.txt", Body="data"
+    )
+    assert (
+        compare_parquet.has_parquet_files(
+            mock_s3_environment, mock_s3_bucket, "test", "test_data"
+        )
+        == True
+    )
 
 
 def test_that_upload_reports_to_s3_has_expected_calls(s3):

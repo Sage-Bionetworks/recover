@@ -50,14 +50,19 @@ def dataset_fixture(request):
 
 
 @pytest.fixture
-def mock_s3_bucket():
+def mock_s3_environment(mock_s3_bucket):
     """This allows us to persist the bucket and s3 client
     """
     with mock_s3():
         s3 = boto3.client('s3', region_name='us-east-1')
-        bucket_name = 'test-bucket'
-        s3.create_bucket(Bucket=bucket_name)
-        yield s3, bucket_name
+        s3.create_bucket(Bucket=mock_s3_bucket)
+        yield s3
+
+
+@pytest.fixture
+def mock_s3_bucket():
+    bucket_name = 'test-bucket'
+    yield bucket_name
 
 
 @pytest.fixture()

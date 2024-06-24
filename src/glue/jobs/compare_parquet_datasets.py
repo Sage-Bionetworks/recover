@@ -104,7 +104,6 @@ def read_args() -> dict:
             "cfn-bucket",
         ],
     )
-
     for arg in args:
         validate_args(args[arg])
     return args
@@ -617,32 +616,30 @@ def add_additional_msg_to_comparison_report(
     return updated_comparison_report
 
 
-def is_valid_dataset(dataset: pd.DataFrame, namespace: str) -> dict:
+def check_for_valid_dataset(dataset: pd.DataFrame, namespace: str) -> None:
     """Checks whether the individual dataset is valid under the following criteria:
         - no duplicated columns
-        - dataset is not empty (aka has columns)
+        - dataset is not empty
         before it can go through the comparison
 
     Args:
         dataset (pd.DataFrame): dataset to be validated
         namespace (str): namespace for the dataset
 
-    Returns:
-        dict: containing boolean of the validation result and string message
+    Raises:
+        ValueError: When dataset is empty (no columns, no rows or no rows, columns)
+        ValueError: When dataset has duplicated columns
     """
     # Check that datasets have no emptiness, duplicated columns, or have columns in common
-    if len(dataset.columns) == 0:
-        msg = f"{namespace} dataset has no data. Comparison cannot continue."
-        return {"result": False, "msg": msg}
+    if dataset.empty:
+        raise ValueError(
+            f"The {namespace} dataset is empty. Comparison cannot continue."
+        )
     elif get_duplicated_columns(dataset):
-        msg = (
+        raise ValueError(
             f"{namespace} dataset has duplicated columns. Comparison cannot continue.\n"
             f"Duplicated columns:{str(get_duplicated_columns(dataset))}"
         )
-        return {"result": False, "msg": msg}
-    else:
-        msg = f"{namespace} dataset has been validated."
-        return {"result": True, "msg": msg}
 
 
 def compare_datasets_by_data_type(
@@ -666,6 +663,9 @@ def compare_datasets_by_data_type(
         main_namespace (str): name of namespace containing the "established" data
         s3_filesystem (fs.S3FileSystem): filesystem instantiated by aws credentials
         data_type (str): data type to be compared for the given datasets
+
+    Raises:
+        ValueError: When the staging and main datasets have no columns in common
 
     Returns:
         dict:
@@ -697,23 +697,12 @@ def compare_datasets_by_data_type(
         s3_filesystem=s3_filesystem,
     )
     # go through specific validation for each dataset prior to comparison
-    staging_is_valid_result = is_valid_dataset(staging_dataset, staging_namespace)
-    main_is_valid_result = is_valid_dataset(main_dataset, main_namespace)
-    if (
-        staging_is_valid_result["result"] == False
-        or main_is_valid_result["result"] == False
-    ):
-        comparison_report = (
-            f"{staging_is_valid_result['msg']}\n{main_is_valid_result['msg']}"
-        )
-        compare = None
+    check_for_valid_dataset(staging_dataset, staging_namespace)
+    check_for_valid_dataset(main_dataset, main_namespace)
+
     # check that they have columns in common to compare
-    elif not has_common_cols(staging_dataset, main_dataset):
-        comparison_report = (
-            f"{staging_namespace} dataset and {main_namespace} dataset have no columns in common."
-            f" Comparison cannot continue."
-        )
-        compare = None
+    if not has_common_cols(staging_dataset, main_dataset):
+        raise ValueError("Datasets have no common columns to merge on.")
     else:
         logger.info(
             f"{staging_namespace} dataset memory usage:"
