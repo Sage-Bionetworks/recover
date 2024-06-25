@@ -7,6 +7,7 @@ dependencies:
   - prod/namespaced/glue-job-JSONToParquet.yaml
   - prod/namespaced/glue-job-compare-parquet.yaml
   - prod/glue-job-role.yaml
+  - prod/s3-cloudformation-bucket.yaml
 parameters:
   Namespace: {{ stack_group_config.namespace }}
   JsonBucketName: {{ stack_group_config.intermediate_bucket_name }}
@@ -16,6 +17,8 @@ parameters:
   S3ToJsonJobName: !stack_output_external "{{ stack_group_config.namespace }}-glue-job-S3ToJsonS3::JobName"
   CompareParquetStagingNamespace: "staging"
   CompareParquetMainNamespace: "main"
+  S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
+  CloudformationBucketName: {{ stack_group_config.template_bucket_name }}
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:

@@ -73,6 +73,15 @@ Parameters:
     Type: String
     Description: The name of the "main" namespace
 
+  S3SourceBucketName:
+    Type: String
+    Description: Name of the S3 bucket where source data are stored.
+
+  CloudformationBucketName:
+    Type: String
+    Description: >-
+        The name of the bucket where the cloudformation and artifacts are stored.
+
 Conditions:
   IsMainNamespace: !Equals [!Ref Namespace, "main"]
   IsDevelopmentNamespace: !Not [!Equals [!Ref Namespace, "main"]]
@@ -273,8 +282,10 @@ Resources:
             "--data-type": {{ "{}".format(dataset["table_name"]) }}
             "--main-namespace": !Ref CompareParquetMainNamespace
             "--staging-namespace": !Ref CompareParquetStagingNamespace
+            "--input-bucket": !Ref S3SourceBucketName
+            "--cfn-bucket": !Ref CloudformationBucketName
             "--parquet-bucket": !Ref ParquetBucketName
-            "--additional-python-modules": "datacompy~=0.8"
+            "--additional-python-modules": "datacompy~=0.8 flask~=2.0 flask-cors~=3.0"
         {% endfor %}
       Description: This trigger runs after completion of all JSON to Parquet jobs
       Type: CONDITIONAL
