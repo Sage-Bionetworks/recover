@@ -1,4 +1,4 @@
-create or alter TABLE enrolled_participants_empty (
+CREATE OR ALTER TABLE enrolled_participants (
     "id" NUMBER(38,0),
     "index" NUMBER(38,0),
     "GlobalKey" VARCHAR(16777216),
