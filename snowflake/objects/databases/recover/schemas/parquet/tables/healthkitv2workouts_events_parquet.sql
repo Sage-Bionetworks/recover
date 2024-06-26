@@ -1,0 +1,20 @@
+CREATE OR ALTER TABLE HEALTHKITV2WORKOUTS_EVENTS (
+    "id" NUMBER(38,0),
+    "index" NUMBER(38,0),
+    "Events_ParticipantID" VARCHAR(16777216),
+    "Date" VARCHAR(16777216),
+    "Type" VARCHAR(16777216),
+    "EndDate" VARCHAR(16777216),
+    "Metadata_TachyMonEvent_alertLevelAndDirection" VARCHAR(16777216),
+    "Metadata_TachyMonEvent_eventAvgHR" VARCHAR(16777216),
+    "Metadata_TachyMonEvent_maxHR" VARCHAR(16777216),
+    "Metadata_TachyMonEvent_alertLevel1" VARCHAR(16777216),
+    "Metadata_TachyMonEvent_alertLevel2" VARCHAR(16777216),
+    "Metadata_TachyMonEvent_minHR" VARCHAR(16777216),
+    "Metadata_TachyMonEvent_startAvgHR" VARCHAR(16777216),
+    "Metadata_HKSWOLFScore" VARCHAR(16777216),
+    "Metadata_HKSwimmingStrokeStyle" VARCHAR(16777216),
+    "ParticipantIdentifier" VARCHAR(16777216),
+    "HealthKitWorkoutKey" VARCHAR(16777216),
+    "ParticipantID" VARCHAR(16777216)
+);

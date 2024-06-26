@@ -1,0 +1,54 @@
+/*
+  CREATE OR ALTER all tables
+*/
+
+EXECUTE IMMEDIATE
+    FROM './enrolledparticipants_customfields_symptoms_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './enrolledparticipants_customfields_treatments_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './enrolledparticipants_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './fitbitactivitylogs_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './fitbitdailydata_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './fitbitdevices_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './fitbitecg_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './fitbitecg_waveformsamples_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './fitbitintradaycombined_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './fitbitrestingheartrates_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './fitbitsleeplogs_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './fitbitsleeplogs_sleeplogdetails_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './googlefitsamples_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './healthkitv2activitysummaries_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './healthkitv2electrocardiogram_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './healthkitv2electrocardiogram_subsamples_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './healthkitv2heartbeat_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './healthkitv2heartbeat_subsamples_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './healthkitv2samples_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './healthkitv2statistics_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './healthkitv2workouts_events_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './healthkitv2workouts_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './symptomlog_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './symptomlog_value_symptoms_parquet.sql';
+EXECUTE IMMEDIATE
+    FROM './symptomlog_value_treatments_parquet.sql';

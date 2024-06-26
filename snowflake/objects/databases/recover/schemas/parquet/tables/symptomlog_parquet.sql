@@ -1,0 +1,20 @@
+CREATE OR ALTER TABLE SYMPTOMLOG (
+    "id" NUMBER(38,0),
+    "index" NUMBER(38,0),
+    "Value_symptoms_id" VARCHAR(16777216),
+    "Value_treatments_id" VARCHAR(16777216),
+    "Type" VARCHAR(16777216),
+    "Date" VARCHAR(16777216),
+    "ParticipantIdentifier" VARCHAR(16777216),
+    "severity" NUMBER(38,0),
+    "DataPointKey" VARCHAR(16777216),
+    "Value_symptoms" NUMBER(38,0),
+    "Value_treatments" NUMBER(38,0),
+    "Value_notes" VARCHAR(16777216),
+    "Value_overallFeeling" NUMBER(38,0),
+    "Value_icon" VARCHAR(16777216),
+    "Properties" VARCHAR(16777216),
+    "InsertedDate" VARCHAR(16777216),
+    "export_start_date" VARCHAR(16777216),
+    "export_end_date" VARCHAR(16777216)
+);

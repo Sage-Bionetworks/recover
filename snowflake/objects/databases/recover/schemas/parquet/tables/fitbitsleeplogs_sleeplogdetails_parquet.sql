@@ -1,0 +1,11 @@
+CREATE OR ALTER TABLE FITBITSLEEPLOGS_SLEEPLOGDETAILS (
+    "id" NUMBER(38,0),
+    "index" NUMBER(38,0),
+    "Type" VARCHAR(16777216),
+    "StartDate" VARCHAR(16777216),
+    "EndDate" VARCHAR(16777216),
+    "Value" VARCHAR(16777216),
+    "ParticipantIdentifier" VARCHAR(16777216),
+    "LogId" VARCHAR(16777216),
+    "ParticipantID" VARCHAR(16777216)
+);
