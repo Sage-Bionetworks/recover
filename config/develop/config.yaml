@@ -4,3 +4,4 @@ raw_bucket_name: recover-dev-raw-data
 template_bucket_name: recover-dev-cloudformation
 intermediate_bucket_name: recover-dev-intermediate-data
 processed_data_bucket_name: recover-dev-processed-data
+gx_reports_bucket_name: recover-dev-gx-reports

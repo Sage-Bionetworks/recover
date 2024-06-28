@@ -1,0 +1,9 @@
+template:
+  type: file
+  path: s3-bucket-html-hosting.yaml
+stack_name: recover-gx-reports-bucket
+parameters:
+  BucketName: {{ stack_group_config.gx_reports_bucket_name }}
+  ConnectToSynapse: "true"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}
