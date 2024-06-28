@@ -4,3 +4,4 @@ raw_bucket_name: recover-raw-data
 template_bucket_name: recover-cloudformation
 intermediate_bucket_name: recover-intermediate-data
 processed_data_bucket_name: recover-processed-data
+shareable_artifacts_vpn_bucket_name: recover-shareable-artifacts-vpn
