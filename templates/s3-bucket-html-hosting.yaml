@@ -13,7 +13,7 @@ Parameters:
 
   EnableVpnAccess:
     Type: String
-    Description: Whether to grant Synapse read/write permissions on the bucket.
+    Description: Whether to grant the Sage VPN read permissions on the bucket.
     AllowedValues:
       - "true"
       - "false"
