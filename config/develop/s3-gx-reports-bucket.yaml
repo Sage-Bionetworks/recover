@@ -1,9 +1,9 @@
 template:
   type: file
   path: s3-bucket-html-hosting.yaml
-stack_name: recover-dev-gx-reports-bucket
+stack_name: recover-dev-shareable-artifacts-vpn-bucket
 parameters:
-  BucketName: {{ stack_group_config.gx_reports_bucket_name }}
+  BucketName: {{ stack_group_config.shareable_artifacts_vpn_bucket_name }}
   EnableVpnAccess: "true"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
