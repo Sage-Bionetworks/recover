@@ -4,6 +4,6 @@ template:
 stack_name: recover-dev-gx-reports-bucket
 parameters:
   BucketName: {{ stack_group_config.gx_reports_bucket_name }}
-  ConnectToSynapse: "true"
+  EnableVpnAccess: "true"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
