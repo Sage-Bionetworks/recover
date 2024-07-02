@@ -27,7 +27,7 @@ def test_setup_external_storage_success(
     namespace: str,
     test_synapse_folder_id: str,
     test_sts_permission: str,
-    ssm_parameter : str
+    ssm_parameter: str,
 ):
     """This test tests that it can get the STS token credentials and view and list the
     files in the S3 bucket location to verify that it has access"""

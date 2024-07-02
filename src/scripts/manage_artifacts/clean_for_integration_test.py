@@ -8,6 +8,7 @@ it is present. In the CI pipeline this is run for these S3 buckets:
 
 """
 import argparse
+
 import boto3
 
 
@@ -30,16 +31,16 @@ def delete_objects(bucket_prefix: str, bucket: str) -> None:
     """
     print(f"Cleaning bucket: {bucket} with prefix: {bucket_prefix}")
 
-    s3_client = boto3.client('s3')
+    s3_client = boto3.client("s3")
     response = s3_client.list_objects_v2(Bucket=bucket, Prefix=bucket_prefix)
 
     # Check if objects are found
-    if 'Contents' in response:
-        for obj in response['Contents']:
-            object_key = obj['Key']
+    if "Contents" in response:
+        for obj in response["Contents"]:
+            object_key = obj["Key"]
 
             # Skip the owner.txt file so it does not need to be re-created
-            if object_key.endswith('owner.txt'):
+            if object_key.endswith("owner.txt"):
                 continue
             elif "main" in object_key:
                 raise ValueError("Cannot delete objects in the main directory")
@@ -52,12 +53,11 @@ def main() -> None:
     allow the owner.txt file to be kept."""
     args = read_args()
 
-    if not args.bucket_prefix or args.bucket_prefix[-1] != '/':
+    if not args.bucket_prefix or args.bucket_prefix[-1] != "/":
         raise ValueError("Bucket prefix must be provided and end with a '/'")
 
     if "main" in args.bucket_prefix:
-        raise ValueError(
-            "Cannot delete objects in the main directory")
+        raise ValueError("Cannot delete objects in the main directory")
 
     try:
         delete_objects(bucket_prefix=args.bucket_prefix, bucket=args.bucket)

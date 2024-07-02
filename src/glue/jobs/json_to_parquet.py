@@ -20,13 +20,13 @@ import ecs_logging
 import pandas
 from awsglue import DynamicFrame
 from awsglue.context import GlueContext
-from awsglue.job import Job
 from awsglue.gluetypes import StructType
+from awsglue.job import Job
 from awsglue.utils import getResolvedOptions
 from pyspark import SparkContext
 from pyspark.sql import Window
-from pyspark.sql.functions import row_number, col
 from pyspark.sql.dataframe import DataFrame
+from pyspark.sql.functions import col, row_number
 
 # Configure logger to use ECS formatting
 logger = logging.getLogger(__name__)
@@ -46,14 +46,23 @@ INDEX_FIELD_MAP = {
     "fitbitintradaycombined": ["ParticipantIdentifier", "Type", "DateTime"],
     "fitbitrestingheartrates": ["ParticipantIdentifier", "Date"],
     "fitbitsleeplogs": ["ParticipantIdentifier", "LogId"],
-    "healthkitv2characteristics": ["ParticipantIdentifier", "HealthKitCharacteristicKey"],
+    "healthkitv2characteristics": [
+        "ParticipantIdentifier",
+        "HealthKitCharacteristicKey",
+    ],
     "healthkitv2samples": ["ParticipantIdentifier", "HealthKitSampleKey"],
     "healthkitv2heartbeat": ["ParticipantIdentifier", "HealthKitHeartbeatSampleKey"],
     "healthkitv2statistics": ["ParticipantIdentifier", "HealthKitStatisticKey"],
-    "healthkitv2clinicalrecords": ["ParticipantIdentifier", "HealthKitClinicalRecordKey"],
+    "healthkitv2clinicalrecords": [
+        "ParticipantIdentifier",
+        "HealthKitClinicalRecordKey",
+    ],
     "healthkitv2electrocardiogram": ["ParticipantIdentifier", "HealthKitECGSampleKey"],
     "healthkitv2workouts": ["ParticipantIdentifier", "HealthKitWorkoutKey"],
-    "healthkitv2activitysummaries": ["ParticipantIdentifier", "HealthKitActivitySummaryKey"],
+    "healthkitv2activitysummaries": [
+        "ParticipantIdentifier",
+        "HealthKitActivitySummaryKey",
+    ],
     "garminactivitydetailssummary": ["ParticipantIdentifier", "SummaryId"],
     "garminactivitysummary": ["ParticipantIdentifier", "SummaryId"],
     "garminbloodpressuresummary": ["ParticipantIdentifier", "SummaryId"],
@@ -125,7 +134,7 @@ def get_table(
     glue_context: GlueContext,
     record_counts: dict,
     logger_context: dict,
-    ) -> DynamicFrame:
+) -> DynamicFrame:
     """
     Return a table as a DynamicFrame with an unambiguous schema. Additionally,
     we drop any superfluous partition_* fields which are added by Glue.
@@ -168,7 +177,7 @@ def drop_table_duplicates(
     data_type: str,
     record_counts: dict[str, list],
     logger_context: dict,
-    ) -> DataFrame:
+) -> DataFrame:
     """
     Drop duplicate samples and superflous partition columns.
 
@@ -193,19 +202,15 @@ def drop_table_duplicates(
     spark_df = table.toDF()
     if "InsertedDate" in spark_df.columns:
         window_ordered = window_unordered.orderBy(
-                col("InsertedDate").desc(),
-                col("export_end_date").desc()
+            col("InsertedDate").desc(), col("export_end_date").desc()
         )
     else:
-        window_ordered = window_unordered.orderBy(
-                col("export_end_date").desc()
-        )
+        window_ordered = window_unordered.orderBy(col("export_end_date").desc())
     table_no_duplicates = (
-            spark_df
-            .withColumn('ranking', row_number().over(window_ordered))
-            .filter("ranking == 1")
-            .drop("ranking")
-            .cache()
+        spark_df.withColumn("ranking", row_number().over(window_ordered))
+        .filter("ranking == 1")
+        .drop("ranking")
+        .cache()
     )
     count_records_for_event(
         table=table_no_duplicates,
@@ -224,7 +229,7 @@ def drop_deleted_healthkit_data(
     glue_database: str,
     record_counts: dict[str, list],
     logger_context: dict,
-    ) -> DataFrame:
+) -> DataFrame:
     """
     Drop records from a HealthKit table.
 
@@ -255,8 +260,8 @@ def drop_deleted_healthkit_data(
         glue_client.get_table(DatabaseName=glue_database, Name=deleted_table_name)
     except glue_client.exceptions.EntityNotFoundException as error:
         logger.error(
-                f"Did not find table with name '{deleted_table_name}' ",
-                f"in database {glue_database}."
+            f"Did not find table with name '{deleted_table_name}' ",
+            f"in database {glue_database}.",
         )
         raise error
     deleted_table_logger_context = deepcopy(logger_context)
@@ -270,7 +275,9 @@ def drop_deleted_healthkit_data(
         logger_context=deleted_table_logger_context,
     )
     if deleted_table_raw.count() == 0:
-        logger.info(f"The table for data type {deleted_data_type} did not contain any records.")
+        logger.info(
+            f"The table for data type {deleted_data_type} did not contain any records."
+        )
         return table
     # we use `data_type` rather than `deleted_data_type` here because they share
     # an index (we don't bother including `deleted_data_type` in `INDEX_FIELD_MAP`).
@@ -281,9 +288,9 @@ def drop_deleted_healthkit_data(
         logger_context=deleted_table_logger_context,
     )
     table_with_deleted_samples_removed = table.join(
-                other=deleted_table,
-                on=INDEX_FIELD_MAP[data_type],
-                how="left_anti",
+        other=deleted_table,
+        on=INDEX_FIELD_MAP[data_type],
+        how="left_anti",
     )
     count_records_for_event(
         table=table_with_deleted_samples_removed,
@@ -300,7 +307,7 @@ def archive_existing_datasets(
     workflow_name: str,
     workflow_run_id: str,
     delete_upon_completion: bool,
-    ) -> list[dict]:
+) -> list[dict]:
     """
     Archives existing datasets in S3 by copying them to a timestamped subfolder
     within an "archive" folder. The format of the timestamped subfolder is:
@@ -368,7 +375,7 @@ def write_table_to_s3(
     workflow_name: str,
     workflow_run_id: str,
     records_per_partition: int = int(1e6),
-    ) -> None:
+) -> None:
     """
     Write a DynamicFrame to S3 as a parquet dataset.
 
@@ -441,7 +448,7 @@ def count_records_for_event(
     event: CountEventType,
     record_counts: dict[str, list],
     logger_context: dict,
-    ) -> dict[str, list]:
+) -> dict[str, list]:
     """
     Compute record count statistics for each `export_end_date`.
 
@@ -488,7 +495,7 @@ def store_record_counts(
     namespace: str,
     workflow_name: str,
     workflow_run_id: str,
-    ) -> dict[str, str]:
+) -> dict[str, str]:
     """
     Uploads record counts as S3 objects.
 
@@ -534,7 +541,7 @@ def add_index_to_table(
     table_name: str,
     processed_tables: dict[str, DynamicFrame],
     unprocessed_tables: dict[str, DynamicFrame],
-    ) -> DataFrame:
+) -> DataFrame:
     """Add partition and index fields to a DynamicFrame.
 
     A DynamicFrame containing the top-level fields already includes the index
@@ -667,9 +674,7 @@ def main() -> None:
             logger_context=logger_context,
         )
     table_dynamic = DynamicFrame.fromDF(
-            dataframe=table,
-            glue_ctx=glue_context,
-            name=table_name
+        dataframe=table, glue_ctx=glue_context, name=table_name
     )
     # Export new table records to parquet
     if has_nested_fields(table.schema):

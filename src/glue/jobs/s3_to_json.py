@@ -14,15 +14,16 @@ import os
 import sys
 import typing
 import zipfile
+
 import boto3
 import ecs_logging
 from awsglue.utils import getResolvedOptions
 
 DATA_TYPES_WITH_SUBTYPE = [
-        "HealthKitV2Samples",
-        "HealthKitV2Statistics",
-        "HealthKitV2Samples_Deleted",
-        "HealthKitV2Statistics_Deleted"
+    "HealthKitV2Samples",
+    "HealthKitV2Statistics",
+    "HealthKitV2Samples_Deleted",
+    "HealthKitV2Statistics_Deleted",
 ]
 
 logger = logging.getLogger(__name__)
@@ -32,13 +33,15 @@ handler.setFormatter(ecs_logging.StdlibFormatter())
 logger.addHandler(handler)
 logger.propagate = False
 
+
 def transform_object_to_array_of_objects(
-        json_obj_to_replace: dict,
-        key_name: str,
-        key_type: type,
-        value_name: str,
-        value_type: type,
-        logger_context: dict={},) -> list:
+    json_obj_to_replace: dict,
+    key_name: str,
+    key_type: type,
+    value_name: str,
+    value_type: type,
+    logger_context: dict = {},
+) -> list:
     """
     Transforms a dictionary object into an array of dictionaries with specified
     key and value types.
@@ -93,33 +96,26 @@ def transform_object_to_array_of_objects(
         except ValueError as error:
             key_value = None
             _log_error_transform_object_to_array_of_objects(
-                    value=k,
-                    value_type=key_type,
-                    error=error,
-                    logger_context=logger_context
+                value=k, value_type=key_type, error=error, logger_context=logger_context
             )
         try:
             value_value = value_type(v)
         except ValueError as error:
             value_value = None
             _log_error_transform_object_to_array_of_objects(
-                    value=v,
-                    value_type=value_type,
-                    error=error,
-                    logger_context=logger_context
+                value=v,
+                value_type=value_type,
+                error=error,
+                logger_context=logger_context,
             )
-        obj = {
-            key_name: key_value,
-            value_name: value_value
-        }
+        obj = {key_name: key_value, value_name: value_value}
         array_of_obj.append(obj)
     return array_of_obj
 
+
 def _log_error_transform_object_to_array_of_objects(
-        value: typing.Any,
-        value_type: type,
-        error,
-        logger_context: dict) -> None:
+    value: typing.Any, value_type: type, error, logger_context: dict
+) -> None:
     """
     Logging helper for `transform_object_to_array_of_objects`
 
@@ -135,40 +131,41 @@ def _log_error_transform_object_to_array_of_objects(
     """
     value_error = "Failed to cast %s to %s."
     logger.error(
-            value_error, value, value_type,
-            extra=dict(
-                merge_dicts(
-                    logger_context,
-                    {
-                        "error.message": repr(error),
-                        "error.type": type(error).__name__,
-                        "event.kind": "alert",
-                        "event.category": ["configuration"],
-                        "event.type": ["change"],
-                        "event.outcome": "failure"
-                    }
-                )
+        value_error,
+        value,
+        value_type,
+        extra=dict(
+            merge_dicts(
+                logger_context,
+                {
+                    "error.message": repr(error),
+                    "error.type": type(error).__name__,
+                    "event.kind": "alert",
+                    "event.category": ["configuration"],
+                    "event.type": ["change"],
+                    "event.outcome": "failure",
+                },
             )
+        ),
     )
     logger.warning(
-            "Setting %s to None", value,
-            extra=dict(
-                merge_dicts(
-                    logger_context,
-                    {
-                        "event.kind": "alert",
-                        "event.category": ["configuration"],
-                        "event.type": ["deletion"],
-                        "event.outcome": "success"
-                    }
-                )
+        "Setting %s to None",
+        value,
+        extra=dict(
+            merge_dicts(
+                logger_context,
+                {
+                    "event.kind": "alert",
+                    "event.category": ["configuration"],
+                    "event.type": ["deletion"],
+                    "event.outcome": "success",
+                },
             )
+        ),
     )
 
-def transform_json(
-        json_obj: dict,
-        metadata: dict,
-        logger_context: dict={}) -> dict:
+
+def transform_json(json_obj: dict, metadata: dict, logger_context: dict = {}) -> dict:
     """
     Perform the following transformations:
 
@@ -199,10 +196,7 @@ def transform_json(
     Returns:
         json_obj (dict) The JSON object with the relevant transformations applied.
     """
-    json_obj = _add_universal_properties(
-            json_obj=json_obj,
-            metadata=metadata
-    )
+    json_obj = _add_universal_properties(json_obj=json_obj, metadata=metadata)
     if metadata["type"] in DATA_TYPES_WITH_SUBTYPE:
         # This puts the `Type` property back where Apple intended it to be
         json_obj["Type"] = metadata["subtype"]
@@ -211,51 +205,59 @@ def transform_json(
         json_obj["Value"] = json.loads(json_obj["Value"])
     if metadata["type"] == "EnrolledParticipants":
         json_obj = _cast_custom_fields_to_array(
-                json_obj=json_obj,
-                logger_context=logger_context,
+            json_obj=json_obj,
+            logger_context=logger_context,
         )
 
     # These Garmin data types have fields which would be better formatted
     # as an array of objects.
     garmin_transform_types = {
-            "GarminDailySummary": {
-                "TimeOffsetHeartRateSamples": (("OffsetInSeconds", int), ("HeartRate", int))
-            },
-            "GarminHrvSummary": {
-                "HrvValues": (("OffsetInSeconds", int), ("Hrv", int))
-            },
-            "GarminPulseOxSummary": {
-                "TimeOffsetSpo2Values": (("OffsetInSeconds", int), ("Spo2Value", int))
-            },
-            "GarminRespirationSummary": {
-                "TimeOffsetEpochToBreaths": (("OffsetInSeconds", int), ("Breaths", float))
-            },
-            "GarminSleepSummary": {
-                "TimeOffsetSleepSpo2": (("OffsetInSeconds", int), ("Spo2Value", int)),
-                "TimeOffsetSleepRespiration": (("OffsetInSeconds", int), ("Breaths", float))
-            },
-            "GarminStressDetailSummary": {
-                "TimeOffsetStressLevelValues": (("OffsetInSeconds", int), ("StressLevel", int)),
-                "TimeOffsetBodyBatteryValues": (("OffsetInSeconds", int), ("BodyBattery", int))
-            },
-            "GarminThirdPartyDailySummary": {
-                "TimeOffsetHeartRateSamples": (("OffsetInSeconds", int), ("HeartRate", int))
-            },
-            "GarminHealthSnapshotSummary": {
-                "Summaries.EpochSummaries": (("OffsetInSeconds", int), ("Value", float))
-            }
+        "GarminDailySummary": {
+            "TimeOffsetHeartRateSamples": (("OffsetInSeconds", int), ("HeartRate", int))
+        },
+        "GarminHrvSummary": {"HrvValues": (("OffsetInSeconds", int), ("Hrv", int))},
+        "GarminPulseOxSummary": {
+            "TimeOffsetSpo2Values": (("OffsetInSeconds", int), ("Spo2Value", int))
+        },
+        "GarminRespirationSummary": {
+            "TimeOffsetEpochToBreaths": (("OffsetInSeconds", int), ("Breaths", float))
+        },
+        "GarminSleepSummary": {
+            "TimeOffsetSleepSpo2": (("OffsetInSeconds", int), ("Spo2Value", int)),
+            "TimeOffsetSleepRespiration": (
+                ("OffsetInSeconds", int),
+                ("Breaths", float),
+            ),
+        },
+        "GarminStressDetailSummary": {
+            "TimeOffsetStressLevelValues": (
+                ("OffsetInSeconds", int),
+                ("StressLevel", int),
+            ),
+            "TimeOffsetBodyBatteryValues": (
+                ("OffsetInSeconds", int),
+                ("BodyBattery", int),
+            ),
+        },
+        "GarminThirdPartyDailySummary": {
+            "TimeOffsetHeartRateSamples": (("OffsetInSeconds", int), ("HeartRate", int))
+        },
+        "GarminHealthSnapshotSummary": {
+            "Summaries.EpochSummaries": (("OffsetInSeconds", int), ("Value", float))
+        },
     }
     if metadata["type"] in garmin_transform_types:
         json_obj = _transform_garmin_data_types(
-                json_obj=json_obj,
-                data_type_transforms=garmin_transform_types[metadata["type"]],
-                logger_context=logger_context,
+            json_obj=json_obj,
+            data_type_transforms=garmin_transform_types[metadata["type"]],
+            logger_context=logger_context,
         )
     return json_obj
 
+
 def _add_universal_properties(
-        json_obj: dict,
-        metadata: dict,
+    json_obj: dict,
+    metadata: dict,
 ) -> dict:
     """
     Adds properties which ought to exist for every JSON object.
@@ -282,6 +284,7 @@ def _add_universal_properties(
     json_obj["cohort"] = metadata["cohort"]
     return json_obj
 
+
 def _cast_custom_fields_to_array(json_obj: dict, logger_context: dict) -> dict:
     """
     Cast `CustomFields` property values to an array.
@@ -301,10 +304,9 @@ def _cast_custom_fields_to_array(json_obj: dict, logger_context: dict) -> dict:
         json_obj (dict) The JSON object with the relevant transformations applied.
     """
     for field_name in ["Symptoms", "Treatments"]:
-        if (
-                field_name in json_obj["CustomFields"]
-                and isinstance(json_obj["CustomFields"][field_name], str)
-           ):
+        if field_name in json_obj["CustomFields"] and isinstance(
+            json_obj["CustomFields"][field_name], str
+        ):
             if len(json_obj["CustomFields"][field_name]) > 0:
                 # This JSON string was written in a couple different ways
                 # in the testing data: "[{\\\"id\\\": ..." and "[{\"id\": ..."
@@ -313,38 +315,41 @@ def _cast_custom_fields_to_array(json_obj: dict, logger_context: dict) -> dict:
                 # written as an object rather than a string).
                 try:
                     json_obj["CustomFields"][field_name] = json.loads(
-                            json_obj["CustomFields"][field_name]
+                        json_obj["CustomFields"][field_name]
                     )
                 except json.JSONDecodeError as error:
                     # If it's not propertly formatted JSON, then we
                     # can't read it, and instead store an empty list
                     logger.error(
-                            (f"Problem CustomFields.{field_name}: "
-                            f"{json_obj['CustomFields'][field_name]}"),
-                            extra=dict(
-                                merge_dicts(
-                                    logger_context,
-                                    {
-                                        "error.message": repr(error),
-                                        "error.type": "json.JSONDecodeError",
-                                        "event.kind": "alert",
-                                        "event.category": ["change"],
-                                        "event.type": ["error"],
-                                        "event.outcome": "failure",
-                                    }
-                                )
+                        (
+                            f"Problem CustomFields.{field_name}: "
+                            f"{json_obj['CustomFields'][field_name]}"
+                        ),
+                        extra=dict(
+                            merge_dicts(
+                                logger_context,
+                                {
+                                    "error.message": repr(error),
+                                    "error.type": "json.JSONDecodeError",
+                                    "event.kind": "alert",
+                                    "event.category": ["change"],
+                                    "event.type": ["error"],
+                                    "event.outcome": "failure",
+                                },
                             )
+                        ),
                     )
                     json_obj["CustomFields"][field_name] = []
             else:
                 json_obj["CustomFields"][field_name] = []
     return json_obj
 
+
 def _transform_garmin_data_types(
-        json_obj: dict,
-        data_type_transforms: dict,
-        logger_context: dict,
-    ) -> dict:
+    json_obj: dict,
+    data_type_transforms: dict,
+    logger_context: dict,
+) -> dict:
     """
     Transform objects to an array of objects for relevant Garmin data types.
 
@@ -378,12 +383,12 @@ def _transform_garmin_data_types(
             prop_name = property_hierarchy[0]
             if prop_name in json_obj:
                 array_of_obj = transform_object_to_array_of_objects(
-                        json_obj_to_replace=json_obj[prop_name],
-                        key_name=key_name,
-                        key_type=key_type,
-                        value_name=value_name,
-                        value_type=value_type,
-                        logger_context=logger_context
+                    json_obj_to_replace=json_obj[prop_name],
+                    key_name=key_name,
+                    key_type=key_type,
+                    value_name=value_name,
+                    value_type=value_type,
+                    logger_context=logger_context,
                 )
                 json_obj[prop_name] = array_of_obj
         if len(property_hierarchy) == 2:
@@ -393,15 +398,16 @@ def _transform_garmin_data_types(
                 for obj in json_obj[prop_name]:
                     if sub_prop_name in obj:
                         array_of_obj = transform_object_to_array_of_objects(
-                                    json_obj_to_replace=obj[sub_prop_name],
-                                    key_name=key_name,
-                                    key_type=key_type,
-                                    value_name=value_name,
-                                    value_type=value_type,
-                                    logger_context=logger_context
+                            json_obj_to_replace=obj[sub_prop_name],
+                            key_name=key_name,
+                            key_type=key_type,
+                            value_name=value_name,
+                            value_type=value_type,
+                            logger_context=logger_context,
                         )
                         obj[sub_prop_name] = array_of_obj
     return json_obj
+
 
 def get_output_filename(metadata: dict, part_number: int) -> str:
     """
@@ -423,32 +429,32 @@ def get_output_filename(metadata: dict, part_number: int) -> str:
     """
     if metadata["type"] in DATA_TYPES_WITH_SUBTYPE:
         output_fname = "{}_{}_{}-{}.part{}.ndjson".format(
-                metadata["type"],
-                metadata["subtype"],
-                metadata["start_date"].strftime("%Y%m%d"),
-                metadata["end_date"].strftime("%Y%m%d"),
-                part_number
+            metadata["type"],
+            metadata["subtype"],
+            metadata["start_date"].strftime("%Y%m%d"),
+            metadata["end_date"].strftime("%Y%m%d"),
+            part_number,
         )
     elif metadata["start_date"] is None:
         output_fname = "{}_{}.part{}.ndjson".format(
-                metadata["type"],
-                metadata["end_date"].strftime("%Y%m%d"),
-                part_number
-    )
+            metadata["type"], metadata["end_date"].strftime("%Y%m%d"), part_number
+        )
     else:
         output_fname = "{}_{}-{}.part{}.ndjson".format(
-                metadata["type"],
-                metadata["start_date"].strftime("%Y%m%d"),
-                metadata["end_date"].strftime("%Y%m%d"),
-                part_number
+            metadata["type"],
+            metadata["start_date"].strftime("%Y%m%d"),
+            metadata["end_date"].strftime("%Y%m%d"),
+            part_number,
         )
     return output_fname
 
+
 def transform_block(
-        input_json: typing.IO,
-        metadata: dict,
-        logger_context: dict={},
-        block_size: int=10000):
+    input_json: typing.IO,
+    metadata: dict,
+    logger_context: dict = {},
+    block_size: int = 10000,
+):
     """
     A generator function which yields a block of transformed JSON records.
 
@@ -472,25 +478,25 @@ def transform_block(
     for json_line in input_json:
         json_obj = json.loads(json_line)
         json_obj = transform_json(
-                json_obj=json_obj,
-                metadata=metadata,
-                logger_context=logger_context
+            json_obj=json_obj, metadata=metadata, logger_context=logger_context
         )
         block.append(json_obj)
         if len(block) == block_size:
             yield block
             block = []
-    if block: # yield final block
+    if block:  # yield final block
         yield block
 
+
 def write_file_to_json_dataset(
-        z: zipfile.ZipFile,
-        json_path: str,
-        metadata: dict,
-        workflow_run_properties: dict,
-        logger_context: dict={},
-        delete_upon_successful_upload: bool=True,
-        file_size_limit: float=1e8) -> list:
+    z: zipfile.ZipFile,
+    json_path: str,
+    metadata: dict,
+    workflow_run_properties: dict,
+    logger_context: dict = {},
+    delete_upon_successful_upload: bool = True,
+    file_size_limit: float = 1e8,
+) -> list:
     """
     Write JSON from a zipfile to a JSON dataset.
 
@@ -518,14 +524,12 @@ def write_file_to_json_dataset(
     """
     # Configuration related to where we write our part files
     part_dir = os.path.join(
-            f"dataset={metadata['type']}", f"cohort={metadata['cohort']}")
+        f"dataset={metadata['type']}", f"cohort={metadata['cohort']}"
+    )
     os.makedirs(part_dir, exist_ok=True)
     part_number = 0
     output_path = get_part_path(
-            metadata=metadata,
-            part_number=part_number,
-            part_dir=part_dir,
-            touch=True
+        metadata=metadata, part_number=part_number, part_dir=part_dir, touch=True
     )
 
     # We will attach file metadata to the uploaded S3 object
@@ -535,28 +539,26 @@ def write_file_to_json_dataset(
         current_output_path = output_path
         line_count = 0
         for transformed_block in transform_block(
-                input_json=input_json,
-                metadata=metadata,
-                logger_context=logger_context
+            input_json=input_json, metadata=metadata, logger_context=logger_context
         ):
             current_file_size = os.path.getsize(current_output_path)
             if current_file_size > file_size_limit:
                 # Upload completed part file
                 _upload_file_to_json_dataset(
-                        file_path=current_output_path,
-                        s3_metadata=s3_metadata,
-                        workflow_run_properties=workflow_run_properties,
-                        delete_upon_successful_upload=delete_upon_successful_upload
+                    file_path=current_output_path,
+                    s3_metadata=s3_metadata,
+                    workflow_run_properties=workflow_run_properties,
+                    delete_upon_successful_upload=delete_upon_successful_upload,
                 )
                 uploaded_files.append(current_output_path)
 
                 # Update output path to next part
                 part_number += 1
                 current_output_path = get_part_path(
-                        metadata=metadata,
-                        part_number=part_number,
-                        part_dir=part_dir,
-                        touch=True
+                    metadata=metadata,
+                    part_number=part_number,
+                    part_dir=part_dir,
+                    touch=True,
                 )
             with open(current_output_path, "a") as f_out:
                 # Write block data to part file
@@ -565,10 +567,10 @@ def write_file_to_json_dataset(
                     f_out.write("{}\n".format(json.dumps(transformed_record)))
         # Upload final block
         _upload_file_to_json_dataset(
-                file_path=current_output_path,
-                s3_metadata=s3_metadata,
-                workflow_run_properties=workflow_run_properties,
-                delete_upon_successful_upload=delete_upon_successful_upload
+            file_path=current_output_path,
+            s3_metadata=s3_metadata,
+            workflow_run_properties=workflow_run_properties,
+            delete_upon_successful_upload=delete_upon_successful_upload,
         )
         uploaded_files.append(current_output_path)
         logger_extra = dict(
@@ -581,15 +583,15 @@ def write_file_to_json_dataset(
                     "event.type": ["info", "creation"],
                     "event.action": "list-file-properties",
                     "labels": {
-                        k: v.isoformat()
-                        if isinstance(v, datetime.datetime) else v
+                        k: v.isoformat() if isinstance(v, datetime.datetime) else v
                         for k, v in metadata.items()
-                    }
-                }
+                    },
+                },
             )
         )
         logger.info("Output file attributes", extra=logger_extra)
     return uploaded_files
+
 
 def _derive_str_metadata(metadata: dict) -> dict:
     """
@@ -601,19 +603,19 @@ def _derive_str_metadata(metadata: dict) -> dict:
     Returns:
         (dict) The S3 metadata
     """
-    s3_metadata = {
-            k: v for k, v in metadata.items() if v is not None
-    }
+    s3_metadata = {k: v for k, v in metadata.items() if v is not None}
     for k, v in s3_metadata.items():
         if isinstance(v, datetime.datetime):
             s3_metadata[k] = v.isoformat()
     return s3_metadata
 
+
 def _upload_file_to_json_dataset(
-        file_path: str,
-        s3_metadata: dict,
-        workflow_run_properties: dict,
-        delete_upon_successful_upload: bool,) -> str:
+    file_path: str,
+    s3_metadata: dict,
+    workflow_run_properties: dict,
+    delete_upon_successful_upload: bool,
+) -> str:
     """
     A helper function for `write_file_to_json_dataset` which handles
     the actual uploading of the data to S3.
@@ -633,19 +635,19 @@ def _upload_file_to_json_dataset(
     s3_output_key = os.path.join(
         workflow_run_properties["namespace"],
         workflow_run_properties["json_prefix"],
-        file_path
+        file_path,
     )
     basic_file_info = get_basic_file_info(file_path=file_path)
     with open(file_path, "rb") as f_in:
         response = s3_client.put_object(
-                Body = f_in,
-                Bucket = workflow_run_properties["json_bucket"],
-                Key = s3_output_key,
-                Metadata = s3_metadata
+            Body=f_in,
+            Bucket=workflow_run_properties["json_bucket"],
+            Key=s3_output_key,
+            Metadata=s3_metadata,
         )
     logger.info(
         "Upload to S3",
-        extra = {
+        extra={
             **basic_file_info,
             "event.kind": "event",
             "event.category": ["database"],
@@ -654,13 +656,14 @@ def _upload_file_to_json_dataset(
             "labels": {
                 **s3_metadata,
                 "bucket": workflow_run_properties["json_bucket"],
-                "key": s3_output_key
-            }
-        }
+                "key": s3_output_key,
+            },
+        },
     )
     if delete_upon_successful_upload:
         os.remove(file_path)
     return s3_output_key
+
 
 def merge_dicts(x: dict, y: dict) -> typing.Generator:
     """
@@ -679,9 +682,9 @@ def merge_dicts(x: dict, y: dict) -> typing.Generator:
     overlapping_keys = x.keys() & y.keys()
     for key in all_keys:
         if (
-                key in overlapping_keys
-                and isinstance(x[key], dict)
-                and isinstance(y[key], dict)
+            key in overlapping_keys
+            and isinstance(x[key], dict)
+            and isinstance(y[key], dict)
         ):
             # Merge child dictionaries
             yield (key, dict(merge_dicts(x[key], y[key])))
@@ -697,11 +700,13 @@ def merge_dicts(x: dict, y: dict) -> typing.Generator:
             # The key:value pair from y is retained
             yield (key, y[key])
 
+
 def get_part_path(
-        metadata: dict,
-        part_number: int,
-        part_dir: str,
-        touch: bool,):
+    metadata: dict,
+    part_number: int,
+    part_dir: str,
+    touch: bool,
+):
     """
     A helper function for `write_file_to_json_dataset`
 
@@ -721,10 +726,7 @@ def get_part_path(
         FileExistsError: If touch is True and a file already exists at
             the part path.
     """
-    output_filename = get_output_filename(
-            metadata=metadata,
-            part_number=part_number
-    )
+    output_filename = get_output_filename(metadata=metadata, part_number=part_number)
     output_path = os.path.join(part_dir, output_filename)
     if touch:
         os.makedirs(part_dir, exist_ok=True)
@@ -732,6 +734,7 @@ def get_part_path(
             # create file
             pass
     return output_path
+
 
 def get_metadata(basename: str) -> dict:
     """
@@ -756,19 +759,19 @@ def get_metadata(basename: str) -> dict:
     metadata["type"] = basename_components[0]
     if "-" in basename_components[-1]:
         start_date, end_date = basename_components[-1].split("-")
-        metadata["start_date"] = \
-                datetime.datetime.strptime(start_date, "%Y%m%d")
-        metadata["end_date"] = \
-                datetime.datetime.strptime(end_date, "%Y%m%d")
+        metadata["start_date"] = datetime.datetime.strptime(start_date, "%Y%m%d")
+        metadata["end_date"] = datetime.datetime.strptime(end_date, "%Y%m%d")
     else:
         metadata["start_date"] = None
-        metadata["end_date"] = \
-                datetime.datetime.strptime(basename_components[-1], "%Y%m%d")
+        metadata["end_date"] = datetime.datetime.strptime(
+            basename_components[-1], "%Y%m%d"
+        )
     if metadata["type"] in DATA_TYPES_WITH_SUBTYPE:
         metadata["subtype"] = basename_components[1]
     if "HealthKitV2" in metadata["type"] and basename_components[-2] == "Deleted":
         metadata["type"] = "{}_Deleted".format(metadata["type"])
     return metadata
+
 
 def get_basic_file_info(file_path: str) -> dict:
     """
@@ -788,15 +791,12 @@ def get_basic_file_info(file_path: str) -> dict:
         "file.type": "file",
         "file.path": file_path,
         "file.name": os.path.basename(file_path),
-        "file.extension": os.path.splitext(file_path)[-1][1:]
+        "file.extension": os.path.splitext(file_path)[-1][1:],
     }
     return basic_file_info
 
-def process_record(
-        s3_obj: dict,
-        cohort: str,
-        workflow_run_properties: dict
-    ) -> None:
+
+def process_record(s3_obj: dict, cohort: str, workflow_run_properties: dict) -> None:
     """
     Write the contents of a .zip archive stored on S3 to their respective
     JSON dataset. Each file contained in the .zip archive has its line count logged.
@@ -814,104 +814,102 @@ def process_record(
     """
     with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
         non_empty_contents = [
-                f.filename for f in z.filelist
-                if "/" not in f.filename and
-                "Manifest" not in f.filename and
-                f.file_size > 0
+            f.filename
+            for f in z.filelist
+            if "/" not in f.filename
+            and "Manifest" not in f.filename
+            and f.file_size > 0
         ]
         for json_path in non_empty_contents:
             with z.open(json_path, "r") as f:
                 line_count = sum(1 for _ in f)
             basic_file_info = get_basic_file_info(file_path=json_path)
             metadata = get_metadata(
-                    basename=os.path.basename(json_path),
+                basename=os.path.basename(json_path),
             )
             metadata["cohort"] = cohort
             metadata_str_keys = _derive_str_metadata(metadata=metadata)
             logger_context = {
-                    **basic_file_info,
-                    "labels": metadata_str_keys,
-                    "process.parent.pid": workflow_run_properties["WORKFLOW_RUN_ID"],
-                    "process.parent.name": workflow_run_properties["WORKFLOW_NAME"],
+                **basic_file_info,
+                "labels": metadata_str_keys,
+                "process.parent.pid": workflow_run_properties["WORKFLOW_RUN_ID"],
+                "process.parent.name": workflow_run_properties["WORKFLOW_NAME"],
             }
             logger.info(
-                    "Input file attributes",
-                    extra=dict(
-                        merge_dicts(
-                            logger_context,
-                            {
-                                "file.size": sys.getsizeof(json_path),
-                                "file.LineCount": line_count,
-                                "event.kind": "metric",
-                                "event.category": ["file"],
-                                "event.type": ["info", "access"],
-                                "event.action": "list-file-properties",
-                            }
-                        )
+                "Input file attributes",
+                extra=dict(
+                    merge_dicts(
+                        logger_context,
+                        {
+                            "file.size": sys.getsizeof(json_path),
+                            "file.LineCount": line_count,
+                            "event.kind": "metric",
+                            "event.category": ["file"],
+                            "event.type": ["info", "access"],
+                            "event.action": "list-file-properties",
+                        },
                     )
+                ),
             )
             write_file_to_json_dataset(
-                    z=z,
-                    json_path=json_path,
-                    metadata=metadata,
-                    workflow_run_properties=workflow_run_properties,
-                    logger_context=logger_context)
+                z=z,
+                json_path=json_path,
+                metadata=metadata,
+                workflow_run_properties=workflow_run_properties,
+                logger_context=logger_context,
+            )
+
 
 def main() -> None:
-
     # Instantiate boto clients
     glue_client = boto3.client("glue")
     s3_client = boto3.client("s3")
 
     # Get job and workflow arguments
-    args = getResolvedOptions(
-            sys.argv,
-            ["WORKFLOW_NAME",
-             "WORKFLOW_RUN_ID"
-            ]
-    )
+    args = getResolvedOptions(sys.argv, ["WORKFLOW_NAME", "WORKFLOW_RUN_ID"])
     workflow_run_properties = glue_client.get_workflow_run_properties(
-            Name=args["WORKFLOW_NAME"],
-            RunId=args["WORKFLOW_RUN_ID"])["RunProperties"]
+        Name=args["WORKFLOW_NAME"], RunId=args["WORKFLOW_RUN_ID"]
+    )["RunProperties"]
     workflow_run_properties = {**args, **workflow_run_properties}
     logger.debug(
-            "getResolvedOptions",
-            extra={
-                "event.kind": "event",
-                "event.category": ["process"],
-                "event.type": ["info"],
-                "event.action": "get-job-arguments",
-                "labels": args
-            }
+        "getResolvedOptions",
+        extra={
+            "event.kind": "event",
+            "event.category": ["process"],
+            "event.type": ["info"],
+            "event.action": "get-job-arguments",
+            "labels": args,
+        },
     )
     logger.debug(
-            "get_workflow_run_properties",
-            extra={
-                "event.kind": "event",
-                "event.category": ["process"],
-                "event.type": ["info"],
-                "event.action": "get-workflow-arguments",
-                "labels": workflow_run_properties
-            }
+        "get_workflow_run_properties",
+        extra={
+            "event.kind": "event",
+            "event.category": ["process"],
+            "event.type": ["info"],
+            "event.action": "get-workflow-arguments",
+            "labels": workflow_run_properties,
+        },
     )
 
     # Load messages to be processed
     messages = json.loads(workflow_run_properties["messages"])
     for message in messages:
         logger.info(
-                "Retrieving S3 object",
-                extra={
-                    "event.kind": "event",
-                    "event.category": ["database"],
-                    "event.type": ["access"],
-                    "event.action": "get-bucket-object",
-                    "labels": {"bucket": message["source_bucket"],
-                               "key": message["source_key"]}
-                }
+            "Retrieving S3 object",
+            extra={
+                "event.kind": "event",
+                "event.category": ["database"],
+                "event.type": ["access"],
+                "event.action": "get-bucket-object",
+                "labels": {
+                    "bucket": message["source_bucket"],
+                    "key": message["source_key"],
+                },
+            },
         )
         s3_obj = s3_client.get_object(
-                Bucket = message["source_bucket"],
-                Key = message["source_key"]
+            Bucket=message["source_bucket"], Key=message["source_key"]
         )
         s3_obj["Body"] = s3_obj["Body"].read()
         cohort = None
@@ -921,25 +919,28 @@ def main() -> None:
             cohort = "pediatric_v1"
         else:
             logger.warning(
-                    "Could not determine the cohort of object at %s"
-                    "This file will not be written to a JSON dataset.",
-                    f"s3://{message['source_bucket']}/{message['source_key']}. ",
-                    extra={
-                        "file.name": message["source_key"],
-                        "event.kind": "alert",
-                        "event.category": ["configuration"],
-                        "event.type": ["creation"],
-                        "event.outcome": "failure",
-                        "labels": {"bucket": message["source_bucket"],
-                                   "key": message["source_key"]}
-                    }
+                "Could not determine the cohort of object at %s"
+                "This file will not be written to a JSON dataset.",
+                f"s3://{message['source_bucket']}/{message['source_key']}. ",
+                extra={
+                    "file.name": message["source_key"],
+                    "event.kind": "alert",
+                    "event.category": ["configuration"],
+                    "event.type": ["creation"],
+                    "event.outcome": "failure",
+                    "labels": {
+                        "bucket": message["source_bucket"],
+                        "key": message["source_key"],
+                    },
+                },
             )
             continue
         process_record(
-                s3_obj=s3_obj,
-                cohort=cohort,
-                workflow_run_properties=workflow_run_properties
+            s3_obj=s3_obj,
+            cohort=cohort,
+            workflow_run_properties=workflow_run_properties,
         )
+
 
 if __name__ == "__main__":
     main()

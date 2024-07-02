@@ -22,52 +22,57 @@ If missing data is discovered, another CSV file (consume_logs_missing_data_repor
 is written which contains only the subset of files which have a line_count_difference != 0.
 The schema is the same as above.
 """
+import argparse
 import datetime
 import json
 import time
 from collections import defaultdict
-from typing import List, Dict
+from typing import Dict, List
 
-import argparse
 import boto3
 import pandas
 
+
 def read_args():
     parser = argparse.ArgumentParser(
-            description="Query S3 to JSON CloudWatch logs and compare line counts.",
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-            "--log-group-name",
-            help="The name of the log group to query.",
-            default="/aws-glue/python-jobs/error"
+        description="Query S3 to JSON CloudWatch logs and compare line counts.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-            "--query",
-            help="The query to run against the log group.",
-            default='fields @message | filter event.action = "list-file-properties"'
+        "--log-group-name",
+        help="The name of the log group to query.",
+        default="/aws-glue/python-jobs/error",
     )
     parser.add_argument(
-            "--start-datetime",
-            help=(
-                "Query start time (local time) expressed in a format parseable by "
-                "datetime.datetime.strptime. This argument should be "
-                "formatted as `--time-format`."),
-            required=True,
+        "--query",
+        help="The query to run against the log group.",
+        default='fields @message | filter event.action = "list-file-properties"',
     )
     parser.add_argument(
-            "--end-datetime",
-            help=(
-                "Default is \"now\". Query end time (local time) expressed "
-                "in a format parseable by datetime.datetime.strptime. This "
-                "argument should be formatted as `--time-format`."),
+        "--start-datetime",
+        help=(
+            "Query start time (local time) expressed in a format parseable by "
+            "datetime.datetime.strptime. This argument should be "
+            "formatted as `--time-format`."
+        ),
+        required=True,
     )
     parser.add_argument(
-            "--datetime-format",
-            help="The time format to use with datetime.datetime.strptime",
-            default="%Y-%m-%d %H:%M:%S",
+        "--end-datetime",
+        help=(
+            'Default is "now". Query end time (local time) expressed '
+            "in a format parseable by datetime.datetime.strptime. This "
+            "argument should be formatted as `--time-format`."
+        ),
+    )
+    parser.add_argument(
+        "--datetime-format",
+        help="The time format to use with datetime.datetime.strptime",
+        default="%Y-%m-%d %H:%M:%S",
     )
     args = parser.parse_args()
     return args
+
 
 def get_seconds_since_epoch(datetime_str: str, datetime_format: str) -> int:
     """
@@ -89,12 +94,13 @@ def get_seconds_since_epoch(datetime_str: str, datetime_format: str) -> int:
     seconds_since_epoch = int(parsed_datetime.timestamp())
     return seconds_since_epoch
 
+
 def query_logs(
-        log_group_name: str,
-        query_string: str,
-        start_unix_time: int,
-        end_unix_time: int,
-        **kwargs: dict,
+    log_group_name: str,
+    query_string: str,
+    start_unix_time: int,
+    end_unix_time: int,
+    **kwargs: dict,
 ) -> list:
     """
     Query a CloudWatch log group.
@@ -118,22 +124,23 @@ def query_logs(
     """
     logs_client = kwargs.get("logs_client", boto3.client("logs"))
     start_query_response = logs_client.start_query(
-            logGroupName=log_group_name,
-            startTime=start_unix_time,
-            endTime=end_unix_time,
-            queryString=query_string
+        logGroupName=log_group_name,
+        startTime=start_unix_time,
+        endTime=end_unix_time,
+        queryString=query_string,
     )
     query_response = logs_client.get_query_results(
-            queryId=start_query_response["queryId"]
+        queryId=start_query_response["queryId"]
     )
     _check_for_failed_query(query_response)
     while query_response["status"] != "Complete":
         time.sleep(1)
         query_response = logs_client.get_query_results(
-                queryId=start_query_response["queryId"]
+            queryId=start_query_response["queryId"]
         )
         _check_for_failed_query(query_response)
     return query_response["results"]
+
 
 def _check_for_failed_query(query_response) -> None:
     """
@@ -142,7 +149,10 @@ def _check_for_failed_query(query_response) -> None:
     if query_response["status"] in ["Failed", "Cancelled", "Timeout", "Unknown"]:
         raise UserWarning(f"Query failed with status \"{query_response['status']}\"")
 
-def group_query_result_by_workflow_run(query_results: List[List[dict]]) -> Dict[str, List[dict]]:
+
+def group_query_result_by_workflow_run(
+    query_results: List[List[dict]],
+) -> Dict[str, List[dict]]:
     """
     Associates log records with their workflow run ID.
 
@@ -158,14 +168,15 @@ def group_query_result_by_workflow_run(query_results: List[List[dict]]) -> Dict[
     """
     # e.g., [{'@message': '{...}', '@ptr': '...'}, ...]
     log_records = [
-            {field['field']: field['value'] for field in log_message}
-            for log_message in query_results
+        {field["field"]: field["value"] for field in log_message}
+        for log_message in query_results
     ]
     workflow_run_logs = defaultdict(list)
     for log_record in log_records:
         log_message = json.loads(log_record["@message"])
         workflow_run_logs[log_message["process"]["parent"]["pid"]].append(log_message)
     return workflow_run_logs
+
 
 def transform_logs_to_dataframe(log_messages: List[dict]) -> pandas.DataFrame:
     """
@@ -187,47 +198,40 @@ def transform_logs_to_dataframe(log_messages: List[dict]) -> pandas.DataFrame:
     dataframe_records = []
     for log_message in log_messages:
         if (
-                "event" not in log_message
-                or "type" not in log_message["event"]
-                or not any(
-                    [
-                        k in log_message["event"]["type"]
-                        for k in ["access", "creation"]
-                    ]
-                )
-                or all(
-                    [
-                        k in log_message["event"]["type"]
-                        for k in ["access", "creation"]
-                    ]
-                )
+            "event" not in log_message
+            or "type" not in log_message["event"]
+            or not any(
+                [k in log_message["event"]["type"] for k in ["access", "creation"]]
+            )
+            or all([k in log_message["event"]["type"] for k in ["access", "creation"]])
         ):
             raise KeyError(
-                    "Did not find event.type in log message or "
-                    "event.type contained unexpected values "
-                    "for workflow run ID {log_message['process']['parent']['pid']} and "
-                    f"file {json.dumps(log_message['file']['labels'])}"
+                "Did not find event.type in log message or "
+                "event.type contained unexpected values "
+                "for workflow run ID {log_message['process']['parent']['pid']} and "
+                f"file {json.dumps(log_message['file']['labels'])}"
             )
         if "access" in log_message["event"]["type"]:
             event_type = "access"
         else:
             event_type = "creation"
         dataframe_record = {
-                "cohort": log_message["labels"]["cohort"],
-                "file_name": log_message["file"]["name"],
-                "event_type": event_type,
-                "line_count": log_message["file"]["LineCount"]
+            "cohort": log_message["labels"]["cohort"],
+            "file_name": log_message["file"]["name"],
+            "event_type": event_type,
+            "line_count": log_message["file"]["LineCount"],
         }
         dataframe_records.append(dataframe_record)
     log_dataframe = pandas.DataFrame.from_records(dataframe_records)
     return log_dataframe
 
+
 def report_results(
-        workflow_run_event_comparison: dict,
-        comparison_report_path: str="consume_logs_comparison_report.csv",
-        missing_data_report_path: str="consume_logs_missing_data_report.csv",
-        testing:bool=False,
-    ) -> pandas.DataFrame:
+    workflow_run_event_comparison: dict,
+    comparison_report_path: str = "consume_logs_comparison_report.csv",
+    missing_data_report_path: str = "consume_logs_missing_data_report.csv",
+    testing: bool = False,
+) -> pandas.DataFrame:
     """
     Report any missing data and save the results.
 
@@ -250,8 +254,7 @@ def report_results(
         pandas.DataFrame
     """
     all_comparisons = pandas.concat(
-            workflow_run_event_comparison,
-            names=["workflow_run_id", "index"]
+        workflow_run_event_comparison, names=["workflow_run_id", "index"]
     )
     all_missing_data = pandas.DataFrame()
     for workflow_run in workflow_run_event_comparison:
@@ -260,10 +263,10 @@ def report_results(
         )
         if len(missing_data) != 0:
             print(
-                    "Discovered differences between records read/write "
-                    f"in workflow run {workflow_run}"
+                "Discovered differences between records read/write "
+                f"in workflow run {workflow_run}"
             )
-            missing_data = missing_data.assign(workflow_run_id = workflow_run)
+            missing_data = missing_data.assign(workflow_run_id=workflow_run)
             all_missing_data = pandas.concat([all_missing_data, missing_data])
     if len(all_missing_data) > 0:
         print(f"Writing missing data information to {missing_data_report_path}")
@@ -278,56 +281,56 @@ def report_results(
         all_comparisons.to_csv(comparison_report_path)
     return all_missing_data
 
+
 def main() -> None:
     args = read_args()
     start_unix_time = get_seconds_since_epoch(
-            datetime_str=args.start_datetime,
-            datetime_format=args.datetime_format,
+        datetime_str=args.start_datetime,
+        datetime_format=args.datetime_format,
     )
     end_unix_time = get_seconds_since_epoch(
-            datetime_str=args.end_datetime,
-            datetime_format=args.datetime_format,
+        datetime_str=args.end_datetime,
+        datetime_format=args.datetime_format,
     )
     file_property_logs = query_logs(
-            log_group_name=args.log_group_name,
-            query_string=args.query,
-            start_unix_time=start_unix_time,
-            end_unix_time=end_unix_time,
+        log_group_name=args.log_group_name,
+        query_string=args.query,
+        start_unix_time=start_unix_time,
+        end_unix_time=end_unix_time,
     )
     if len(file_property_logs) == 0:
         print(
-                f"The query '{args.query}' did not return any results "
-                f"in the time range {start_unix_time}-{end_unix_time}"
+            f"The query '{args.query}' did not return any results "
+            f"in the time range {start_unix_time}-{end_unix_time}"
         )
         return
-    workflow_run_logs = group_query_result_by_workflow_run(query_results=file_property_logs)
+    workflow_run_logs = group_query_result_by_workflow_run(
+        query_results=file_property_logs
+    )
     workflow_run_event_comparison = {}
     for workflow_run in workflow_run_logs:
         workflow_run_dataframe = transform_logs_to_dataframe(
-                log_messages=workflow_run_logs[workflow_run]
+            log_messages=workflow_run_logs[workflow_run]
         )
-        access_events = (
-                workflow_run_dataframe
-                .query("event_type == 'access'")
-                .drop("event_type", axis=1)
+        access_events = workflow_run_dataframe.query("event_type == 'access'").drop(
+            "event_type", axis=1
         )
-        creation_events = (
-                workflow_run_dataframe
-                .query("event_type == 'creation'")
-                .drop("event_type", axis=1)
+        creation_events = workflow_run_dataframe.query("event_type == 'creation'").drop(
+            "event_type", axis=1
         )
         event_comparison = access_events.merge(
-                creation_events,
-                how="left",
-                on=["cohort", "file_name"],
-                suffixes=("_access", "_creation")
+            creation_events,
+            how="left",
+            on=["cohort", "file_name"],
+            suffixes=("_access", "_creation"),
         )
-        event_comparison["line_count_difference"] = \
-                event_comparison["line_count_access"] - event_comparison["line_count_creation"]
+        event_comparison["line_count_difference"] = (
+            event_comparison["line_count_access"]
+            - event_comparison["line_count_creation"]
+        )
         workflow_run_event_comparison[workflow_run] = event_comparison
-    report_results(
-            workflow_run_event_comparison=workflow_run_event_comparison
-    )
+    report_results(workflow_run_event_comparison=workflow_run_event_comparison)
+
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
-from collections import namedtuple
 import json
 import re
 import zipfile
+from collections import namedtuple
 from io import BytesIO
 from unittest import mock
 
@@ -388,7 +388,6 @@ def test_that_get_integration_test_exports_json_throws_json_decode_error(
 def test_that_get_exports_filter_values_returns_expected_results(
     s3, data_type, filelist, expected_filter
 ):
-
     with mock.patch.object(
         compare_parquet, "get_integration_test_exports_json"
     ) as patch_test_exports, mock.patch.object(

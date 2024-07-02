@@ -1,8 +1,9 @@
 import copy
 from unittest import mock
+
 import boto3
-from moto import mock_s3, mock_lambda, mock_iam, mock_sqs, mock_sns
 import pytest
+from moto import mock_iam, mock_lambda, mock_s3, mock_sns, mock_sqs
 
 from src.lambda_function.s3_event_config import app
 
@@ -30,6 +31,7 @@ def mock_lambda_function(mock_iam_role):
         )
         yield client.get_function(FunctionName="some_function")
 
+
 @pytest.fixture
 def mock_sns_topic_arn():
     with mock_sns():
@@ -48,6 +50,7 @@ def mock_sqs_queue(mock_aws_credentials):
             QueueUrl=queue_url["QueueUrl"], AttributeNames=["QueueArn"]
         )
 
+
 @pytest.fixture
 def notification_configuration():
     return app.NotificationConfiguration(
@@ -56,14 +59,11 @@ def notification_configuration():
             "Events": ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"],
             "TopicArn": "arn:aws:sns:bla",
             "Filter": {
-                "Key": {
-                    "FilterRules": [
-                        {"Name": "Prefix", "Value": "documents/"}
-                    ]
-                }
-            }
-        }
+                "Key": {"FilterRules": [{"Name": "Prefix", "Value": "documents/"}]}
+            },
+        },
     )
+
 
 @pytest.fixture
 def bucket_notification_configurations(notification_configuration):
@@ -73,44 +73,54 @@ def bucket_notification_configurations(notification_configuration):
     queue_configuration_value = copy.deepcopy(notification_configuration.value)
     del queue_configuration_value["TopicArn"]
     queue_configuration_value["QueueArn"] = "arn:aws:sqs:bla"
-    queue_configuration_value["Filter"]["Key"]["FilterRules"][0] = \
-            {"Name": "Suffix", "Value": "jpeg"}
+    queue_configuration_value["Filter"]["Key"]["FilterRules"][0] = {
+        "Name": "Suffix",
+        "Value": "jpeg",
+    }
     queue_configuration = app.NotificationConfiguration(
-            notification_type=app.NotificationConfigurationType("Queue"),
-            value=queue_configuration_value
+        notification_type=app.NotificationConfigurationType("Queue"),
+        value=queue_configuration_value,
     )
     ### Lambda Configuration
     lambda_configuration_value = copy.deepcopy(notification_configuration.value)
     del lambda_configuration_value["TopicArn"]
     lambda_configuration_value["LambdaFunctionArn"] = "arn:aws:lambda:bla"
-    lambda_configuration_value["Filter"]["Key"]["FilterRules"][0] = \
-            {"Name": "Suffix", "Value": "jpeg"}
+    lambda_configuration_value["Filter"]["Key"]["FilterRules"][0] = {
+        "Name": "Suffix",
+        "Value": "jpeg",
+    }
     lambda_configuration_value["Filter"]["Key"]["FilterRules"].append(
-            {"Name": "Prefix", "Value": "pictures/"}
+        {"Name": "Prefix", "Value": "pictures/"}
     )
     lambda_configuration = app.NotificationConfiguration(
-            notification_type=app.NotificationConfigurationType("LambdaFunction"),
-            value=lambda_configuration_value
+        notification_type=app.NotificationConfigurationType("LambdaFunction"),
+        value=lambda_configuration_value,
     )
     bucket_notification_configurations = app.BucketNotificationConfigurations(
         [topic_configuration, queue_configuration, lambda_configuration]
     )
     return bucket_notification_configurations
 
+
 class TestBucketNotificationConfigurations:
     def test_init(self, notification_configuration):
         configs = [notification_configuration, notification_configuration]
-        bucket_notification_configurations = app.BucketNotificationConfigurations(configs)
+        bucket_notification_configurations = app.BucketNotificationConfigurations(
+            configs
+        )
         assert bucket_notification_configurations.configs == configs
 
     def test_to_dict(self, notification_configuration):
         other_notification_configuration = copy.deepcopy(notification_configuration)
         other_notification_configuration.type = "LambdaFunction"
         configs = [notification_configuration, other_notification_configuration]
-        bucket_notification_configurations = app.BucketNotificationConfigurations(configs)
+        bucket_notification_configurations = app.BucketNotificationConfigurations(
+            configs
+        )
         bnc_as_dict = bucket_notification_configurations.to_dict()
         assert "TopicConfigurations" in bnc_as_dict
         assert "LambdaFunctionConfigurations" in bnc_as_dict
+
 
 class TestGetBucketNotificationConfigurations:
     @mock_s3
@@ -133,111 +143,120 @@ class TestGetBucketNotificationConfigurations:
                 "QueueConfigurations": [queue_configuration],
                 "TopicConfigurations": [topic_configuration],
                 "LambdaFunctionConfigurations": [lambda_configuration],
-                "EventBridgeConfiguration": event_bridge_configuration
+                "EventBridgeConfiguration": event_bridge_configuration,
             },
         ):
-            bucket_notification_configurations = app.get_bucket_notification_configurations(
-                    s3_client=s3,
-                    bucket="some_bucket"
+            bucket_notification_configurations = (
+                app.get_bucket_notification_configurations(
+                    s3_client=s3, bucket="some_bucket"
+                )
             )
             # We should ignore 'EventBridgeConfiguration'
             assert len(bucket_notification_configurations.configs) == 3
+
 
 class TestGetNotificationConfiguration:
     def test_no_prefix_matching_suffix(self, bucket_notification_configurations):
         # No prefix provided, suffix provided
         matching_notification_configuration = app.get_notification_configuration(
-                bucket_notification_configurations, bucket_key_suffix="jpeg"
+            bucket_notification_configurations, bucket_key_suffix="jpeg"
         )
         assert matching_notification_configuration is not None
         assert matching_notification_configuration.type == "Queue"
 
     def test_no_suffix_matching_prefix(self, bucket_notification_configurations):
         matching_notification_configuration = app.get_notification_configuration(
-                bucket_notification_configurations, bucket_key_prefix="documents"
+            bucket_notification_configurations, bucket_key_prefix="documents"
         )
         assert matching_notification_configuration is not None
         assert matching_notification_configuration.type == "Topic"
 
-    def test_matching_prefix_not_matching_suffix(self, bucket_notification_configurations):
+    def test_matching_prefix_not_matching_suffix(
+        self, bucket_notification_configurations
+    ):
         matching_notification_configuration = app.get_notification_configuration(
-                bucket_notification_configurations=bucket_notification_configurations,
-                bucket_key_prefix="pictures",
-                bucket_key_suffix="png"
+            bucket_notification_configurations=bucket_notification_configurations,
+            bucket_key_prefix="pictures",
+            bucket_key_suffix="png",
         )
         assert matching_notification_configuration is None
 
-    def test_matching_suffix_not_matching_prefix(self, bucket_notification_configurations):
+    def test_matching_suffix_not_matching_prefix(
+        self, bucket_notification_configurations
+    ):
         matching_notification_configuration = app.get_notification_configuration(
-                bucket_notification_configurations=bucket_notification_configurations,
-                bucket_key_prefix="documents",
-                bucket_key_suffix="jpeg"
+            bucket_notification_configurations=bucket_notification_configurations,
+            bucket_key_prefix="documents",
+            bucket_key_suffix="jpeg",
         )
         assert matching_notification_configuration is None
 
     def test_no_match(self, bucket_notification_configurations):
         matching_notification_configuration = app.get_notification_configuration(
-                bucket_notification_configurations=bucket_notification_configurations,
-                bucket_key_prefix="downloads",
+            bucket_notification_configurations=bucket_notification_configurations,
+            bucket_key_prefix="downloads",
         )
         assert matching_notification_configuration is None
+
 
 class TestNormalizeFilterRules:
     def test_normalize_filter_rules(self, notification_configuration):
         normalized_notification_configuration = app.normalize_filter_rules(
-                config=notification_configuration
+            config=notification_configuration
         )
         assert all(
-                [
-                    rule["Name"].lower() == rule["Name"]
-                    for rule
-                    in notification_configuration.value["Filter"]["Key"]["FilterRules"]
+            [
+                rule["Name"].lower() == rule["Name"]
+                for rule in notification_configuration.value["Filter"]["Key"][
+                    "FilterRules"
                 ]
+            ]
         )
+
 
 class TestNotificationConfigurationMatches:
     def test_all_true(self, notification_configuration):
         assert app.notification_configuration_matches(
-                config=notification_configuration,
-                other_config=notification_configuration
+            config=notification_configuration, other_config=notification_configuration
         )
 
     def test_arn_false(self, notification_configuration):
         other_notification_configuration = copy.deepcopy(notification_configuration)
         other_notification_configuration.arn = "arn:aws:sns:hubba"
         assert not app.notification_configuration_matches(
-                config=notification_configuration,
-                other_config=other_notification_configuration
+            config=notification_configuration,
+            other_config=other_notification_configuration,
         )
 
     def test_events_false(self, notification_configuration):
         other_notification_configuration = copy.deepcopy(notification_configuration)
         other_notification_configuration.value["Events"] = ["s3:ObjectCreated*"]
         assert not app.notification_configuration_matches(
-                config=notification_configuration,
-                other_config=other_notification_configuration
+            config=notification_configuration,
+            other_config=other_notification_configuration,
         )
 
     def test_filter_rule_names_false(self, notification_configuration):
         other_notification_configuration = copy.deepcopy(notification_configuration)
         other_notification_configuration.value["Filter"]["Key"]["FilterRules"] = [
-                {"Name": "Prefix", "Value": "documents/"},
-                {"Name": "Suffix", "Value": "jpeg"},
+            {"Name": "Prefix", "Value": "documents/"},
+            {"Name": "Suffix", "Value": "jpeg"},
         ]
         assert not app.notification_configuration_matches(
-                config=notification_configuration,
-                other_config=other_notification_configuration
+            config=notification_configuration,
+            other_config=other_notification_configuration,
         )
 
     def test_filter_rule_values_false(self, notification_configuration):
         other_notification_configuration = copy.deepcopy(notification_configuration)
         other_notification_configuration.value["Filter"]["Key"]["FilterRules"] = [
-                {"Name": "Prefix", "Value": "pictures/"}
+            {"Name": "Prefix", "Value": "pictures/"}
         ]
         assert not app.notification_configuration_matches(
-                config=notification_configuration,
-                other_config=other_notification_configuration
+            config=notification_configuration,
+            other_config=other_notification_configuration,
         )
+
 
 class TestAddNotification:
     @mock_s3
@@ -264,7 +283,14 @@ class TestAddNotification:
             "s3:ObjectCreated:*"
         ]
         # moto prefix/Prefix discrepancy
-        assert len(get_config["LambdaFunctionConfigurations"][0]["Filter"]["Key"]["FilterRules"]) == 1
+        assert (
+            len(
+                get_config["LambdaFunctionConfigurations"][0]["Filter"]["Key"][
+                    "FilterRules"
+                ]
+            )
+            == 1
+        )
 
     @mock_s3
     def test_adds_expected_settings_for_sns(self, s3, mock_sns_topic_arn):
@@ -283,12 +309,12 @@ class TestAddNotification:
             )
         get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
         assert get_config["TopicConfigurations"][0]["TopicArn"] == mock_sns_topic_arn
-        assert get_config["TopicConfigurations"][0]["Events"] == [
-            "s3:ObjectCreated:*"
-        ]
+        assert get_config["TopicConfigurations"][0]["Events"] == ["s3:ObjectCreated:*"]
         # moto prefix/Prefix discrepancy
-        assert len(get_config["TopicConfigurations"][0]["Filter"]["Key"]["FilterRules"]) == 1
-
+        assert (
+            len(get_config["TopicConfigurations"][0]["Filter"]["Key"]["FilterRules"])
+            == 1
+        )
 
     @mock_s3
     def test_adds_expected_settings_for_sqs(self, s3, mock_sqs_queue):
@@ -312,8 +338,10 @@ class TestAddNotification:
         )
         assert get_config["QueueConfigurations"][0]["Events"] == ["s3:ObjectCreated:*"]
         # moto prefix/Prefix discrepancy
-        assert len(get_config["QueueConfigurations"][0]["Filter"]["Key"]["FilterRules"]) == 1
-
+        assert (
+            len(get_config["QueueConfigurations"][0]["Filter"]["Key"]["FilterRules"])
+            == 1
+        )
 
     @mock_s3
     def test_raise_exception_if_config_exists_for_prefix(
@@ -326,11 +354,7 @@ class TestAddNotification:
         with mock.patch.object(
             s3,
             "get_bucket_notification_configuration",
-            return_value={
-                f"TopicConfigurations": [
-                    notification_configuration.value
-                ]
-            },
+            return_value={f"TopicConfigurations": [notification_configuration.value]},
         ):
             with pytest.raises(RuntimeError):
                 app.add_notification(
@@ -338,7 +362,9 @@ class TestAddNotification:
                     "Queue",
                     "arn:aws:sqs:bla",
                     "some_bucket",
-                    notification_configuration.value["Filter"]["Key"]["FilterRules"][0]["Value"],
+                    notification_configuration.value["Filter"]["Key"]["FilterRules"][0][
+                        "Value"
+                    ],
                 )
 
     @mock_s3
@@ -351,17 +377,13 @@ class TestAddNotification:
             "TopicArn": "arn:aws:sns:bla",
             "Events": ["s3:ObjectCreated:*"],
             "Filter": {
-                "Key": {
-                    "FilterRules": [{"Name": "Prefix", "Value": f"documents/"}]
-                }
+                "Key": {"FilterRules": [{"Name": "Prefix", "Value": f"documents/"}]}
             },
         }
         with mock.patch.object(
             s3,
             "get_bucket_notification_configuration",
-            return_value={
-                f"TopicConfigurations": [notification_configuration]
-            },
+            return_value={f"TopicConfigurations": [notification_configuration]},
         ), mock.patch.object(s3, "put_bucket_notification_configuration") as put_config:
             # WHEN I add the existing matching `LambdaFunction` configuration
             app.add_notification(
@@ -369,7 +391,9 @@ class TestAddNotification:
                 destination_type="Topic",
                 destination_arn=notification_configuration["TopicArn"],
                 bucket="some_bucket",
-                bucket_key_prefix=notification_configuration["Filter"]["Key"]["FilterRules"][0]["Value"],
+                bucket_key_prefix=notification_configuration["Filter"]["Key"][
+                    "FilterRules"
+                ][0]["Value"],
             )
 
         # AND I get the notification configuration
@@ -377,7 +401,6 @@ class TestAddNotification:
 
         # THEN I expect nothing to have been saved in our mocked environment
         assert not put_config.called
-
 
     @mock_s3
     def test_does_nothing_if_notification_already_exists_even_in_different_dict_order(
@@ -423,7 +446,6 @@ class TestAddNotification:
 
         # THEN I expect nothing to have been saved in our mocked environment
         assert not put_config.called
-
 
     @mock_s3
     def test_adds_config_if_requested_notification_does_not_exist(
@@ -474,13 +496,21 @@ class TestAddNotification:
             "s3:ObjectCreated:*"
         ]
         # moto prefix/Prefix discrepancy
-        assert len(get_config["LambdaFunctionConfigurations"][0]["Filter"]["Key"]["FilterRules"]) == 1
+        assert (
+            len(
+                get_config["LambdaFunctionConfigurations"][0]["Filter"]["Key"][
+                    "FilterRules"
+                ]
+            )
+            == 1
+        )
+
 
 class TestDeleteNotification:
     @mock_s3
     def test_is_successful_for_configuration_that_exists(
         self, s3, mock_lambda_function
-        ):
+    ):
         # GIVEN an S3 bucket
         s3.create_bucket(Bucket="some_bucket")
 
@@ -508,14 +538,11 @@ class TestDeleteNotification:
         ):
             # WHEN I delete the notification
             app.delete_notification(
-                s3_client=s3,
-                bucket="some_bucket",
-                bucket_key_prefix="test_folder"
+                s3_client=s3, bucket="some_bucket", bucket_key_prefix="test_folder"
             )
         # THEN the notification should be deleted
         get_config = s3.get_bucket_notification_configuration(Bucket="some_bucket")
         assert "LambdaFunctionConfigurations" not in get_config
-
 
     @mock_s3
     def test_does_nothing_when_deleting_configuration_that_does_not_exist(
@@ -551,7 +578,7 @@ class TestDeleteNotification:
             app.delete_notification(
                 s3_client=s3,
                 bucket="some_bucket",
-                bucket_key_prefix="another_test_folder"
+                bucket_key_prefix="another_test_folder",
             )
         # THEN nothing should have been called
         assert not put_config.called

@@ -1,8 +1,8 @@
-import pytest
+import json
 from unittest import mock
 
-import json
 import boto3
+import pytest
 from moto import mock_sqs
 
 from src.lambda_function.s3_to_glue import app
@@ -31,12 +31,12 @@ class TestS3ToGlueLambda:
     @pytest.fixture
     def sns_message(self):
         sns_message_wrapper = {
-                "Type": "string",
-                "MessageId": "string",
-                "TopicArn": "string",
-                "Subject": "string",
-                "Message": "string",
-                "Timestamp": "string"
+            "Type": "string",
+            "MessageId": "string",
+            "TopicArn": "string",
+            "Subject": "string",
+            "Message": "string",
+            "Timestamp": "string",
         }
         return sns_message_wrapper
 
@@ -165,11 +165,14 @@ class TestS3ToGlueLambda:
                 )
 
     def test_get_object_info_unicode_characters_in_key(self, s3_event):
-        s3_event["s3"]["object"]["key"] = \
-                "main/2023-09-26T00%3A06%3A39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
+        s3_event["s3"]["object"][
+            "key"
+        ] = "main/2023-09-26T00%3A06%3A39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
         object_info = app.get_object_info(s3_event=s3_event)
-        assert object_info["source_key"] == \
-                "main/2023-09-26T00:06:39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
+        assert (
+            object_info["source_key"]
+            == "main/2023-09-26T00:06:39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
+        )
 
     @pytest.mark.parametrize(
         "object_info,expected",
@@ -225,7 +228,6 @@ class TestS3ToGlueLambda:
         self, object_info, expected
     ):
         assert app.filter_object_info(object_info) == expected
-
 
     def test_that_is_s3_test_event_returns_true_when_s3_test_event_is_present(
         self, s3_test_event

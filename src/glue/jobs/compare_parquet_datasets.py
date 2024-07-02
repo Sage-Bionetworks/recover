@@ -1,10 +1,10 @@
-from collections import namedtuple
 import datetime
 import json
 import logging
 import os
 import sys
 import zipfile
+from collections import namedtuple
 from io import BytesIO, StringIO
 from typing import Dict, List, NamedTuple, Union
 

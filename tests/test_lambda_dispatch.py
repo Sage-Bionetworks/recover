@@ -1,15 +1,17 @@
 import json
 import os
-from pathlib import Path
 import shutil
 import tempfile
 import zipfile
+from pathlib import Path
+from unittest import mock
 
 import boto3
 import pytest
-from moto import mock_sns, mock_s3
+from moto import mock_s3, mock_sns
+
 from src.lambda_function.dispatch import app
-from unittest import mock
+
 
 @pytest.fixture
 def s3_event():
@@ -43,17 +45,19 @@ def s3_event():
     }
     return s3_event
 
+
 @pytest.fixture
 def sns_message_template():
     sns_message_template = {
-            "Type": "string",
-            "MessageId": "string",
-            "TopicArn": "string",
-            "Subject": "string",
-            "Message": "string",
-            "Timestamp": "string"
+        "Type": "string",
+        "MessageId": "string",
+        "TopicArn": "string",
+        "Subject": "string",
+        "Message": "string",
+        "Timestamp": "string",
     }
     return sns_message_template
+
 
 @pytest.fixture
 def sqs_message_template():
@@ -80,33 +84,34 @@ def sqs_message_template():
     }
     yield sqs_msg
 
+
 @pytest.fixture
 def event(s3_event, sns_message_template, sqs_message_template):
     sns_message_template["Message"] = json.dumps({"Records": [s3_event]})
     sqs_message_template["Records"][0]["body"] = json.dumps(sns_message_template)
     return sqs_message_template
 
+
 @pytest.fixture
 def archive_json_paths():
     archive_json_paths = [
-            "HealthKitV2Workouts_20240508-20240509.json", # normal file
-            "empty.json", # should have file size 0 and be ignored
-            "Manifest.json", # should be ignored
-            "dir/containing/stuff.json" # should be ignored
+        "HealthKitV2Workouts_20240508-20240509.json",  # normal file
+        "empty.json",  # should have file size 0 and be ignored
+        "Manifest.json",  # should be ignored
+        "dir/containing/stuff.json",  # should be ignored
     ]
     return archive_json_paths
 
+
 @pytest.fixture
 def temp_zip_file():
-    temp_zip_file = tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix='.zip'
-    )
+    temp_zip_file = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
     return temp_zip_file
+
 
 @pytest.fixture
 def archive_path(archive_json_paths, temp_zip_file):
-    with zipfile.ZipFile(temp_zip_file.name, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+    with zipfile.ZipFile(temp_zip_file.name, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for file_path in archive_json_paths:
             if "/" in file_path:
                 os.makedirs(os.path.dirname(file_path))
@@ -123,17 +128,23 @@ def archive_path(archive_json_paths, temp_zip_file):
     yield temp_zip_file.name
     os.remove(temp_zip_file.name)
 
+
 def test_get_object_info(s3_event):
     object_info = app.get_object_info(s3_event=s3_event)
     assert object_info["Bucket"] == s3_event["s3"]["bucket"]["name"]
     assert object_info["Key"] == s3_event["s3"]["object"]["key"]
 
+
 def test_get_object_info_unicode_characters_in_key(s3_event):
-    s3_event["s3"]["object"]["key"] = \
-            "main/2023-09-26T00%3A06%3A39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
+    s3_event["s3"]["object"][
+        "key"
+    ] = "main/2023-09-26T00%3A06%3A39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
     object_info = app.get_object_info(s3_event=s3_event)
-    assert object_info["Key"] == \
-            "main/2023-09-26T00:06:39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
+    assert (
+        object_info["Key"]
+        == "main/2023-09-26T00:06:39Z_d873eafb-554f-4f8a-9e61-cdbcb7de07eb"
+    )
+
 
 @pytest.mark.parametrize(
     "object_info,expected",
@@ -186,21 +197,22 @@ def test_get_object_info_unicode_characters_in_key(s3_event):
     ],
 )
 def test_that_filter_object_info_returns_expected_result(object_info, expected):
-        assert app.filter_object_info(object_info) == expected
+    assert app.filter_object_info(object_info) == expected
+
 
 def test_get_archive_contents(archive_path, archive_json_paths):
     dummy_bucket = "dummy_bucket"
     dummy_key = "dummy_key"
     archive_contents = app.get_archive_contents(
-            archive_path=archive_path,
-            bucket=dummy_bucket,
-            key=dummy_key
+        archive_path=archive_path, bucket=dummy_bucket, key=dummy_key
     )
     assert all([content["Bucket"] == dummy_bucket for content in archive_contents])
     assert all([content["Key"] == dummy_key for content in archive_contents])
     assert all([content["FileSize"] > 0 for content in archive_contents])
-    assert set([content["Path"] for content in archive_contents]) == \
-            set(["HealthKitV2Workouts_20240508-20240509.json"])
+    assert set([content["Path"] for content in archive_contents]) == set(
+        ["HealthKitV2Workouts_20240508-20240509.json"]
+    )
+
 
 @mock_sns
 @mock_s3
@@ -210,19 +222,17 @@ def test_main(event, temp_zip_file, s3_event, archive_path):
     bucket = s3_event["s3"]["bucket"]["name"]
     key = s3_event["s3"]["object"]["key"]
     s3_client.create_bucket(Bucket=bucket)
-    s3_client.upload_file(
-            Filename=archive_path,
-            Bucket=bucket,
-            Key=key
-    )
+    s3_client.upload_file(Filename=archive_path, Bucket=bucket, Key=key)
     dispatch_sns = sns_client.create_topic(Name="test-sns-topic")
-    with mock.patch.object(sns_client, "publish", wraps=sns_client.publish) as mock_publish:
+    with mock.patch.object(
+        sns_client, "publish", wraps=sns_client.publish
+    ) as mock_publish:
         app.main(
-                event=event,
-                context=dict(),
-                sns_client=sns_client,
-                s3_client=s3_client,
-                dispatch_sns_arn=dispatch_sns["TopicArn"],
-                temp_zip_path=temp_zip_file.name
+            event=event,
+            context=dict(),
+            sns_client=sns_client,
+            s3_client=s3_client,
+            dispatch_sns_arn=dispatch_sns["TopicArn"],
+            temp_zip_path=temp_zip_file.name,
         )
         mock_publish.assert_called()
