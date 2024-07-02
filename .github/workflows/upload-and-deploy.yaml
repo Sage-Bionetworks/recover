@@ -280,13 +280,13 @@ jobs:
 
       - name: Clean input data bucket
         run: >
-          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py.py
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
           --bucket $DEV_INPUT_BUCKET
           --bucket_prefix "${{ env.NAMESPACE }}/"
 
       - name: Clean intermediate data bucket
         run: >
-          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py.py
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
           --bucket $DEV_INTERMEDIATE_BUCKET
           --bucket_prefix "${{ env.NAMESPACE }}/json/"
 
@@ -390,13 +390,13 @@ jobs:
 
       - name: Clean input data bucket
         run: >
-          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py.py
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
           --bucket $PROD_INPUT_BUCKET
           --bucket_prefix "staging/"
 
       - name: Clean intermediate data bucket
         run: >
-          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py.py
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
           --bucket $PROD_INTERMEDIATE_BUCKET
           --bucket_prefix "staging/json/"
 
