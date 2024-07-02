@@ -20,6 +20,7 @@ def delete_objects(bucket_prefix: str, bucket: str) -> None:
         bucket_prefix: The prefix of the bucket to clean. Should end with a '/'
         bucket: The name of the bucket to clean
     """
+    print(f"Cleaning bucket: {bucket} with prefix: {bucket_prefix}")
     # Initialize the S3 client
     s3_client = boto3.client('s3')
 
