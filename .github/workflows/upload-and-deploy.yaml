@@ -55,15 +55,12 @@ jobs:
           echo 'authenticator = "SNOWFLAKE_JWT"' >> $config_file
           echo "private_key_path = \"$private_key_file\"" >> $config_file
 
-          # check config file
-          cat $config_file
-
           # Write config.toml path to global environment
           echo "SNOWFLAKE_CONFIG_PATH=$config_file" >> $GITHUB_ENV
 
-      - name: check config
+      - name: Configuration file information
         run: |
-          echo $SNOWFLAKE_CONFIG_PATH
+          echo "Snowflake configuration is located at $SNOWFLAKE_CONFIG_PATH"
           cat $SNOWFLAKE_CONFIG_PATH
 
       - name: Install Snowflake CLI
@@ -71,10 +68,16 @@ jobs:
         with:
           default-config-file-path: ${{ env.SNOWFLAKE_CONFIG_PATH }}
 
-      - name: test connection
+      - name: Test Snowflake connection
         run: |
           snow --version
           snow connection test
+
+      - name: Deploy Snowflake objects
+        run: |
+          snow sql \
+            -D "environment=$(git rev-parse --abbrev-ref HEAD)" \
+            -f snowflake/objects/deploy.sql
 
   upload-files:
     name: Upload files to S3 bucket in development
