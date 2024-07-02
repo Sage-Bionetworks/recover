@@ -121,20 +121,25 @@ def create_table(
     )
     return table
 
+
 @pytest.fixture()
 def flat_data_type(glue_flat_table_name):
     flat_data_type = glue_flat_table_name.split("_")[1]
     return flat_data_type
 
+
 @pytest.fixture()
 def flat_inserted_date_data_type(glue_flat_inserted_date_table_name):
-    flat_inserted_date_data_type = glue_flat_inserted_date_table_name.split("_")[1]
+    flat_inserted_date_data_type = glue_flat_inserted_date_table_name.split("_")[
+        1]
     return flat_inserted_date_data_type
+
 
 @pytest.fixture()
 def nested_data_type(glue_nested_table_name):
     nested_data_type = glue_nested_table_name.split("_")[1]
     return nested_data_type
+
 
 @pytest.fixture()
 def sample_table(
@@ -163,6 +168,7 @@ def sample_table_inserted_date(
         glue_context=glue_context,
     )
     return sample_table_inserted_date
+
 
 @pytest.fixture(scope="class")
 def glue_database_name(namespace):
@@ -193,6 +199,7 @@ def glue_flat_inserted_date_table_name():
 def glue_deleted_table_name(glue_flat_table_name):
     return f"{glue_flat_table_name}_deleted"
 
+
 @pytest.fixture(scope="class")
 def glue_deleted_nested_table_name(glue_nested_table_name) -> str:
     return f"{glue_nested_table_name}_deleted"
@@ -200,7 +207,8 @@ def glue_deleted_nested_table_name(glue_nested_table_name) -> str:
 
 @pytest.fixture(scope="class")
 def workspace_key_prefix(namespace, artifact_bucket):
-    workspace_key_prefix = os.path.join(namespace, "tests/test_json_to_parquet")
+    workspace_key_prefix = os.path.join(
+        namespace, "tests/test_json_to_parquet")
     yield workspace_key_prefix
     s3_client = boto3.client("s3")
     response = s3_client.list_objects_v2(
@@ -233,6 +241,13 @@ def glue_database_path(artifact_bucket, workspace_key_prefix):
 @pytest.fixture(scope="class")
 def glue_database(glue_database_name, glue_database_path):
     glue_client = boto3.client("glue")
+
+    try:
+        glue_client.delete_database(Name=glue_database_name)
+        print(f"Dropped database: {glue_database_name}")
+    except Exception:
+        pass
+
     glue_database = glue_client.create_database(
         DatabaseInput={
             "Name": glue_database_name,
@@ -247,7 +262,8 @@ def glue_database(glue_database_name, glue_database_path):
 @pytest.fixture(scope="class")
 def glue_nested_table_location(glue_database_path, glue_nested_table_name):
     glue_nested_table_location = (
-        os.path.join(glue_database_path, glue_nested_table_name.replace("_", "=", 1))
+        os.path.join(glue_database_path,
+                     glue_nested_table_name.replace("_", "=", 1))
         + "/"
     )
     return glue_nested_table_location
@@ -298,7 +314,8 @@ def glue_nested_table(
 @pytest.fixture(scope="class")
 def glue_flat_table_location(glue_database_path, glue_flat_table_name):
     glue_flat_table_location = (
-        os.path.join(glue_database_path, glue_flat_table_name.replace("_", "=", 1))
+        os.path.join(glue_database_path,
+                     glue_flat_table_name.replace("_", "=", 1))
         + "/"
     )
     return glue_flat_table_location
@@ -389,18 +406,22 @@ def glue_flat_inserted_date_table(
 @pytest.fixture(scope="class")
 def glue_deleted_table_location(glue_database_path, glue_deleted_table_name):
     glue_deleted_table_location = (
-        os.path.join(glue_database_path, glue_deleted_table_name.replace("_", "=", 1))
+        os.path.join(glue_database_path,
+                     glue_deleted_table_name.replace("_", "=", 1))
         + "/"
     )
     return glue_deleted_table_location
 
+
 @pytest.fixture(scope="class")
 def glue_deleted_nested_table_location(glue_database_path, glue_deleted_nested_table_name):
     glue_deleted_nested_table_location = (
-        os.path.join(glue_database_path, glue_deleted_nested_table_name.replace("_", "=", 1))
+        os.path.join(glue_database_path,
+                     glue_deleted_nested_table_name.replace("_", "=", 1))
         + "/"
     )
     return glue_deleted_nested_table_location
+
 
 @pytest.fixture(scope="class")
 def glue_deleted_table(
@@ -435,6 +456,7 @@ def glue_deleted_table(
     )
     return glue_table
 
+
 @pytest.fixture(scope="class")
 def glue_deleted_nested_table(
     glue_database_name, glue_deleted_nested_table_name, glue_deleted_nested_table_location
@@ -467,6 +489,7 @@ def glue_deleted_nested_table(
         },
     )
     return glue_table
+
 
 def upload_test_data_to_s3(path, s3_bucket, table_location, data_cohort):
     s3_client = boto3.client("s3")
@@ -517,6 +540,28 @@ def glue_crawler_role(namespace):
     role_name = f"{namespace}-pytest-crawler-role"
     glue_service_policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
     s3_read_policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+
+    # Cleanup if the role/policy already exist
+    try:
+        iam_client.detach_role_policy(
+            RoleName=role_name, PolicyArn=glue_service_policy_arn)
+        print(f"Detached policy: {glue_service_policy_arn}")
+    except Exception:
+        pass
+
+    try:
+        iam_client.detach_role_policy(
+            RoleName=role_name, PolicyArn=s3_read_policy_arn)
+        print(f"Detached policy: {s3_read_policy_arn}")
+    except Exception:
+        pass
+
+    try:
+        iam_client.delete_role(RoleName=role_name)
+        print(f"Deleted role: {role_name}")
+    except Exception:
+        pass
+
     glue_crawler_role = iam_client.create_role(
         RoleName=role_name,
         AssumeRolePolicyDocument=json.dumps(
@@ -532,11 +577,15 @@ def glue_crawler_role(namespace):
             }
         ),
     )
-    iam_client.attach_role_policy(RoleName=role_name, PolicyArn=glue_service_policy_arn)
-    iam_client.attach_role_policy(RoleName=role_name, PolicyArn=s3_read_policy_arn)
+    iam_client.attach_role_policy(
+        RoleName=role_name, PolicyArn=glue_service_policy_arn)
+    iam_client.attach_role_policy(
+        RoleName=role_name, PolicyArn=s3_read_policy_arn)
     yield glue_crawler_role["Role"]["Arn"]
-    iam_client.detach_role_policy(RoleName=role_name, PolicyArn=glue_service_policy_arn)
-    iam_client.detach_role_policy(RoleName=role_name, PolicyArn=s3_read_policy_arn)
+    iam_client.detach_role_policy(
+        RoleName=role_name, PolicyArn=glue_service_policy_arn)
+    iam_client.detach_role_policy(
+        RoleName=role_name, PolicyArn=s3_read_policy_arn)
     iam_client.delete_role(RoleName=role_name)
 
 
@@ -557,6 +606,13 @@ def glue_crawler(
 ):
     glue_client = boto3.client("glue")
     crawler_name = f"{namespace}-pytest-crawler"
+
+    try:
+        glue_client.delete_crawler(Name=crawler_name)
+        print(f"Deleted crawler: {crawler_name}")
+    except Exception:
+        pass
+
     time.sleep(10)  # give time for the IAM role trust policy to set in
     glue_crawler = glue_client.create_crawler(
         Name=crawler_name,
@@ -740,7 +796,8 @@ class TestJsonS3ToParquet:
         assert set(["Chicago", "San Francisco", "Tucson"]) == set(
             table_no_duplicates_df["city"].tolist()
         )
-        assert set(["1", "2", "3"]) == set(table_no_duplicates_df["GlobalKey"].tolist())
+        assert set(["1", "2", "3"]) == set(
+            table_no_duplicates_df["GlobalKey"].tolist())
         assert set(
             [
                 "2023-05-13T00:00:00",
@@ -850,7 +907,8 @@ class TestJsonS3ToParquet:
         for col in child_table_with_index.columns:
             print(col)
             print(child_table_with_index[col].values == correct_df[col].values)
-            assert all(child_table_with_index[col].values == correct_df[col].values)
+            assert all(
+                child_table_with_index[col].values == correct_df[col].values)
 
     def test_write_table_to_s3(
         self,
@@ -868,7 +926,8 @@ class TestJsonS3ToParquet:
             record_counts=defaultdict(list),
             logger_context=logger_context,
         )
-        parquet_key = os.path.join(parquet_key_prefix, "dataset_TestFlatDataType")
+        parquet_key = os.path.join(
+            parquet_key_prefix, "dataset_TestFlatDataType")
         with patch.object(boto3, "client") as mock_boto3_client:
             mock_client = mock_boto3_client.return_value
             mock_client.get_workflow_run.return_value = {
@@ -972,7 +1031,8 @@ class TestJsonS3ToParquet:
             )
             mock_client.delete_objects.assert_called_once_with(
                 Bucket=artifact_bucket,
-                Delete={"Objects": [{"Key": obj["Key"]} for obj in archived_objects]},
+                Delete={"Objects": [{"Key": obj["Key"]}
+                                    for obj in archived_objects]},
             )
 
     def test_drop_deleted_healthkit_data_nonempty(
@@ -1059,7 +1119,8 @@ class TestJsonS3ToParquet:
 
     def test_count_records_for_event_empty_table(self, sample_table, logger_context):
         spark_sample_table = sample_table.toDF()
-        empty_table = spark_sample_table.filter(spark_sample_table.city == "Atlantis")
+        empty_table = spark_sample_table.filter(
+            spark_sample_table.city == "Atlantis")
         record_counts = json_to_parquet.count_records_for_event(
             table=empty_table,
             event=json_to_parquet.CountEventType.READ,
@@ -1118,4 +1179,5 @@ class TestJsonS3ToParquet:
             )
             mock_client.put_object.assert_called()
             assert len(uploaded_objects) == 2
-            assert all([k in uploaded_objects.keys() for k in record_counts.keys()])
+            assert all([k in uploaded_objects.keys()
+                       for k in record_counts.keys()])
