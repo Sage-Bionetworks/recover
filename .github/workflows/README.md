@@ -7,12 +7,12 @@ Recover ETL has four github workflows:
 - workflows/codeql-analysis.yml
 - workflows/cleanup.yaml
 
-| Workflow name                     | Scenario it's run |
-| :-------------------------------- |:----------------  |
-| upload-and-deploy                 | on-push from feature branch, feature branch merged into main |
-| upload-and-deploy-to-prod-main    | whenever a new tag is created |
-| codeql-analysis                   | on-push from feature branch, feature branch merged into main
-| cleanup                           | feature branch deleted |
+| Workflow name                  | Scenario it's run                                            |
+|:-------------------------------|:-------------------------------------------------------------|
+| upload-and-deploy              | on-push from feature branch, feature branch merged into main |
+| upload-and-deploy-to-prod-main | whenever a new tag is created                                |
+| codeql-analysis                | on-push from feature branch, feature branch merged into main |
+| cleanup                        | feature branch deleted                                       |
 
 ## upload-and-deploy
 
@@ -45,6 +45,16 @@ With the current way when the `test_json_to_parquet.py` run, sometimes the glue 
 
 ### sceptre-deploy-develop
 
+### integration-test-develop-cleanup
+
+This is responsible for cleaning up any data locations that are used by integration
+tests. This is used after `sceptre-deploy-develop`, but before
+`integration-test-develop`. Cleans these locations:
+
+* `s3://recover-dev-input-data/$GITHUB_REF_NAME/`
+* `s3://recover-dev-intermediate-data/$GITHUB_REF_NAME/json/`
+
+
 ### integration-test-develop
 
 This builds the S3 to JSON lambda and triggers it with the pilot data so that the Recover ETL Glue Workflow will start running and processing the pilot data. **Note** that this will run with every push to the feature branch so it would be good to wait until one run of the Glue workflow finishes running as we cannot have more than 1 concurrent Glue Workflow run.
@@ -56,6 +66,16 @@ This integration test means that you have to wait until the glue workflow has fi
 ### sceptre-deploy-staging
 
 Here that we are **NOT** configuring a S3 event notification configuration for our `prod/staging` space because we plan to submit data to `staging` "manually" after merging a PR into main and triggering the GitHub workflow.
+
+### integration-test-staging-cleanup
+
+This is responsible for cleaning up any data locations that are used by integration
+tests during the staging run. This is used after `sceptre-deploy-staging`, but before
+`integration-test-staging`. Cleans these locations:
+
+* `s3://recover-input-data/staging/`
+* `s3://recover-intermediate-data/staging/json/`
+
 
 ## upload-and-deploy-to-prod-main
 

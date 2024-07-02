@@ -3,7 +3,7 @@ import json
 import os
 import time
 from collections import defaultdict
-from unittest.mock import patch, MagicMock, ANY
+from unittest.mock import ANY, MagicMock, patch
 
 import boto3
 import pandas
@@ -12,6 +12,7 @@ from awsglue import DynamicFrame
 from awsglue.context import GlueContext
 from pyspark.sql import Row
 from pyspark.sql.session import SparkSession
+
 from src.glue.jobs import json_to_parquet
 
 # requires pytest-datadir to be installed
@@ -121,20 +122,24 @@ def create_table(
     )
     return table
 
+
 @pytest.fixture()
 def flat_data_type(glue_flat_table_name):
     flat_data_type = glue_flat_table_name.split("_")[1]
     return flat_data_type
+
 
 @pytest.fixture()
 def flat_inserted_date_data_type(glue_flat_inserted_date_table_name):
     flat_inserted_date_data_type = glue_flat_inserted_date_table_name.split("_")[1]
     return flat_inserted_date_data_type
 
+
 @pytest.fixture()
 def nested_data_type(glue_nested_table_name):
     nested_data_type = glue_nested_table_name.split("_")[1]
     return nested_data_type
+
 
 @pytest.fixture()
 def sample_table(
@@ -164,6 +169,7 @@ def sample_table_inserted_date(
     )
     return sample_table_inserted_date
 
+
 @pytest.fixture(scope="class")
 def glue_database_name(namespace):
     return f"{namespace}-pytest-database"
@@ -192,6 +198,7 @@ def glue_flat_inserted_date_table_name():
 @pytest.fixture(scope="class")
 def glue_deleted_table_name(glue_flat_table_name):
     return f"{glue_flat_table_name}_deleted"
+
 
 @pytest.fixture(scope="class")
 def glue_deleted_nested_table_name(glue_nested_table_name) -> str:
@@ -233,6 +240,13 @@ def glue_database_path(artifact_bucket, workspace_key_prefix):
 @pytest.fixture(scope="class")
 def glue_database(glue_database_name, glue_database_path):
     glue_client = boto3.client("glue")
+
+    try:
+        glue_client.delete_database(Name=glue_database_name)
+        print(f"Dropped database: {glue_database_name}")
+    except Exception:
+        pass
+
     glue_database = glue_client.create_database(
         DatabaseInput={
             "Name": glue_database_name,
@@ -394,13 +408,19 @@ def glue_deleted_table_location(glue_database_path, glue_deleted_table_name):
     )
     return glue_deleted_table_location
 
+
 @pytest.fixture(scope="class")
-def glue_deleted_nested_table_location(glue_database_path, glue_deleted_nested_table_name):
+def glue_deleted_nested_table_location(
+    glue_database_path, glue_deleted_nested_table_name
+):
     glue_deleted_nested_table_location = (
-        os.path.join(glue_database_path, glue_deleted_nested_table_name.replace("_", "=", 1))
+        os.path.join(
+            glue_database_path, glue_deleted_nested_table_name.replace("_", "=", 1)
+        )
         + "/"
     )
     return glue_deleted_nested_table_location
+
 
 @pytest.fixture(scope="class")
 def glue_deleted_table(
@@ -435,9 +455,12 @@ def glue_deleted_table(
     )
     return glue_table
 
+
 @pytest.fixture(scope="class")
 def glue_deleted_nested_table(
-    glue_database_name, glue_deleted_nested_table_name, glue_deleted_nested_table_location
+    glue_database_name,
+    glue_deleted_nested_table_name,
+    glue_deleted_nested_table_location,
 ):
     glue_client = boto3.client("glue")
     glue_table = glue_client.create_table(
@@ -467,6 +490,7 @@ def glue_deleted_nested_table(
         },
     )
     return glue_table
+
 
 def upload_test_data_to_s3(path, s3_bucket, table_location, data_cohort):
     s3_client = boto3.client("s3")
@@ -517,6 +541,28 @@ def glue_crawler_role(namespace):
     role_name = f"{namespace}-pytest-crawler-role"
     glue_service_policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
     s3_read_policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+
+    # Cleanup if the role/policy already exist
+    try:
+        iam_client.detach_role_policy(
+            RoleName=role_name, PolicyArn=glue_service_policy_arn
+        )
+        print(f"Detached policy: {glue_service_policy_arn}")
+    except Exception:
+        pass
+
+    try:
+        iam_client.detach_role_policy(RoleName=role_name, PolicyArn=s3_read_policy_arn)
+        print(f"Detached policy: {s3_read_policy_arn}")
+    except Exception:
+        pass
+
+    try:
+        iam_client.delete_role(RoleName=role_name)
+        print(f"Deleted role: {role_name}")
+    except Exception:
+        pass
+
     glue_crawler_role = iam_client.create_role(
         RoleName=role_name,
         AssumeRolePolicyDocument=json.dumps(
@@ -557,6 +603,13 @@ def glue_crawler(
 ):
     glue_client = boto3.client("glue")
     crawler_name = f"{namespace}-pytest-crawler"
+
+    try:
+        glue_client.delete_crawler(Name=crawler_name)
+        print(f"Deleted crawler: {crawler_name}")
+    except Exception:
+        pass
+
     time.sleep(10)  # give time for the IAM role trust policy to set in
     glue_crawler = glue_client.create_crawler(
         Name=crawler_name,
@@ -711,7 +764,7 @@ class TestJsonS3ToParquet:
         )
 
     def test_drop_table_duplicates(
-            self, sample_table, flat_data_type, glue_context, logger_context
+        self, sample_table, flat_data_type, glue_context, logger_context
     ):
         table_no_duplicates = json_to_parquet.drop_table_duplicates(
             table=sample_table,

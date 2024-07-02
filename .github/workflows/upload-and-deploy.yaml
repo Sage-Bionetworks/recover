@@ -9,8 +9,10 @@ env:
   NAMESPACE: main
   PYTHON_VERSION: 3.9
   DEV_INPUT_BUCKET: recover-dev-input-data
+  DEV_INTERMEDIATE_BUCKET: recover-dev-intermediate-data
   DEV_PROCESSED_BUCKET: recover-dev-processed-data
   PROD_INPUT_BUCKET: recover-input-data
+  PROD_INTERMEDIATE_BUCKET: recover-intermediate-data
   INTEGRATION_TEST_NUM_EXPORTS: 28
 
 jobs:
@@ -255,11 +257,44 @@ jobs:
           Payload: '{"RequestType": "Create"}'
           LogType: Tail
 
+  integration-test-develop-cleanup:
+    name: Cleanup non-main branch data before integration tests
+    runs-on: ubuntu-latest
+    needs: sceptre-deploy-develop
+    if: github.ref_name != 'main'
+    environment: develop
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Setup code, pipenv, aws
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
+        with:
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
+          python_version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set namespace for non-default branch
+        run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
+
+      - name: Clean input data bucket
+        run: >
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
+          --bucket $DEV_INPUT_BUCKET
+          --bucket_prefix "${{ env.NAMESPACE }}/"
+
+      - name: Clean intermediate data bucket
+        run: >
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
+          --bucket $DEV_INTERMEDIATE_BUCKET
+          --bucket_prefix "${{ env.NAMESPACE }}/json/"
+
 
   integration-test-develop:
     name: Triggers ETL workflow with S3 test files
     runs-on: ubuntu-latest
-    needs: sceptre-deploy-develop
+    needs: [sceptre-deploy-develop, integration-test-develop-cleanup]
     environment: develop
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
@@ -335,11 +370,40 @@ jobs:
       - name: Deploy sceptre stacks to staging on prod
         run: pipenv run sceptre --var "namespace=staging" launch prod --yes
 
+  integration-test-staging-cleanup:
+    name: Cleanup main branch staging data before integration tests
+    runs-on: ubuntu-latest
+    needs: sceptre-deploy-staging
+    if: github.ref_name == 'main'
+    environment: prod
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Setup code, pipenv, aws
+        uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
+        with:
+          role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
+          role_session_name: GitHubActions-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ github.run_id }}
+          python_version: ${{ env.PYTHON_VERSION }}
+
+      - name: Clean input data bucket
+        run: >
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
+          --bucket $PROD_INPUT_BUCKET
+          --bucket_prefix "staging/"
+
+      - name: Clean intermediate data bucket
+        run: >
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
+          --bucket $PROD_INTERMEDIATE_BUCKET
+          --bucket_prefix "staging/json/"
 
   integration-test-staging:
     name: Triggers staging workflow with production data
     runs-on: ubuntu-latest
-    needs: sceptre-deploy-staging
+    needs: [sceptre-deploy-staging, integration-test-staging-cleanup]
     environment: prod
     # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
