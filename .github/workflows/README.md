@@ -73,8 +73,8 @@ This is responsible for cleaning up any data locations that are used by integrat
 tests during the staging run. This is used after `sceptre-deploy-staging`, but before
 `integration-test-staging`. Cleans these locations:
 
-* `s3://recover-dev-input-data/staging/`
-* `s3://recover-dev-intermediate-data/staging/json/`
+* `s3://recover-input-data/staging/`
+* `s3://recover-intermediate-data/staging/json/`
 
 
 ## upload-and-deploy-to-prod-main
