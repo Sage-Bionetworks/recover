@@ -1,4 +1,12 @@
-"""Handles cleaning the staging directory when a new release occurs"""
+"""Handles cleaning directories before integration tests are ran. Keeps `owner.txt` if
+it is present. In the CI pipeline this is run for these S3 buckets:
+
+  * recover-dev-input-data
+  * recover-dev-intermediate-data
+  * recover-input-data
+  * recover-intermediate-data
+
+"""
 import argparse
 import boto3
 
@@ -33,6 +41,8 @@ def delete_objects(bucket_prefix: str, bucket: str) -> None:
             # Skip the owner.txt file so it does not need to be re-created
             if object_key.endswith('owner.txt'):
                 continue
+            elif "main" in object_key:
+                raise ValueError("Cannot delete objects in the main directory")
 
             s3_client.delete_object(Bucket=bucket, Key=object_key)
 
@@ -41,6 +51,14 @@ def main() -> None:
     """Main function to handle cleaning the staging directory in S3. This will
     allow the owner.txt file to be kept."""
     args = read_args()
+
+    if not args.bucket_prefix or args.bucket_prefix[-1] != '/':
+        raise ValueError("Bucket prefix must be provided and end with a '/'")
+
+    if "main" in args.bucket_prefix:
+        raise ValueError(
+            "Cannot delete objects in the main directory")
+
     try:
         delete_objects(bucket_prefix=args.bucket_prefix, bucket=args.bucket)
     except Exception as ex:
