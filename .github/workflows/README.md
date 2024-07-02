@@ -47,13 +47,12 @@ With the current way when the `test_json_to_parquet.py` run, sometimes the glue 
 
 ### integration-test-develop-cleanup
 
-This is responsible for cleaning up any data locations that are used by integration 
+This is responsible for cleaning up any data locations that are used by integration
 tests. This is used after `sceptre-deploy-develop`, but before
 `integration-test-develop`. Cleans these locations:
 
 * `s3://recover-dev-input-data/$GITHUB_REF_NAME/`
 * `s3://recover-dev-intermediate-data/$GITHUB_REF_NAME/json/`
-
 
 
 ### integration-test-develop
@@ -70,7 +69,7 @@ Here that we are **NOT** configuring a S3 event notification configuration for o
 
 ### integration-test-staging-cleanup
 
-This is responsible for cleaning up any data locations that are used by integration 
+This is responsible for cleaning up any data locations that are used by integration
 tests during the staging run. This is used after `sceptre-deploy-staging`, but before
 `integration-test-staging`. Cleans these locations:
 
