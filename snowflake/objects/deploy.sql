@@ -70,7 +70,7 @@ CREATE GIT REPOSITORY IF NOT EXISTS recover_git_repository
   Deploy our database and all its child objects.
 */
 EXECUTE IMMEDIATE
-    FROM @recover_git_repository/branches/&{ environment }/snowflake/objects/databases/recover/deploy.sql
+    FROM @recover_git_repository/branches/&{ environment }/snowflake/objects/database/recover/deploy.sql
     USING (
         environment => $safe_environment_identifier,
         git_branch => '&{ environment }'

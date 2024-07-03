@@ -6,7 +6,7 @@ CREATE DATABASE IF NOT EXISTS recover_{{ environment }};
 USE DATABASE recover_{{ environment }};
 
 EXECUTE IMMEDIATE
-    FROM './schemas/deploy.sql'
+    FROM './schema/deploy.sql'
     USING (
         git_branch => '{{ git_branch }}'
     );

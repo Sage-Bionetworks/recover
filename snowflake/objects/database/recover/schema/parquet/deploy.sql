@@ -13,10 +13,10 @@ EXECUTE IMMEDIATE
         parquet_file_format_name => $parquet_file_format_name
     );
 EXECUTE IMMEDIATE
-    FROM './stages/deploy.sql'
+    FROM './stage/deploy.sql'
     USING (
         git_branch => '{{ git_branch }}',
         parquet_stage_name => $parquet_stage_name
     );
 EXECUTE IMMEDIATE
-    FROM './tables/deploy.sql';
+    FROM './table/deploy.sql';
