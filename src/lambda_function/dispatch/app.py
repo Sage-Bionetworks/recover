@@ -9,13 +9,14 @@ import json
 import logging
 import os
 import zipfile
-from typing import Optional # use | for type hints in 3.10+
+from typing import Optional  # use | for type hints in 3.10+
 from urllib import parse
 
 import boto3
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
 
 def filter_object_info(object_info: dict) -> Optional[dict]:
     """
@@ -60,6 +61,7 @@ def filter_object_info(object_info: dict) -> Optional[dict]:
         return None
     return object_info
 
+
 def get_object_info(s3_event: dict) -> dict:
     """
     Derive object info from an S3 event.
@@ -77,6 +79,7 @@ def get_object_info(s3_event: dict) -> dict:
         "Key": object_key,
     }
     return object_info
+
 
 def get_archive_contents(archive_path: str, bucket: str, key: str) -> list[dict]:
     """
@@ -100,20 +103,21 @@ def get_archive_contents(archive_path: str, bucket: str, key: str) -> list[dict]
     with zipfile.ZipFile(archive_path, "r") as archive:
         for path in archive.infolist():
             if (
-                "/" not in path.filename # necessary for pilot data only
+                "/" not in path.filename  # necessary for pilot data only
                 and "Manifest" not in path.filename
                 and path.file_size > 0
             ):
                 file_info = {
-                        "Bucket": bucket,
-                        "Key": key,
-                        "Path": path.filename,
-                        "FileSize": path.file_size
+                    "Bucket": bucket,
+                    "Key": key,
+                    "Path": path.filename,
+                    "FileSize": path.file_size,
                 }
                 archive_contents.append(file_info)
     return archive_contents
 
-def lambda_handler(event: dict, context:dict) -> None:
+
+def lambda_handler(event: dict, context: dict) -> None:
     """
     This function serves as the entrypoint and will be triggered upon
     polling the input-to-dispatch SQS queue.
@@ -138,16 +142,17 @@ def lambda_handler(event: dict, context:dict) -> None:
         s3_client=s3_client,
         sns_client=sns_client,
         dispatch_sns_arn=dispatch_sns_arn,
-        temp_zip_path=temp_zip_path
+        temp_zip_path=temp_zip_path,
     )
 
+
 def main(
-        event: dict,
-        context: dict,
-        sns_client: "botocore.client.SNS",
-        s3_client: "botocore.client.S3",
-        dispatch_sns_arn: str,
-        temp_zip_path: str
+    event: dict,
+    context: dict,
+    sns_client: "botocore.client.SNS",
+    s3_client: "botocore.client.S3",
+    dispatch_sns_arn: str,
+    temp_zip_path: str,
 ) -> None:
     """
     This function should be invoked by `lambda_handler`.
@@ -170,21 +175,20 @@ def main(
         logger.info(f"Received SNS message: {sns_message}")
         all_object_info_list = map(get_object_info, sns_message["Records"])
         valid_object_info_list = [
-                object_info
-                for object_info in all_object_info_list
-                if filter_object_info(object_info) is not None
+            object_info
+            for object_info in all_object_info_list
+            if filter_object_info(object_info) is not None
         ]
         for object_info in valid_object_info_list:
             s3_client.download_file(Filename=temp_zip_path, **object_info)
             logger.info(f"Getting archive contents for {object_info}")
             archive_contents = get_archive_contents(
-                    archive_path=temp_zip_path,
-                    bucket=object_info["Bucket"],
-                    key=object_info["Key"]
+                archive_path=temp_zip_path,
+                bucket=object_info["Bucket"],
+                key=object_info["Key"],
             )
             for file_info in archive_contents:
                 logger.info(f"Publishing {file_info} to {dispatch_sns_arn}")
                 sns_client.publish(
-                        TopicArn=dispatch_sns_arn,
-                        Message=json.dumps(file_info)
+                    TopicArn=dispatch_sns_arn, Message=json.dumps(file_info)
                 )

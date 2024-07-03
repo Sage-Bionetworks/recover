@@ -8,9 +8,9 @@ from an S3 bucket.
 
 Only certain notification configurations work. Only `QueueConfigurations` are expected.
 """
-import os
 import json
 import logging
+import os
 import typing
 from collections import defaultdict
 from enum import Enum
@@ -31,7 +31,7 @@ def lambda_handler(event, context):
         delete_notification(
             s3_client=s3_client,
             bucket=os.environ["S3_SOURCE_BUCKET_NAME"],
-            bucket_key_prefix=os.environ["BUCKET_KEY_PREFIX"]
+            bucket_key_prefix=os.environ["BUCKET_KEY_PREFIX"],
         )
         logger.info("Sending response to custom resource after Delete")
     elif event["RequestType"] in ["Update", "Create"]:
@@ -53,6 +53,7 @@ class NotificationConfigurationType(Enum):
     """
     Supported types for an S3 event configuration.
     """
+
     Topic = "Topic"
     Queue = "Queue"
     LambdaFunction = "LambdaFunction"
@@ -62,6 +63,7 @@ class NotificationConfiguration:
     """
     An abstraction of S3 event configurations.
     """
+
     def __init__(self, notification_type: NotificationConfigurationType, value: dict):
         self.type = notification_type.value
         self.value = value
@@ -78,7 +80,9 @@ class NotificationConfiguration:
         elif self.type == NotificationConfigurationType.LambdaFunction.value:
             arn = self.value["LambdaFunctionArn"]
         else:
-            raise ValueError(f"{self.type} is not a recognized notification configuration type.")
+            raise ValueError(
+                f"{self.type} is not a recognized notification configuration type."
+            )
         return arn
 
 
@@ -86,6 +90,7 @@ class BucketNotificationConfigurations:
     """
     A convenience class for working with a collection of `NotificationConfiguration`s.
     """
+
     def __init__(self, notification_configurations: list[NotificationConfiguration]):
         self.configs = notification_configurations
 
@@ -103,7 +108,7 @@ class BucketNotificationConfigurations:
 def get_bucket_notification_configurations(
     s3_client: boto3.client,
     bucket: str,
-    ) -> BucketNotificationConfigurations:
+) -> BucketNotificationConfigurations:
     """
     Gets the existing bucket notification configuration and the existing notification
     configurations for a specific destination type.
@@ -116,30 +121,31 @@ def get_bucket_notification_configurations(
     Returns:
         BucketNotificationConfigurations
     """
-    bucket_notification_configuration = \
-            s3_client.get_bucket_notification_configuration(Bucket=bucket)
+    bucket_notification_configuration = s3_client.get_bucket_notification_configuration(
+        Bucket=bucket
+    )
     all_notification_configurations = []
     for configuration_type in NotificationConfigurationType:
         configuration_type_name = f"{configuration_type.value}Configurations"
         if configuration_type_name in bucket_notification_configuration:
             notification_configurations = [
-                    NotificationConfiguration(
-                        notification_type=configuration_type,
-                        value=config
-                    )
-                    for config
-                    in bucket_notification_configuration[configuration_type_name]
+                NotificationConfiguration(
+                    notification_type=configuration_type, value=config
+                )
+                for config in bucket_notification_configuration[configuration_type_name]
             ]
             all_notification_configurations.extend(notification_configurations)
-    bucket_notification_configurations = BucketNotificationConfigurations(all_notification_configurations)
+    bucket_notification_configurations = BucketNotificationConfigurations(
+        all_notification_configurations
+    )
     return bucket_notification_configurations
 
 
 def get_notification_configuration(
     bucket_notification_configurations: BucketNotificationConfigurations,
-    bucket_key_prefix: typing.Union[str,None]=None,
-    bucket_key_suffix: typing.Union[str,None]=None,
-    ) -> typing.Union[NotificationConfiguration,None]:
+    bucket_key_prefix: typing.Union[str, None] = None,
+    bucket_key_suffix: typing.Union[str, None] = None,
+) -> typing.Union[NotificationConfiguration, None]:
     """
     Filter the list of existing notifications based on the unique S3 key prefix and suffix.
 
@@ -165,11 +171,11 @@ def get_notification_configuration(
         for filter_rule in filter_rules:
             if filter_rule["Name"] == "Prefix" and bucket_key_prefix is not None:
                 common_prefix_path = bool(
-                        os.path.commonpath([filter_rule["Value"], bucket_key_prefix])
+                    os.path.commonpath([filter_rule["Value"], bucket_key_prefix])
                 )
             elif filter_rule["Name"] == "Suffix" and bucket_key_suffix is not None:
                 common_suffix_path = bool(
-                        os.path.commonpath([filter_rule["Value"], bucket_key_suffix])
+                    os.path.commonpath([filter_rule["Value"], bucket_key_suffix])
                 )
             if common_prefix_path and common_suffix_path:
                 return notification_configuration
@@ -178,7 +184,7 @@ def get_notification_configuration(
 
 def create_formatted_message(
     bucket: str, destination_type: str, destination_arn: str
-    ) -> str:
+) -> str:
     """Creates a formatted message for logging purposes.
 
     Arguments:
@@ -190,6 +196,7 @@ def create_formatted_message(
         str: A formatted message
     """
     return f"Bucket: {bucket}, DestinationType: {destination_type}, DestinationArn: {destination_arn}"
+
 
 def normalize_filter_rules(config: NotificationConfiguration):
     """
@@ -216,10 +223,10 @@ def normalize_filter_rules(config: NotificationConfiguration):
     config.value["Filter"]["Key"]["FilterRules"] = new_filter_rules
     return config
 
+
 def notification_configuration_matches(
-    config: NotificationConfiguration,
-    other_config: NotificationConfiguration
-    ) -> bool:
+    config: NotificationConfiguration, other_config: NotificationConfiguration
+) -> bool:
     """Determines if two S3 event notification configurations are functionally equivalent.
 
     Two notification configurations are considered equivalent if:
@@ -237,38 +244,31 @@ def notification_configuration_matches(
     config = normalize_filter_rules(config)
     other_config = normalize_filter_rules(other_config)
     arn_match = other_config.arn == config.arn
-    events_match = (
-            set(other_config.value["Events"]) ==
-            set(config.value["Events"])
-    )
-    filter_rule_names_match = (
-        {
-            filter_rule["Name"]
-            for filter_rule
-            in other_config.value["Filter"]["Key"]["FilterRules"]
-        } ==
-        {
-            filter_rule["Name"]
-            for filter_rule
-            in config.value["Filter"]["Key"]["FilterRules"]
-        }
-    )
+    events_match = set(other_config.value["Events"]) == set(config.value["Events"])
+    filter_rule_names_match = {
+        filter_rule["Name"]
+        for filter_rule in other_config.value["Filter"]["Key"]["FilterRules"]
+    } == {
+        filter_rule["Name"]
+        for filter_rule in config.value["Filter"]["Key"]["FilterRules"]
+    }
     filter_rule_values_match = all(
         [
             any(
                 [
                     filter_rule["Value"] == other_filter_rule["Value"]
-                    for filter_rule
-                    in config.value["Filter"]["Key"]["FilterRules"]
+                    for filter_rule in config.value["Filter"]["Key"]["FilterRules"]
                     if filter_rule["Name"] == other_filter_rule["Name"]
                 ]
             )
-                for other_filter_rule
-                in other_config.value["Filter"]["Key"]["FilterRules"]
+            for other_filter_rule in other_config.value["Filter"]["Key"]["FilterRules"]
         ]
     )
     configurations_match = (
-        arn_match and events_match and filter_rule_names_match and filter_rule_values_match
+        arn_match
+        and events_match
+        and filter_rule_names_match
+        and filter_rule_values_match
     )
     return configurations_match
 
@@ -279,7 +279,7 @@ def add_notification(
     destination_arn: str,
     bucket: str,
     bucket_key_prefix: str,
-    ) -> None:
+) -> None:
     """Adds the S3 notification configuration to an existing bucket.
 
     Notification configurations are identified by their unique prefix/suffix filter rules.
@@ -303,18 +303,19 @@ def add_notification(
         "Events": ["s3:ObjectCreated:*"],
         "Filter": {
             "Key": {
-                "FilterRules": [{"Name": "prefix", "Value": os.path.join(bucket_key_prefix, "")}]
+                "FilterRules": [
+                    {"Name": "prefix", "Value": os.path.join(bucket_key_prefix, "")}
+                ]
             }
         },
     }
     new_notification_configuration = NotificationConfiguration(
         notification_type=NotificationConfigurationType(destination_type),
-        value=new_notification_configuration_value
+        value=new_notification_configuration_value,
     )
     ### Get any matching notification configuration
     bucket_notification_configurations = get_bucket_notification_configurations(
-        s3_client=s3_client,
-        bucket=bucket
+        s3_client=s3_client, bucket=bucket
     )
     matching_notification_configuration = get_notification_configuration(
         bucket_notification_configurations=bucket_notification_configurations,
@@ -322,8 +323,8 @@ def add_notification(
     )
     if matching_notification_configuration is not None:
         is_the_same_configuration = notification_configuration_matches(
-                config=matching_notification_configuration,
-                other_config=new_notification_configuration
+            config=matching_notification_configuration,
+            other_config=new_notification_configuration,
         )
         if is_the_same_configuration:
             logger.info(
@@ -358,8 +359,8 @@ def add_notification(
 
 
 def delete_notification(
-        s3_client: boto3.client, bucket: str, bucket_key_prefix: str
-    ) -> None:
+    s3_client: boto3.client, bucket: str, bucket_key_prefix: str
+) -> None:
     """
     Deletes the S3 notification configuration from an existing bucket
     based on its unique S3 key prefix/suffix filter rules.
@@ -387,9 +388,9 @@ def delete_notification(
         )
         return
     bucket_notification_configurations.configs = [
-            config for config
-            in bucket_notification_configurations.configs
-            if config.arn != matching_notification_configuration.arn
+        config
+        for config in bucket_notification_configurations.configs
+        if config.arn != matching_notification_configuration.arn
     ]
     ### Delete matching notification configuration
     logger.info(
@@ -397,7 +398,7 @@ def delete_notification(
         + create_formatted_message(
             bucket=bucket,
             destination_type=matching_notification_configuration.type,
-            destination_arn=matching_notification_configuration.arn
+            destination_arn=matching_notification_configuration.arn,
         )
     )
     s3_client.put_bucket_notification_configuration(
@@ -410,5 +411,6 @@ def delete_notification(
         + create_formatted_message(
             bucket=bucket,
             destination_type=matching_notification_configuration.type,
-            destination_arn=matching_notification_configuration.arn)
+            destination_arn=matching_notification_configuration.arn,
+        )
     )

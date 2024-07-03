@@ -4,11 +4,12 @@ The Glue workflow name is set by the environment variable `S3_TO_JSON_WORKFLOW_N
 Subsequently, the S3 objects which were contained in the SQS event are written as a
 JSON string to the `messages` workflow run property.
 """
-import os
 import json
 import logging
-import boto3
+import os
 from urllib import parse
+
+import boto3
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -78,7 +79,7 @@ def submit_s3_to_json_workflow(objects_info: list[dict[str, str]], workflow_name
     )
 
 
-def is_s3_test_event(record : dict) -> bool:
+def is_s3_test_event(record: dict) -> bool:
     """
     AWS always sends a s3 test event to the SQS queue
     whenever a new file is uploaded. We want to skip those
@@ -91,6 +92,7 @@ def is_s3_test_event(record : dict) -> bool:
             return False
     else:
         return False
+
 
 def get_object_info(s3_event) -> dict:
     """
@@ -109,6 +111,7 @@ def get_object_info(s3_event) -> dict:
         "source_key": object_key,
     }
     return object_info
+
 
 def lambda_handler(event, context) -> None:
     """
@@ -145,8 +148,8 @@ def lambda_handler(event, context) -> None:
             f"{os.environ['S3_TO_JSON_WORKFLOW_NAME']}: {json.dumps(s3_objects_info)}"
         )
         submit_s3_to_json_workflow(
-                objects_info=s3_objects_info,
-                workflow_name=os.environ["S3_TO_JSON_WORKFLOW_NAME"]
+            objects_info=s3_objects_info,
+            workflow_name=os.environ["S3_TO_JSON_WORKFLOW_NAME"],
         )
     else:
         logger.info(
