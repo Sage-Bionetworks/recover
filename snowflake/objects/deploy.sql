@@ -62,7 +62,7 @@ USE DATABASE IDENTIFIER($database_identifier);
   Create an external stage over the RECOVER Git repository so that we can
   use EXECUTE IMMEDIATE FROM statements.
 */
-CREATE GIT REPOSITORY IF NOT EXISTS recover_git_repository
+CREATE OR REPLACE GIT REPOSITORY recover_git_repository
     ORIGIN = 'https://github.com/Sage-Bionetworks/recover.git'
     API_INTEGRATION = RECOVER_GIT;
 
