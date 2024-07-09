@@ -134,8 +134,8 @@ jobs:
           echo "password-key=$passwordKey" >> $GITHUB_OUTPUT
     outputs:
       ecr-registry: ${{ steps.login-ecr.outputs.registry }}
-      ecr-username: ${{ steps.get-username.outputs.username-key }}
-      ecr-password: ${{ steps.get-password.outputs.password-key }}
+      ecr-username: ${{ steps.login-ecr.outputs[steps.ecr.outputs.username-key] }}
+      ecr-password: ${{ steps.login-ecr.outputs[steps.ecr.outputs.password-key] }}
 
 
   pytest-docker:
