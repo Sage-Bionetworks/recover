@@ -14,7 +14,7 @@ env:
   PROD_INPUT_BUCKET: recover-input-data
   PROD_INTERMEDIATE_BUCKET: recover-intermediate-data
   INTEGRATION_TEST_NUM_EXPORTS: 28
-  #ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
 
@@ -100,20 +100,25 @@ jobs:
           --test-sts-permission read_write
           -v
 
-  setup:
-    name: Runs aws credentials configuration before tests
-    runs-on: ubuntu-latest
+
+  pytest-docker:
+    name: Build and push testing docker images to the pytest ECR repository.
     needs: pre-commit
-    environment: develop
+    runs-on: ubuntu-latest
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
     permissions:
       id-token: write
       contents: read
+    strategy:
+      matrix:
+        include:
+          - tag_name: aws_glue_3
+            dockerfile: tests/Dockerfile.aws_glue_3
+          - tag_name: aws_glue_4
+            dockerfile: tests/Dockerfile.aws_glue_4
+    environment: develop
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
       - name: Assume AWS role
-        id: assume-role
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
@@ -132,31 +137,7 @@ jobs:
           echo "username-key=$usernameKey" >> $GITHUB_OUTPUT
           passwordKey=docker_password_$(echo ${{ steps.login-ecr.outputs.registry }} | tr '.-' _)
           echo "password-key=$passwordKey" >> $GITHUB_OUTPUT
-    outputs:
-      ecr-registry: ${{ steps.login-ecr.outputs.registry }}
-      ecr-username: ${{ steps.login-ecr.outputs[steps.ecr.outputs.username-key] }}
-      ecr-password: ${{ steps.login-ecr.outputs[steps.ecr.outputs.password-key] }}
-
-
-  pytest-docker:
-    name: Build and push testing docker images to the pytest ECR repository.
-    needs: [setup]
-    runs-on: ubuntu-latest
-    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
-    permissions:
-      id-token: write
-      contents: read
-    strategy:
-      matrix:
-        include:
-          - tag_name: aws_glue_3
-            dockerfile: tests/Dockerfile.aws_glue_3
-          - tag_name: aws_glue_4
-            dockerfile: tests/Dockerfile.aws_glue_4
-    environment: develop
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -166,14 +147,14 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           push: true
-          tags: ${{ needs.setup.outputs.ecr-registry }}/pytest:${{ github.ref_name }}_${{ matrix.tag_name }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/pytest:${{ github.ref_name }}_${{ matrix.tag_name }}
           file: ${{ matrix.dockerfile }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
     outputs:
-      ecr-registry: ${{ needs.setup.outputs.ecr-registry }}
-      ecr-username: ${{ needs.setup.outputs.ecr-username }}
-      ecr-password: ${{ needs.setup.outputs.ecr-password }}
+      ecr-registry: ${{ steps.login-ecr.outputs.registry }}
+      ecr-username: ${{ steps.login-ecr.outputs[steps.ecr.outputs.username-key] }}
+      ecr-password: ${{ steps.login-ecr.outputs[steps.ecr.outputs.password-key] }}
 
 
   glue-unit-tests:
