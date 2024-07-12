@@ -32,14 +32,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
+      SNOWFLAKE_ENVIRONMENT: ${{ github.ref_name == 'main' && 'staging' || github.ref_name }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Configure Snowflake connection
         run: |
           # Create temporary files for config.toml and our private key
-          #mkdir ~/.snowflake
-          #config_file="~/.snowflake/config.toml"
           config_file=$(mktemp)
           private_key_file=$(mktemp)
 
@@ -76,7 +75,7 @@ jobs:
       - name: Deploy Snowflake objects
         run: |
           snow sql \
-            -D "environment=$(git rev-parse --abbrev-ref HEAD)" \
+            -D "environment=$SNOWFLAKE_ENVIRONMENT" \
             -f snowflake/objects/deploy.sql
 
   upload-files:
@@ -153,7 +152,6 @@ jobs:
           --test-sts-permission read_write
           -v
 
-
   pytest-docker:
     name: Build and push testing docker images to the pytest ECR repository.
     needs: pre-commit
@@ -209,7 +207,6 @@ jobs:
       ecr-username: ${{ steps.login-ecr.outputs[steps.ecr.outputs.username-key] }}
       ecr-password: ${{ steps.login-ecr.outputs[steps.ecr.outputs.password-key] }}
 
-
   glue-unit-tests:
     name: Run Pytest unit tests for AWS glue
     needs: pytest-docker
@@ -259,7 +256,6 @@ jobs:
         run: >
           su - glue_user --command "cd $GITHUB_WORKSPACE &&
           python3 -m pytest tests/test_json_to_parquet.py --namespace $NAMESPACE -v"
-
 
   sceptre-deploy-develop:
     name: Deploys branch using sceptre
@@ -343,7 +339,6 @@ jobs:
           pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
           --bucket $DEV_INTERMEDIATE_BUCKET
           --bucket_prefix "${{ env.NAMESPACE }}/json/"
-
 
   integration-test-develop:
     name: Triggers ETL workflow with S3 test files
