@@ -23,10 +23,34 @@
     - DATABASE `RECOVER_STAGING`
     - DATABASE `RECOVER_MAIN`
 
-  To deploy to an environment identified by your current git branch,
+  Because of limitations in how we can specify the stage when executing
+  EXECUTE IMMEDIATE FROM statements, the environment and the branch from
+  which the environment is deployed from must be specified separately
+  in the arguments to this script.
+
+  To deploy from my_git_branch to my_snowflake_environment,
   we can invoke this file with the Snowflake CLI like so:
 
-  `snow sql -D "environment=$(git rev-parse --abbrev-ref HEAD)" -f {this file}`
+  ```
+  snow sql \
+    -D "git_branch=my_git_branch" \
+    -D "environment=my_snowflake_environment" \
+    -f {this file}
+  ```
+
+  In most cases, your environment and git branch will be the same.
+  If so, we can use this command for convenience:
+
+  ```
+  snow sql \
+   -D "git_branch=$(git rev-parse --abbrev-ref HEAD)" \
+   -D "environment=$(git rev-parse --abbrev-ref HEAD)" \
+   -f {this file}`
+  ```
+
+  A common situation in which your Snowflake environment is not the
+  same as your git branch is when deploying the `main` branch
+  to the `staging` Snowflake environment after a PR into `main`.
 */
 
 /*
@@ -70,8 +94,8 @@ CREATE OR REPLACE GIT REPOSITORY recover_git_repository
   Deploy our database and all its child objects.
 */
 EXECUTE IMMEDIATE
-    FROM @recover_git_repository/branches/&{ environment }/snowflake/objects/database/recover/deploy.sql
+    FROM @recover_git_repository/branches/&{ git_branch }/snowflake/objects/database/recover/deploy.sql
     USING (
         environment => $safe_environment_identifier,
-        git_branch => '&{ environment }'
+        git_branch => '&{ git_branch }'
     );
