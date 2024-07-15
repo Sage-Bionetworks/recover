@@ -54,6 +54,11 @@ def main() -> None:
     if not args.bucket_prefix or args.bucket_prefix[-1] != "/":
         raise ValueError("Bucket prefix must be provided and end with a '/'")
 
+    if "main" in args.bucket_prefix and "recover-dev" not in args.bucket:
+        raise ValueError(
+            "Cannot delete objects in the main directory of a non-dev bucket"
+        )
+
     try:
         delete_objects(bucket_prefix=args.bucket_prefix, bucket=args.bucket)
     except Exception as ex:
