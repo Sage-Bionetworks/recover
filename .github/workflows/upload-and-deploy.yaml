@@ -269,7 +269,6 @@ jobs:
       contents: read
     steps:
       - name: Setup code, pipenv, aws
-        if: github.ref_name != 'main'
         uses: Sage-Bionetworks/action-pipenv-aws-setup@v3
         with:
           role_to_assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
@@ -281,14 +280,12 @@ jobs:
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
       - name: Clean input data bucket
-        if: github.ref_name != 'main'
         run: >
           pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
           --bucket $DEV_INPUT_BUCKET
           --bucket_prefix "${{ env.NAMESPACE }}/"
 
       - name: Clean intermediate data bucket
-        if: github.ref_name != 'main'
         run: >
           pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
           --bucket $DEV_INTERMEDIATE_BUCKET
