@@ -75,6 +75,7 @@ jobs:
       - name: Deploy Snowflake objects
         run: |
           snow sql \
+            -D "git_branch=$GITHUB_REF_NAME" \
             -D "environment=$SNOWFLAKE_ENVIRONMENT" \
             -f snowflake/objects/deploy.sql
 
