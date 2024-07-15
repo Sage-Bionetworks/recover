@@ -26,6 +26,58 @@ jobs:
       - uses: actions/setup-python@v4
       - uses: pre-commit/action@v3.0.0
 
+  deploy-snowflake:
+    name: Deploy Snowflake resources
+    needs: pre-commit
+    runs-on: ubuntu-latest
+    env:
+      PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
+      SNOWFLAKE_ENVIRONMENT: ${{ github.ref_name == 'main' && 'staging' || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure Snowflake connection
+        run: |
+          # Create temporary files for config.toml and our private key
+          config_file=$(mktemp)
+          private_key_file=$(mktemp)
+
+          # Write to the private key file
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > $private_key_file
+
+          # Write to config.toml file
+          echo 'default_connection_name = "recover"' >> $config_file
+          echo '[connections.recover]' >> $config_file
+          echo "account = \"${{ vars.SNOWFLAKE_ACCOUNT }}\"" >> $config_file
+          echo "user = \"${{ vars.SNOWFLAKE_USER }}\"" >> $config_file
+          echo "role = \"${{ vars.SNOWFLAKE_ROLE }}\"" >> $config_file
+          echo 'authenticator = "SNOWFLAKE_JWT"' >> $config_file
+          echo "private_key_path = \"$private_key_file\"" >> $config_file
+
+          # Write config.toml path to global environment
+          echo "SNOWFLAKE_CONFIG_PATH=$config_file" >> $GITHUB_ENV
+
+      - name: Configuration file information
+        run: |
+          echo "Snowflake configuration is located at $SNOWFLAKE_CONFIG_PATH"
+          cat $SNOWFLAKE_CONFIG_PATH
+
+      - name: Install Snowflake CLI
+        uses: Snowflake-Labs/snowflake-cli-action@v1
+        with:
+          default-config-file-path: ${{ env.SNOWFLAKE_CONFIG_PATH }}
+
+      - name: Test Snowflake connection
+        run: |
+          snow --version
+          snow connection test
+
+      - name: Deploy Snowflake objects
+        run: |
+          snow sql \
+            -D "environment=$SNOWFLAKE_ENVIRONMENT" \
+            -f snowflake/objects/deploy.sql
+
   upload-files:
     name: Upload files to S3 bucket in development
     runs-on: ubuntu-latest
@@ -100,7 +152,6 @@ jobs:
           --test-sts-permission read_write
           -v
 
-
   pytest-docker:
     name: Build and push testing docker images to the pytest ECR repository.
     needs: pre-commit
@@ -156,7 +207,6 @@ jobs:
       ecr-username: ${{ steps.login-ecr.outputs[steps.ecr.outputs.username-key] }}
       ecr-password: ${{ steps.login-ecr.outputs[steps.ecr.outputs.password-key] }}
 
-
   glue-unit-tests:
     name: Run Pytest unit tests for AWS glue
     needs: pytest-docker
@@ -206,7 +256,6 @@ jobs:
         run: >
           su - glue_user --command "cd $GITHUB_WORKSPACE &&
           python3 -m pytest tests/test_json_to_parquet.py --namespace $NAMESPACE -v"
-
 
   sceptre-deploy-develop:
     name: Deploys branch using sceptre
@@ -290,7 +339,6 @@ jobs:
           pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
           --bucket $DEV_INTERMEDIATE_BUCKET
           --bucket_prefix "${{ env.NAMESPACE }}/json/"
-
 
   integration-test-develop:
     name: Triggers ETL workflow with S3 test files
