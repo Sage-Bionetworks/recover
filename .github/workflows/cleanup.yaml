@@ -4,6 +4,59 @@ on: delete
 
 jobs:
 
+  snowflake-delete:
+    name: Delete Snowflake development environment
+    if: ${{ github.ref_name != 'main' && github.ref_name != 'staging' }}
+    runs-on: ubuntu-latest
+    env:
+      PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
+    steps:
+
+      - name: Configure Snowflake connection
+        run: |
+          # Create temporary files for config.toml and our private key
+          config_file=$(mktemp)
+          private_key_file=$(mktemp)
+
+          # Write to the private key file
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > $private_key_file
+
+          # Write to config.toml file
+          echo 'default_connection_name = "recover"' >> $config_file
+          echo '[connections.recover]' >> $config_file
+          echo "account = \"${{ vars.SNOWFLAKE_ACCOUNT }}\"" >> $config_file
+          echo "user = \"${{ vars.SNOWFLAKE_USER }}\"" >> $config_file
+          echo "role = \"${{ vars.SNOWFLAKE_ROLE }}\"" >> $config_file
+          echo 'authenticator = "SNOWFLAKE_JWT"' >> $config_file
+          echo "private_key_path = \"$private_key_file\"" >> $config_file
+
+          # Write config.toml path to global environment
+          echo "SNOWFLAKE_CONFIG_PATH=$config_file" >> $GITHUB_ENV
+
+      - name: Configuration file information
+        run: |
+          echo "Snowflake configuration is located at $SNOWFLAKE_CONFIG_PATH"
+          cat $SNOWFLAKE_CONFIG_PATH
+
+      - name: Install Snowflake CLI
+        uses: Snowflake-Labs/snowflake-cli-action@v1
+        with:
+          default-config-file-path: ${{ env.SNOWFLAKE_CONFIG_PATH }}
+
+      - name: Test Snowflake connection
+        run: |
+          snow --version
+          snow connection test
+
+      - name: Delete Snowflake environment
+        run: |
+          snow sql \
+            -q "
+              SET safe_environment_identifier = (SELECT REPLACE('$GITHUB_REF_NAME', '-', '_'));
+              SET database_identifier = CONCAT('recover_', \$safe_environment_identifier);
+              DROP DATABASE IDENTIFIER(\$database_identifier);
+            "
+
   sceptre-delete:
     name: Delete CloudFormation stacks using sceptre
     runs-on: ubuntu-latest
