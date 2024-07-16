@@ -32,18 +32,20 @@ def delete_objects(bucket_prefix: str, bucket: str) -> None:
     print(f"Cleaning bucket: {bucket} with prefix: {bucket_prefix}")
 
     s3_client = boto3.client("s3")
-    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=bucket_prefix)
 
-    # Check if objects are found
-    if "Contents" in response:
-        for obj in response["Contents"]:
-            object_key = obj["Key"]
+    paginator = s3_client.get_paginator("list_objects_v2")
 
-            # Skip the owner.txt file so it does not need to be re-created
-            if object_key.endswith("owner.txt"):
-                continue
+    for page in paginator.paginate(Bucket=bucket, Prefix=bucket_prefix):
+        # Check if objects are found
+        if "Contents" in page:
+            for obj in page["Contents"]:
+                object_key = obj["Key"]
 
-            s3_client.delete_object(Bucket=bucket, Key=object_key)
+                # Skip the owner.txt file so it does not need to be re-created
+                if object_key.endswith("owner.txt"):
+                    continue
+
+                s3_client.delete_object(Bucket=bucket, Key=object_key)
 
 
 def main() -> None:
