@@ -136,6 +136,7 @@ jobs:
       - name: Deploy Snowflake objects
         run: |
           snow sql \
+            -D "git_branch=main" \
             -D "environment=main" \
             -f snowflake/objects/deploy.sql
 
