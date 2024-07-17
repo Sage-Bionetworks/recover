@@ -112,6 +112,7 @@ jobs:
           echo "account = \"${{ vars.SNOWFLAKE_ACCOUNT }}\"" >> $config_file
           echo "user = \"${{ vars.SNOWFLAKE_USER }}\"" >> $config_file
           echo "role = \"${{ vars.SNOWFLAKE_ROLE }}\"" >> $config_file
+          echo 'warehouse = "RECOVER_XSMALL"' >> $config_file
           echo 'authenticator = "SNOWFLAKE_JWT"' >> $config_file
           echo "private_key_path = \"$private_key_file\"" >> $config_file
 
