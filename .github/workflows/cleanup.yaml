@@ -6,6 +6,7 @@ jobs:
 
   snowflake-delete:
     name: Delete Snowflake development environment
+    if: ${{ github.event.ref != 'main' && github.event.ref != 'staging' }}
     runs-on: ubuntu-latest
     env:
       PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
