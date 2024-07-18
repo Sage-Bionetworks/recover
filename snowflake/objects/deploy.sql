@@ -16,6 +16,9 @@
     - STORAGE INTEGRATION `RECOVER_PROD_S3`
         * An S3 storage integration which allows access to the
           S3 buckets in the RECOVER production account.
+    - STORAGE INTEGRATION `RECOVER_DEV_S3`
+        * An S3 storage integration which allows access to the
+          S3 buckets in the RECOVER dev account.
 
   Additionally, we assume that the following databases have already been created
   when deploying to the "staging" or "main" environment, respectively:
