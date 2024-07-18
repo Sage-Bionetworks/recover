@@ -15,7 +15,7 @@
 CREATE OR REPLACE PROCEDURE copy_into_table_from_stage(
     target_table VARCHAR
 )
-  RETURNS RESULTSET
+  RETURNS TABLE ()
   LANGUAGE SQL
 as
 $$
@@ -29,6 +29,6 @@ DECLARE
       MATCH_BY_COLUMN_NAME = CASE_SENSITIVE
   );
 BEGIN
-  RETURN res;
+  RETURN TABLE(res);
 END;
 $$;
