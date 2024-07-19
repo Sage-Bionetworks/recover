@@ -1,5 +1,5 @@
 /*
-  A stored procedure which copies data from a named stage into a table.
+  A stored procedure which copies Parquet data from a named stage into a table.
 
   Because of limitations in how we can pass variables to stage names,
   this procedure is specific to a stage location.  That is, we cannot
@@ -8,11 +8,12 @@
   to use a specific stage location.
 
   Jinja templating variables:
-  stage_name - The name of the stage where we copy data from
-  stage_path - The location within the stage where our data is
-  file_format - The name of the file format object used during copy
+  datatype - The datatype which our stage location refers to.
+  stage_name - The name of the stage where our data exists.
+  stage_path - The location within the stage where our data exists.
+  file_format - The name of the file format object used during copy.
  */
-CREATE OR REPLACE PROCEDURE copy_into_table_from_stage(
+CREATE OR REPLACE PROCEDURE copy_into_table_from_{{ datatype }}_parquet_stage(
     target_table VARCHAR
 )
   RETURNS TABLE ()
