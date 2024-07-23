@@ -1,5 +1,5 @@
 /*
-  Create an external stage over the Parquet data in S3
+  Create an external stage over the production Parquet data in S3
 */
 CREATE OR REPLACE STAGE {{ parquet_stage_name }}
   URL = 's3://recover-processed-data/{{ git_branch }}/parquet/'
