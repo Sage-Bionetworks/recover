@@ -547,7 +547,6 @@ def write_file_to_json_dataset(
     # fmt: off
     # <python3.10 requires this backslash syntax, we currently run 3.7
     with z.open(json_path, "r") as input_json, \
-         open(current_part_path, "a") as f_out, \
          gzip.open(compressed_output_path, "wt", encoding="utf-8") as f_compressed_out:
         for transformed_block in transform_block(
             input_json=input_json, metadata=metadata, logger_context=logger_context
@@ -574,7 +573,8 @@ def write_file_to_json_dataset(
             for transformed_record in transformed_block:
                 line_count += 1
                 record_with_newline = "{}\n".format(json.dumps(transformed_record))
-                f_out.write(record_with_newline)
+                with open(current_part_path, "a") as f_out:
+                    f_out.write(record_with_newline)
                 f_compressed_out.write(record_with_newline)
     # fmt: on
     # Upload final part
@@ -695,6 +695,16 @@ def _upload_file_to_json_dataset(
     )
     if delete_upon_successful_upload:
         os.remove(file_path)
+        logger.info(
+            "Delete file upon successful upload",
+            extra={
+                **basic_file_info,
+                "event.kind": "event",
+                "event.category": ["file"],
+                "event.type": ["deletion"],
+                "event.action": "delete-upon-successful-upload",
+            },
+        )
     return s3_output_key
 
 
