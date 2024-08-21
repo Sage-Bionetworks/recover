@@ -51,17 +51,16 @@ Resources:
         Name: {{ dataset.table_name }}
         Parameters:
           classification: json
-          compressionType: none
+          compressionType: gzip
           typeOfData: file
-        Retention: 0
         PartitionKeys: {{ dataset.partition_keys }}
         StorageDescriptor:
           Columns: {{ dataset.columns }}
-          Compressed: false
+          Compressed: true
           InputFormat: org.apache.hadoop.mapred.TextInputFormat
           Location: !Sub s3://${S3IntermediateBucketName}/${Namespace}/${S3IntermediateBucketPrefix}/dataset={{ dataset["type"] }}
           OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-          StoredAsSubDirectories: false
+          StoredAsSubDirectories: true
         TableType: EXTERNAL_TABLE
   {% endfor %}
 
