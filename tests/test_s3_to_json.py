@@ -306,31 +306,19 @@ class TestS3ToJsonS3:
                 # Should be 12
                 assert counter == record_count
 
-    def test_get_output_filename_generic(self, sample_metadata):
-        output_filename = s3_to_json.get_output_filename(
-            metadata=sample_metadata, part_number=0
-        )
-        assert (
-            output_filename
-            == f"{sample_metadata['type']}_20220112-20230114.part0.ndjson"
-        )
+    def test_get_file_identifier_generic(self, sample_metadata):
+        file_identifier = s3_to_json.get_file_identifier(metadata=sample_metadata)
+        assert file_identifier == f"{sample_metadata['type']}_20220112-20230114"
 
-    def test_get_output_filename_no_start_date(self, sample_metadata):
+    def test_get_file_identifier_no_start_date(self, sample_metadata):
         sample_metadata["start_date"] = None
-        output_filename = s3_to_json.get_output_filename(
-            metadata=sample_metadata, part_number=0
-        )
-        assert output_filename == f"{sample_metadata['type']}_20230114.part0.ndjson"
+        file_identifier = s3_to_json.get_file_identifier(metadata=sample_metadata)
+        assert file_identifier == f"{sample_metadata['type']}_20230114"
 
-    def test_get_output_filename_subtype(self, sample_metadata):
+    def test_get_file_identifier_subtype(self, sample_metadata):
         sample_metadata["type"] = "HealthKitV2Samples"
-        output_filename = s3_to_json.get_output_filename(
-            metadata=sample_metadata, part_number=0
-        )
-        assert (
-            output_filename
-            == "HealthKitV2Samples_FakeSubtype_20220112-20230114.part0.ndjson"
-        )
+        file_identifier = s3_to_json.get_file_identifier(metadata=sample_metadata)
+        assert file_identifier == "HealthKitV2Samples_FakeSubtype_20220112-20230114"
 
     def test_upload_file_to_json_dataset_delete_local_copy(
         self, namespace, sample_metadata, monkeypatch, shared_datadir
@@ -391,10 +379,46 @@ class TestS3ToJsonS3:
         assert s3_key == correct_s3_key
         shutil.rmtree(temp_dir)
 
+    def test_upload_file_to_json_dataset_compressed_s3_key(
+        self, namespace, monkeypatch, shared_datadir
+    ):
+        monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
+        sample_metadata = {
+            "type": "HealthKitV2Samples",
+            "subtype": "Weight",
+        }
+        workflow_run_properties = {
+            "namespace": namespace,
+            "json_prefix": "raw-json",
+            "json_bucket": "json-bucket",
+        }
+        original_file_path = os.path.join(
+            shared_datadir, "2023-01-13T21--08--51Z_TESTDATA"
+        )
+        temp_dir = f"dataset={sample_metadata['type']}"
+        os.makedirs(temp_dir)
+        new_file_path = shutil.copy(original_file_path, temp_dir)
+        s3_key = s3_to_json._upload_file_to_json_dataset(
+            file_path=new_file_path,
+            s3_metadata=sample_metadata,
+            workflow_run_properties=workflow_run_properties,
+            delete_upon_successful_upload=True,
+            upload_to_compressed_s3_prefix=True,
+        )
+        correct_s3_key = os.path.join(
+            workflow_run_properties["namespace"],
+            "compressed_json",
+            new_file_path,
+        )
+        assert s3_key == correct_s3_key
+        shutil.rmtree(temp_dir)
+
     def test_write_file_to_json_dataset_delete_local_copy(
         self, s3_obj, sample_metadata, namespace, monkeypatch
     ):
-        sample_metadata["type"] = "HealthKitV2Samples"
+        sample_metadata["type"] = "FitbitDevices"
+        sample_metadata["subtype"] = None
+        sample_metadata["start_date"] = None
         monkeypatch.setattr("boto3.client", lambda x: MockAWSClient())
         workflow_run_properties = {
             "namespace": namespace,
@@ -404,7 +428,7 @@ class TestS3ToJsonS3:
         with zipfile.ZipFile(io.BytesIO(s3_obj["Body"])) as z:
             output_files = s3_to_json.write_file_to_json_dataset(
                 z=z,
-                json_path="HealthKitV2Samples_Weight_20230112-20230114.json",
+                json_path="FitbitDevices_20230114.json",
                 metadata=sample_metadata,
                 workflow_run_properties=workflow_run_properties,
                 delete_upon_successful_upload=True,
@@ -474,7 +498,8 @@ class TestS3ToJsonS3:
                 file_size_limit=1e6,
             )
             output_line_count = 0
-            for output_file in output_files:
+            # We only want to examine part files, so don't include the compressed file
+            for output_file in output_files[:-1]:
                 with open(output_file, "r") as f_out:
                     for json_line in f_out:
                         output_line_count += 1
@@ -487,24 +512,35 @@ class TestS3ToJsonS3:
         assert isinstance(str_metadata["start_date"], str)
         assert isinstance(str_metadata["end_date"], str)
 
-    def test_get_part_path_no_touch(self, sample_metadata):
+    def test_get_output_path_no_touch(self, sample_metadata):
         sample_metadata["start_date"] = None
-        part_path = s3_to_json.get_part_path(
+        output_path = s3_to_json.get_output_path(
             metadata=sample_metadata,
             part_number=0,
-            part_dir=sample_metadata["type"],
+            output_dir=sample_metadata["type"],
             touch=False,
         )
-        assert part_path == "FitbitDevices/FitbitDevices_20230114.part0.ndjson"
+        assert output_path == "FitbitDevices/FitbitDevices_20230114.part0.ndjson"
 
-    def test_get_part_path_touch(self, sample_metadata):
-        part_path = s3_to_json.get_part_path(
+    def test_get_output_path_touch(self, sample_metadata):
+        output_path = s3_to_json.get_output_path(
             metadata=sample_metadata,
             part_number=0,
-            part_dir=sample_metadata["type"],
+            output_dir=sample_metadata["type"],
             touch=True,
         )
-        assert os.path.exists(part_path)
+        assert os.path.exists(output_path)
+        shutil.rmtree(sample_metadata["type"], ignore_errors=True)
+
+    def test_get_output_path_gzip(self, sample_metadata):
+        sample_metadata["start_date"] = None
+        output_path = s3_to_json.get_output_path(
+            metadata=sample_metadata,
+            part_number=None,
+            output_dir=sample_metadata["type"],
+            touch=True,
+        )
+        assert output_path == "FitbitDevices/FitbitDevices_20230114.ndjson.gz"
         shutil.rmtree(sample_metadata["type"], ignore_errors=True)
 
     def test_get_metadata_startdate_enddate(self, json_file_basenames_dict):
