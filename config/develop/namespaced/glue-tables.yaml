@@ -4,6 +4,7 @@ stack_name: '{{ stack_group_config.namespace }}-glue-tables'
 parameters:
   Namespace: {{ stack_group_config.namespace }}
   S3IntermediateBucketName: {{ stack_group_config.intermediate_bucket_name }}
+  S3IntermediateBucketPrefix: 'compressed_json'
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
