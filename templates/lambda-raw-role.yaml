@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  An IAM Role for the raw Lambda
+
+Parameters:
+  SQSQueueArn:
+    Type: String
+    Description: ARN of the SQS queue for lambda to poll messages from.
+
+  S3SourceBucketName:
+    Type: String
+    Description: Name of the S3 bucket where exports are deposited.
+
+  S3TargetBucketName:
+    Type: String
+    Description: Name of the S3 bucket where compressed JSON are written to.
+
+Resources:
+  RawRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+        - PolicyName: PollSQSQueue
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:ReceiveMessage
+              Resource:
+              - !Ref SQSQueueArn
+        - PolicyName: ReadS3
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - s3:Get*
+              - s3:List*
+              Resource:
+              - !Sub arn:aws:s3:::${S3SourceBucketName}
+              - !Sub arn:aws:s3:::${S3SourceBucketName}/*
+        - PolicyName: WriteS3
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - "s3:PutObject"
+              - "s3:PutObjectAcl"
+              - "s3:GetBucketLocation"
+              Resource:
+              - !Sub arn:aws:s3:::${S3TargetBucketName}
+              - !Sub arn:aws:s3:::${S3TargetBucketName}/*
+
+Outputs:
+  RoleName:
+    Value: !Ref RawRole
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleName'
+
+  RoleArn:
+    Value: !GetAtt RawRole.Arn
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleArn'
