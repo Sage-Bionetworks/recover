@@ -24,7 +24,7 @@ Parameters:
   LambdaPythonVersion:
     Type: String
     Description: Python version to use for this lambda function
-    Default: "3.11"
+    Default: "3.9"
 
   LambdaBatchSize:
     Type: Number
