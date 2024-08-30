@@ -2,9 +2,10 @@
 Dispatch Lambda
 
 This Lambda polls the input-to-dispatch SQS queue and publishes to the dispatch SNS topic.
-Its purpose is to inspect each export and dispatch each file as a separate job in which
-the file will be decompressed and uploaded to S3.
+Its purpose is to inspect each export and dispatch each file with a non-zero size as a
+separate job.
 """
+
 import json
 import logging
 import os
