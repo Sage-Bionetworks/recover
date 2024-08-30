@@ -3,7 +3,7 @@ template:
 parameters:
   MessageRetentionPeriod: "1209600"
   ReceiveMessageWaitTimeSeconds: "20"
-  VisibilityTimeout: "120"
+  VisibilityTimeout: "900"
   SNSTopicSubscription: !stack_output_external "{{ stack_group_config.namespace }}-sns-dispatch::SnsTopicArn"
 dependencies:
   - prod/namespaced/sns-dispatch.yaml

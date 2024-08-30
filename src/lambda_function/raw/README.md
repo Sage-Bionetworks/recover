@@ -1,7 +1,9 @@
 # Raw Lambda
 
 The raw Lambda polls the dispatch-to-raw SQS queue and uploads an object to the raw S3 bucket.
-Its purpose is to decompress a single file from an export, recompress that file, and store it to S3.
+Its purpose is to compress a single JSON file from an export (zip archive) and store it to S3.
+It makes heavy use of Python file objects and multipart uploads and can download/compress/upload
+with a relatively low, fixed memory overhead with respect to the size of the uncompressed JSON.
 
 ## Development
 
