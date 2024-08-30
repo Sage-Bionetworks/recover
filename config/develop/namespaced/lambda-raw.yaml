@@ -13,4 +13,5 @@ parameters:
   RoleArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-raw-role::RoleArn"
   SQSQueueArn: !stack_output_external "{{ stack_group_config.namespace }}-sqs-dispatch-to-raw::PrimaryQueueArn"
   S3RawBucket: {{ stack_group_config.raw_bucket_name }}
+  S3RawKeyPrefix: "{{ stack_group_config.namespace }}/json/"
 stack_tags: {{ stack_group_config.default_stack_tags }}

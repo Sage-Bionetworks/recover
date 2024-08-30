@@ -21,6 +21,10 @@ Parameters:
     Type: String
     Description: Name of the Raw S3 bucket.
 
+  S3RawKeyPrefix:
+    Type: String
+    Description: S3 key prefix where files are written.
+
   LambdaPythonVersion:
     Type: String
     Description: Python version to use for this lambda function
@@ -55,6 +59,7 @@ Resources:
       Environment:
         Variables:
           RAW_S3_BUCKET: !Ref S3RawBucket
+          RAW_S3_KEY_PREFIX: !Ref S3RawKeyPrefix
       Events:
         SQSEvent:
           Type: SQS
