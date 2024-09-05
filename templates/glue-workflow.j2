@@ -84,14 +84,11 @@ Parameters:
 
   ShareableArtifactsBucketName:
     Type: String
-    Description: >-
-        The name of the bucket where shareable artifacts are stored.
+    Description: The name of the bucket where shareable artifacts are stored.
 
-  ExpectationSuiteKeyPrefix
+  ExpectationSuiteKeyPrefix:
     Type: String
-    Description: >-
-        The s3 key prefix of the expectation suite.
-
+    Description: The s3 key prefix of the expectation suite.
 
 Conditions:
   IsMainNamespace: !Equals [!Ref Namespace, "main"]
@@ -281,11 +278,10 @@ Resources:
       StartOnCreation: true
       WorkflowName: !Ref JsonToParquetWorkflow
 
-  JsontoParquetCompleteTrigger:
+  CompareParquetTrigger:
     Type: AWS::Glue::Trigger
-    Condition: IsDevelopmentNamespace
     Properties:
-      Name: !Sub "${Namespace}-JsontoParquetCompleteTrigger"
+      Name: !Sub "${Namespace}-CompareParquetTrigger"
       Actions:
         {% for dataset in datasets %}
         - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"] }}-CompareParquetJob
@@ -297,7 +293,28 @@ Resources:
             "--cfn-bucket": !Ref CloudformationBucketName
             "--parquet-bucket": !Ref ParquetBucketName
             "--additional-python-modules": "datacompy~=0.8 flask~=2.0 flask-cors~=3.0"
-        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"] }}-GreatExpectationsJob
+        {% endfor %}
+      Description: This trigger runs the compare parquet jobs after completion of all JSON to Parquet jobs
+      Type: CONDITIONAL
+      Predicate:
+        Conditions:
+          {% for dataset in datasets if "Garmin" in dataset["data_type"] %}
+          - JobName: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
+            State: SUCCEEDED
+            LogicalOperator: EQUALS
+          {% endfor %}
+        Logical: AND
+      StartOnCreation: true
+      WorkflowName: !Ref JsonToParquetWorkflow
+
+  GreatExpectationsParquetTrigger:
+    Type: AWS::Glue::Trigger
+    Condition: IsDevelopmentNamespace
+    Properties:
+      Name: !Sub "${Namespace}-GreatExpectationsParquetTrigger"
+      Actions:
+        {% for dataset in datasets %}
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"] }}-GreatExpectationsParquetJob
           Arguments:
             "--data-type": {{ "{}".format(dataset["table_name"]) }}
             "--namespace": !Ref Namespace
@@ -307,7 +324,7 @@ Resources:
             "--expectation-suite-key-prefix": !Sub "${Namespace}/src/glue/resources/data_values_expectations.json"
             "--additional-python-modules": "great_expectations~=0.17"
         {% endfor %}
-      Description: This trigger runs after completion of all JSON to Parquet jobs
+      Description:  This trigger runs the great expectation parquet jobs after completion of all JSON to Parquet jobs
       Type: CONDITIONAL
       Predicate:
         Conditions:
