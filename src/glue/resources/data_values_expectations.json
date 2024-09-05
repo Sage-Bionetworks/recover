@@ -1,6 +1,6 @@
 {
-    "healthkitv2heartbeats": {
-        "expectation_suite_name": "healthkitv2heartbeats_expectations",
+    "healthkitv2heartbeat": {
+        "expectation_suite_name": "healthkitv2heartbeat_expectations",
         "expectations": [
             {
                 "expectation_type": "expect_column_values_to_be_between",
