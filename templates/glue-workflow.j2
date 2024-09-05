@@ -82,6 +82,17 @@ Parameters:
     Description: >-
         The name of the bucket where the cloudformation and artifacts are stored.
 
+  ShareableArtifactsBucketName:
+    Type: String
+    Description: >-
+        The name of the bucket where shareable artifacts are stored.
+
+  ExpectationSuiteKeyPrefix
+    Type: String
+    Description: >-
+        The s3 key prefix of the expectation suite.
+
+
 Conditions:
   IsMainNamespace: !Equals [!Ref Namespace, "main"]
   IsDevelopmentNamespace: !Not [!Equals [!Ref Namespace, "main"]]
@@ -286,6 +297,15 @@ Resources:
             "--cfn-bucket": !Ref CloudformationBucketName
             "--parquet-bucket": !Ref ParquetBucketName
             "--additional-python-modules": "datacompy~=0.8 flask~=2.0 flask-cors~=3.0"
+        - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"] }}-GreatExpectationsJob
+          Arguments:
+            "--data-type": {{ "{}".format(dataset["table_name"]) }}
+            "--namespace": !Ref Namespace
+            "--cfn-bucket": !Ref CloudformationBucketName
+            "--parquet-bucket": !Ref ParquetBucketName
+            "--shareable-artifacts-bucket": !Ref ShareableArtifactsBucketName
+            "--expectation-suite-key-prefix": !Sub "${Namespace}/src/glue/resources/data_values_expectations.json"
+            "--additional-python-modules": "great_expectations~=0.17"
         {% endfor %}
       Description: This trigger runs after completion of all JSON to Parquet jobs
       Type: CONDITIONAL
@@ -299,6 +319,7 @@ Resources:
         Logical: AND
       StartOnCreation: true
       WorkflowName: !Ref JsonToParquetWorkflow
+
 
 Outputs:
 

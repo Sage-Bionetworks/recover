@@ -31,10 +31,6 @@ Parameters:
     Type: String
     Description: The bucket key where the script file is located.
 
-  ExpectationSuiteKey
-    Type: String
-    Description: The bucket key where the expectation suite is located.
-
   GlueVersion:
     Type: String
     Description: The version of glue to use for this job
@@ -68,6 +64,7 @@ Parameters:
       Additional python packages to install as a comma-delimited list.
       Any format supported by pip3 is supported here.
 
+
 Resources:
 
   {% set datasets = [] %}
@@ -80,7 +77,7 @@ Resources:
   {% endfor %}
 
   {% for dataset in datasets %}
-  {{ dataset["stackname_prefix"] }}ParquetJob:
+  {{ dataset["stackname_prefix"] }}GreatExpectationsParquetJob:
     Type: AWS::Glue::Job
     Properties:
       Command:
@@ -94,20 +91,14 @@ Resources:
         --spark-event-logs-path: !Sub s3://${TempS3Bucket}/spark-logs/${AWS::StackName}/
         --job-bookmark-option: job-bookmark-disable
         --job-language: python
-        --glue-table: {{ dataset["table_name"] }}
         --additional-python-modules: !Ref AdditionalPythonModules
         # --conf spark.sql.adaptive.enabled
       Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
       GlueVersion: !Ref GlueVersion
       MaxRetries: !Ref MaxRetries
       Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
-      {% if dataset["type"] == "HealthKitV2Samples" or dataset["type"] == "FitbitIntradayCombined" -%}
-      WorkerType: !Ref LargeJobWorkerType
-      NumberOfWorkers: !Ref LargeJobNumberOfWorkers
-      {% else -%}
       WorkerType: !Ref DefaultWorkerType
       NumberOfWorkers: !Ref DefaultNumberOfWorkers
-      {%- endif %}
       Role: !Ref JobRole
       Timeout: !Ref TimeoutInMinutes
   {% endfor %}
