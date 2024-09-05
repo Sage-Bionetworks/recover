@@ -1,6 +1,6 @@
 {
-    "fitbitintradaycombined": {
-        "expectation_suite_name": "fitbitintradaycombined_expectations",
+    "fitbitdailydata": {
+        "expectation_suite_name": "fitbitdailydata_expectations",
         "expectations": [
             {
                 "expectation_type": "expect_column_values_to_be_between",
