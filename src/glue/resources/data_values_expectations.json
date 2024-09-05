@@ -32,9 +32,9 @@
         "expectation_suite_name": "healthkitv2workouts_expectations",
         "expectations": [
             {
-                "expectation_type": "expect_table_columns_to_contain_set",
+                "expectation_type": "expect_column_to_exist",
                 "kwargs": {
-                  "column_set": ["HealthKitWorkoutKey"]
+                  "column": "HealthKitWorkoutKey"
                 }
             }
         ]
