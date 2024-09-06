@@ -96,7 +96,7 @@ Resources:
       Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
       GlueVersion: !Ref GlueVersion
       MaxRetries: !Ref MaxRetries
-      Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
+      Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-GreatExpectationsParquetJob"
       WorkerType: !Ref DefaultWorkerType
       NumberOfWorkers: !Ref DefaultNumberOfWorkers
       Role: !Ref JobRole

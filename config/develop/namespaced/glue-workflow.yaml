@@ -6,6 +6,7 @@ dependencies:
   - develop/namespaced/glue-job-S3ToJsonS3.yaml
   - develop/namespaced/glue-job-JSONToParquet.yaml
   - develop/namespaced/glue-job-compare-parquet.yaml
+  - develop/namespaced/glue-job-run-great-expectations-on-parquet.yaml
   - develop/glue-job-role.yaml
   - develop/s3-cloudformation-bucket.yaml
 parameters:

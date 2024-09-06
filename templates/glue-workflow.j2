@@ -280,6 +280,7 @@ Resources:
 
   CompareParquetTrigger:
     Type: AWS::Glue::Trigger
+    Condition: IsDevelopmentNamespace
     Properties:
       Name: !Sub "${Namespace}-CompareParquetTrigger"
       Actions:
@@ -309,7 +310,6 @@ Resources:
 
   GreatExpectationsParquetTrigger:
     Type: AWS::Glue::Trigger
-    Condition: IsDevelopmentNamespace
     Properties:
       Name: !Sub "${Namespace}-GreatExpectationsParquetTrigger"
       Actions:
@@ -336,7 +336,6 @@ Resources:
         Logical: AND
       StartOnCreation: true
       WorkflowName: !Ref JsonToParquetWorkflow
-
 
 Outputs:
 
