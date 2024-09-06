@@ -1,7 +1,7 @@
 template:
   path: glue-job-run-great-expectations-on-parquet.j2
 dependencies:
-  - develop/glue-job-role.yaml
+  - prod/glue-job-role.yaml
 stack_name: "{{ stack_group_config.namespace }}-glue-job-RunGreatExpectationsParquet"
 parameters:
   Namespace: {{ stack_group_config.namespace }}
