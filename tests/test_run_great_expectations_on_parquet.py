@@ -1,10 +1,13 @@
 from unittest.mock import MagicMock, patch
 
 import great_expectations
-from great_expectations.core import ExpectationConfiguration
 from great_expectations.core.batch import RuntimeBatchRequest
 from great_expectations.core.run_identifier import RunIdentifier
 from great_expectations.core.yaml_handler import YAMLHandler
+from great_expectations.data_context.types.resource_identifiers import (
+    ExpectationSuiteIdentifier,
+    ValidationResultIdentifier,
+)
 
 from src.glue.jobs import run_great_expectations_on_parquet as run_gx_on_pq
 
@@ -189,3 +192,48 @@ def test_add_expectations_from_json():
 
     # Verify expectations were added to the context
     mock_context.add_or_update_expectation_suite.assert_called_once()
+
+
+def test_add_validation_results_to_store():
+    # Mock the EphemeralDataContext and the necessary components
+    mock_context = MagicMock()
+    mock_expectation_suite = MagicMock()
+    mock_context.get_expectation_suite.return_value = mock_expectation_suite
+    mock_expectation_suite.expectation_suite_name = "test_suite"
+
+    # Mock the validation result data
+    validation_result = {"result": "test_result"}
+
+    # Create a mock batch identifier and run identifier
+    mock_batch_identifier = MagicMock(spec=RuntimeBatchRequest)
+    mock_run_identifier = MagicMock(spec=RunIdentifier)
+
+    # Call the function with mocked inputs
+    result_context = run_gx_on_pq.add_validation_results_to_store(
+        context=mock_context,
+        expectation_suite_name="test_suite",
+        validation_result=validation_result,
+        batch_identifier=mock_batch_identifier,
+        run_identifier=mock_run_identifier,
+    )
+
+    # Assert that the expectation suite was retrieved correctly
+    mock_context.get_expectation_suite.assert_called_once_with("test_suite")
+
+    # Create expected ExpectationSuiteIdentifier and ValidationResultIdentifier
+    expected_expectation_suite_identifier = ExpectationSuiteIdentifier(
+        expectation_suite_name="test_suite"
+    )
+    expected_validation_result_identifier = ValidationResultIdentifier(
+        expectation_suite_identifier=expected_expectation_suite_identifier,
+        batch_identifier=mock_batch_identifier,
+        run_id=mock_run_identifier,
+    )
+
+    # Verify that the validation result was added to the validations store
+    mock_context.validations_store.set.assert_called_once_with(
+        expected_validation_result_identifier, validation_result
+    )
+
+    # Check that the context is returned
+    assert result_context == mock_context
