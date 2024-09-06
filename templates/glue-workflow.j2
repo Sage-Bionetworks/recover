@@ -322,7 +322,7 @@ Resources:
             "--parquet-bucket": !Ref ParquetBucketName
             "--shareable-artifacts-bucket": !Ref ShareableArtifactsBucketName
             "--expectation-suite-key-prefix": !Sub "${Namespace}/src/glue/resources/data_values_expectations.json"
-            "--additional-python-modules": "great_expectations~=0.17"
+            "--additional-python-modules": "great_expectations~=0.18"
         {% endfor %}
       Description:  This trigger runs the great expectation parquet jobs after completion of all JSON to Parquet jobs
       Type: CONDITIONAL
