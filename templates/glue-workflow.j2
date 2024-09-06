@@ -316,7 +316,7 @@ Resources:
         {% for dataset in datasets %}
         - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"] }}-GreatExpectationsParquetJob
           Arguments:
-            "--data-type": {{ "{}".format(dataset["table_name"]) }}
+            "--data-type": {{ "{}".format(dataset["data_type"].lower()) }}
             "--namespace": !Ref Namespace
             "--cfn-bucket": !Ref CloudformationBucketName
             "--parquet-bucket": !Ref ParquetBucketName
