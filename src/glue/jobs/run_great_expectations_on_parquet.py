@@ -352,16 +352,7 @@ def add_validation_results_to_store(
 
 
 def main():
-    # args = read_args()
-    args = {
-        "parquet_bucket": "recover-dev-processed-data",
-        "shareable_artifacts_bucket": "recover-dev-shareable-artifacts-vpn",
-        "cfn_bucket": "recover-dev-cloudformation",
-        "namespace": "etl-616",
-        "data_type": "healthkitv2workouts",
-        "expectation_suite_key_prefix": "etl-616/src/glue/resources/data_values_expectations.json",
-    }
-
+    args = read_args()
     run_id = RunIdentifier(run_name=f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
     expectation_suite_name = f"{args['data_type']}_expectations"
     s3 = boto3.client("s3")
