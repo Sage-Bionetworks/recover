@@ -11,7 +11,7 @@ parameters:
   S3ScriptBucket: {{ stack_group_config.template_bucket_name }}
   S3ScriptKey: '{{ stack_group_config.namespace }}/src/glue/jobs/run_great_expectations_on_parquet.py'
   GlueVersion: "{{ stack_group_config.json_to_parquet_glue_version }}"
-  AdditionalPythonModules: great_expectations~=0.18
+  AdditionalPythonModules: "great_expectations~=0.18,urllib3<2"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:

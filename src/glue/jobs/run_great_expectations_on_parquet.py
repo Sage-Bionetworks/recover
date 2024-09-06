@@ -145,14 +145,6 @@ def add_validation_stores(
             },
         },
     )
-
-    # Add evaluation parameter store
-    context.add_store(
-        "evaluation_parameter_store",
-        {
-            "class_name": "EvaluationParameterStore",
-        },
-    )
     return context
 
 
@@ -283,6 +275,9 @@ def add_expectations_from_json(
 
     Raises:
         ValueError: thrown when no expectations exist for this data type
+
+    Returns:
+        EphemeralDataContext: context object with expectations added
     """
     # Ensure the dataset exists in the JSON file
     if data_type not in expectations_data:
@@ -306,7 +301,7 @@ def add_expectations_from_json(
         expectation_suite_name=expectation_suite_name,
         expectations=new_expectations_configs,
     )
-    return "EphemeralDataContext"
+    return context
 
 
 def add_validation_results_to_store(
@@ -369,13 +364,6 @@ def main():
         namespace=args["namespace"],
         data_type=args["data_type"],
     )
-    logger.info("isNull")
-    null_rows = spark_df.ParticipantIdentifier.isNull()
-    logger.info("filter")
-    filtered_results = spark_df.filter(null_rows)
-    logger.info("collect")
-    result = filtered_results.collect()
-    logger.info("null_rows: %s", result)
     logger.info("get_batch_request")
     batch_request = get_batch_request(spark_df, args["data_type"], run_id)
     logger.info("add_expectations")
