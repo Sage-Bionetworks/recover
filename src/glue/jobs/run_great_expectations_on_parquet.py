@@ -279,9 +279,9 @@ def add_expectations_from_json(
     Returns:
         EphemeralDataContext: context object with expectations added
     """
-    # Ensure the dataset exists in the JSON file
+    # Ensure the data type exists in the JSON file
     if data_type not in expectations_data:
-        raise ValueError(f"No expectations found for dataset '{data_type}'")
+        raise ValueError(f"No expectations found for data type '{data_type}'")
 
     # Extract the expectation suite and expectations for the dataset
     suite_data = expectations_data[data_type]

@@ -267,6 +267,31 @@ def test_that_add_expectations_from_json_has_expected_call():
     mock_context.add_or_update_expectation_suite.assert_called_once()
 
 
+def test_that_add_expectations_from_json_throws_value_error():
+    mock_context = MagicMock()
+
+    # Sample expectations data
+    expectations_data = {
+        "not-test-data": {
+            "expectation_suite_name": "test_suite",
+            "expectations": [
+                {
+                    "expectation_type": "expect_column_to_exist",
+                    "kwargs": {"column": "test_column"},
+                },
+            ],
+        }
+    }
+
+    data_type = "test-data"
+    with pytest.raises(
+        ValueError, match="No expectations found for data type 'test-data'"
+    ):
+        run_gx_on_pq.add_expectations_from_json(
+            expectations_data, mock_context, data_type
+        )
+
+
 @pytest.mark.integration
 def test_add_expectations_from_json_adds_details_correctly(test_context):
     # Mock expectations data
