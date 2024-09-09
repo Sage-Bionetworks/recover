@@ -308,34 +308,33 @@ Resources:
       StartOnCreation: true
       WorkflowName: !Ref JsonToParquetWorkflow
 
-  GreatExpectationsParquetTrigger:
+
+  {% for dataset in datasets if dataset["data_type"].lower() in sceptre_user_data.data_values_expectations %}
+  {{ dataset['stackname_prefix'] }}GreatExpectationsParquetTrigger:
     Type: AWS::Glue::Trigger
     Properties:
-      Name: !Sub "${Namespace}-GreatExpectationsParquetTrigger"
+      Name: !Sub "${Namespace}-{{ dataset['stackname_prefix'] }}GreatExpectationsParquetTrigger"
       Actions:
-        {% for dataset in datasets %}
         - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"] }}-GreatExpectationsParquetJob
           Arguments:
-            "--data-type": {{ "{}".format(dataset["data_type"].lower()) }}
+            "--data-type": {{ dataset["data_type"].lower() }}
             "--namespace": !Ref Namespace
             "--cfn-bucket": !Ref CloudformationBucketName
             "--parquet-bucket": !Ref ParquetBucketName
             "--shareable-artifacts-bucket": !Ref ShareableArtifactsBucketName
             "--expectation-suite-key-prefix": !Sub "${Namespace}/src/glue/resources/data_values_expectations.json"
             "--additional-python-modules": "great_expectations~=0.18,urllib3<2"
-        {% endfor %}
-      Description:  This trigger runs the great expectation parquet jobs after completion of all JSON to Parquet jobs
+      Description:  This trigger runs the great expectation parquet job for this data type after completion of the JSON to Parquet job for this data type
       Type: CONDITIONAL
       Predicate:
         Conditions:
-          {% for dataset in datasets if "Garmin" in dataset["data_type"] %}
-          - JobName: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
+          - JobName: !Sub "${Namespace}-{{ dataset['stackname_prefix'] }}-Job"
             State: SUCCEEDED
             LogicalOperator: EQUALS
-          {% endfor %}
         Logical: AND
       StartOnCreation: true
       WorkflowName: !Ref JsonToParquetWorkflow
+  {% endfor %}
 
 Outputs:
 
