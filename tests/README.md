@@ -1,5 +1,8 @@
-### Running tests
+### Tests in RECOVER
 Tests are defined in the `tests` folder in this project.
+
+### Running tests locally
+See here for information on how to run the tests locally especially when you are adding tests.
 
 #### Running tests using Docker
 All tests can be run inside a Docker container which includes all the necessary
@@ -17,6 +20,7 @@ These scripts needs to be run inside a Docker container:
 
 - Under AWS 4.0 (Dockerfile.aws_glue_4)
   - test_json_to_parquet.py (Note that these tests deploys test resources to aws and will take several min to run)
+  - test_run_great_expectations_on_parquet.py
 
 Run the following commands to run tests for:
 
@@ -83,6 +87,8 @@ pytest with other tests because they have to be run in a Dockerfile with the AWS
 #### Running tests for lambda
 Run the following command from the repo root to run tests for the lambda functions (in develop).
 
+Example:
+
 ```shell script
 python3 -m pytest tests/test_s3_to_glue_lambda.py -v
 ```
@@ -103,3 +109,6 @@ python3 -m pytest tests/test_setup_external_storage.py
 --namespace <put_namespace_here>
 --test_sts_permission <put_the_type_of_permission_to_test_here>
 ```
+
+#### Adding tests to Recover CI/CD
+Tests are run automatically as part of `upload-and-deploy.yaml` Github workflow. See [Github Workflows README](.github/workflows/README.md#adding-test-commands-to-github-workflow-jobs) for more details on the workflow.

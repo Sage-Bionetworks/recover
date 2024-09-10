@@ -137,6 +137,8 @@ jobs:
         run: |
           pipenv run python -m pytest tests/test_s3_event_config_lambda.py -v
           pipenv run python -m pytest tests/test_s3_to_glue_lambda.py -v
+          pipenv run python -m pytest tests/test_lambda_dispatch.py -v
+          pipenv run python -m pytest tests/test_consume_logs.py -v
 
       - name: Test dev synapse folders for STS access with pytest
         run: >
@@ -258,6 +260,8 @@ jobs:
         run: >
           su - glue_user --command "cd $GITHUB_WORKSPACE &&
           python3 -m pytest tests/test_json_to_parquet.py --namespace $NAMESPACE -v"
+          su - glue_user --command "cd $GITHUB_WORKSPACE &&
+          python3 -m pytest tests/test_run_great_expectations_on_parquet.py -v"
 
   sceptre-deploy-develop:
     name: Deploys branch using sceptre
