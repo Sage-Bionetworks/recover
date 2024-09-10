@@ -211,35 +211,37 @@ def yield_compressed_data(object_stream: io.BytesIO, path: str, part_threshold=N
         part_threshold = 8 * 1024 * 1024
     with zipfile.ZipFile(object_stream, "r") as zip_stream:
         with zip_stream.open(path, "r") as json_stream:
-            compressed_data = io.BytesIO()
-            # analogous to the part number of a multipart upload
-            chunk_number = 1
-            with gzip.GzipFile(
-                filename=os.path.basename(path),
-                fileobj=compressed_data,
-                compresslevel=6,
-                mode="wb",
-            ) as gzip_file:
-                # We can expect at least 10x compression, so reading/writing the
-                # JSON in 10*part_threshold chunks ensures we do not flush the
-                # gzip buffer too often, which can slow the write process significantly.
-                compression_factor = 10
-                for chunk in iter(
-                    lambda: json_stream.read(compression_factor * part_threshold), b""
-                ):
-                    gzip_file.write(chunk)
-                    # .flush() ensures that .tell() gives us an accurate byte count,
-                    gzip_file.flush()
-                    if compressed_data.tell() >= part_threshold:
-                        yield compressed_data_wrapper(
-                            compressed_data=compressed_data, chunk_number=chunk_number
-                        )
-                        compressed_data.seek(0)
-                        compressed_data.truncate(0)
-                        chunk_number = chunk_number + 1
-            yield compressed_data_wrapper(
-                compressed_data=compressed_data, chunk_number=chunk_number
-            )
+            with io.BytesIO() as compressed_data:
+                # analogous to the part number of a multipart upload
+                chunk_number = 1
+                with gzip.GzipFile(
+                    filename=os.path.basename(path),
+                    fileobj=compressed_data,
+                    compresslevel=6,
+                    mode="wb",
+                ) as gzip_file:
+                    # We can expect at least 10x compression, so reading/writing the
+                    # JSON in 10*part_threshold chunks ensures we do not flush the
+                    # gzip buffer too often, which can slow the write process significantly.
+                    compression_factor = 10
+                    for chunk in iter(
+                        lambda: json_stream.read(compression_factor * part_threshold),
+                        b"",
+                    ):
+                        gzip_file.write(chunk)
+                        # .flush() ensures that .tell() gives us an accurate byte count,
+                        gzip_file.flush()
+                        if compressed_data.tell() >= part_threshold:
+                            yield compressed_data_wrapper(
+                                compressed_data=compressed_data,
+                                chunk_number=chunk_number,
+                            )
+                            compressed_data.seek(0)
+                            compressed_data.truncate(0)
+                            chunk_number = chunk_number + 1
+                yield compressed_data_wrapper(
+                    compressed_data=compressed_data, chunk_number=chunk_number
+                )
 
 
 def compressed_data_wrapper(compressed_data: io.BytesIO, chunk_number: int):
@@ -334,4 +336,3 @@ def main(event: dict, s3_client: boto3.client, raw_bucket: str, raw_key_prefix: 
             logger.info(
                 f"Complete multipart upload response: {completed_upload_response}"
             )
-            return completed_upload_response
