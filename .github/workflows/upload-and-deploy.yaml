@@ -135,10 +135,11 @@ jobs:
 
       - name: Test scripts with pytest (lambda, etc.)
         run: |
-          pipenv run python -m pytest tests/test_s3_event_config_lambda.py -v
-          pipenv run python -m pytest tests/test_s3_to_glue_lambda.py -v
-          pipenv run python -m pytest tests/test_lambda_dispatch.py -v
-          pipenv run python -m pytest tests/test_consume_logs.py -v
+          pipenv run python -m pytest \
+            tests/test_s3_event_config_lambda.py \
+            tests/test_s3_to_glue_lambda.py \
+            tests/test_lambda_dispatch.py \
+            tests/test_consume_logs.py -v
 
       - name: Test dev synapse folders for STS access with pytest
         run: >
@@ -249,17 +250,23 @@ jobs:
         if: github.ref_name != 'main'
         run: echo "NAMESPACE=$GITHUB_REF_NAME" >> $GITHUB_ENV
 
-      - name: Run Pytest unit tests under AWS 3.0
+      - name: Run Pytest unit tests under AWS Glue 3.0
         if: matrix.tag_name == 'aws_glue_3'
         run: |
-          su - glue_user --command "cd $GITHUB_WORKSPACE && python3 -m pytest tests/test_s3_to_json.py -v"
-          su - glue_user --command "cd $GITHUB_WORKSPACE && python3 -m pytest tests/test_compare_parquet_datasets.py -v"
+          su - glue_user --command "cd $GITHUB_WORKSPACE && python3 -m pytest \
+            tests/test_s3_to_json.py \
+            tests/test_compare_parquet_datasets.py -v"
 
-      - name: Run Pytest unit tests under AWS 4.0
+      - name: Run unit tests for JSON to Parquet under AWS Glue 4.0
         if: matrix.tag_name == 'aws_glue_4'
         run: >
           su - glue_user --command "cd $GITHUB_WORKSPACE &&
-          python3 -m pytest tests/test_json_to_parquet.py --namespace $NAMESPACE -v &&
+          python3 -m pytest tests/test_json_to_parquet.py --namespace $NAMESPACE -v"
+
+      - name: Run unit tests for Great Expectations on Parquet under AWS Glue 4.0
+        if: matrix.tag_name == 'aws_glue_4'
+        run: >
+          su - glue_user --command "cd $GITHUB_WORKSPACE && \
           python3 -m pytest tests/test_run_great_expectations_on_parquet.py -v"
 
   sceptre-deploy-develop:

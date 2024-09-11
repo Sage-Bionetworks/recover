@@ -21,7 +21,7 @@ parameters:
   S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
   CloudformationBucketName: {{ stack_group_config.template_bucket_name }}
   ShareableArtifactsBucketName: {{ stack_group_config.shareable_artifacts_vpn_bucket_name }}
-  ExpectationSuiteKeyPrefix: "{{ stack_group_config.namespace }}/src/glue/resources/data_values_expectations.json"
+  ExpectationSuiteKey: "{{ stack_group_config.namespace }}/src/glue/resources/data_values_expectations.json"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:

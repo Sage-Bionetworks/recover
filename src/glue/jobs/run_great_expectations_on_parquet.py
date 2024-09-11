@@ -38,7 +38,7 @@ def read_args() -> dict:
             "cfn-bucket",
             "namespace",
             "data-type",
-            "expectation-suite-key-prefix",
+            "expectation-suite-key",
         ],
     )
     for arg in args:
@@ -241,21 +241,21 @@ def get_batch_request(
 def read_json(
     s3: boto3.client,
     s3_bucket: str,
-    key_prefix: str,
+    key: str,
 ) -> Dict[str, str]:
     """Reads in a json object
 
     Args:
         s3 (boto3.client): s3 client connection
         s3_bucket (str): name of the s3 bucket to read from
-        key_prefix (str): s3 key prefix of the
+        key (str): s3 key prefix of the
             location of the json to read from
 
     Returns:
         Dict[str, str]: the data read in from json
     """
     # read in the json filelist
-    s3_response_object = s3.get_object(Bucket=s3_bucket, Key=key_prefix)
+    s3_response_object = s3.get_object(Bucket=s3_bucket, Key=key)
     json_content = s3_response_object["Body"].read().decode("utf-8")
     expectations = json.loads(json_content)
     return expectations
@@ -373,7 +373,7 @@ def main():
     expectations_data = read_json(
         s3=s3,
         s3_bucket=args["cfn_bucket"],
-        key_prefix=args["expectation_suite_key_prefix"],
+        key=args["expectation_suite_key"],
     )
     logger.info("adds_expectations_from_json")
     add_expectations_from_json(

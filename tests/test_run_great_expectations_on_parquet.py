@@ -215,7 +215,7 @@ def test_that_get_batch_request_details_are_correct(test_spark):
 
 def test_read_json_correctly_returns_expected_values():
     s3_bucket = "test-bucket"
-    key_prefix = "test-prefix"
+    key = "test-key"
 
     # Mock the S3 response
     mock_s3_response = MagicMock()
@@ -229,13 +229,11 @@ def test_read_json_correctly_returns_expected_values():
         mock_s3_client.return_value.get_object.return_value = mock_s3_response
 
         # Call the function
-        result = run_gx_on_pq.read_json(
-            mock_s3_client.return_value, s3_bucket, key_prefix
-        )
+        result = run_gx_on_pq.read_json(mock_s3_client.return_value, s3_bucket, key)
 
         # Verify that the S3 client was called with the correct parameters
         mock_s3_client.return_value.get_object.assert_called_once_with(
-            Bucket=s3_bucket, Key=key_prefix
+            Bucket=s3_bucket, Key=key
         )
 
         # Verify the result
