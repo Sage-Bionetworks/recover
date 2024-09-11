@@ -4,7 +4,7 @@ import io
 import zipfile
 
 import boto3
-import pytest
+import pytest  # requires pytest-datadir to be installed
 from moto import mock_s3
 
 import src.lambda_function.raw.app as app

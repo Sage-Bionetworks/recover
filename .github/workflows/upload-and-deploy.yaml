@@ -132,11 +132,13 @@ jobs:
       - name: Install additional python dependency
         run: |
           pipenv install ecs_logging~=2.0
+          pipenv install pytest-datadir
 
       - name: Test lambda scripts with pytest
         run: |
           pipenv run python -m pytest tests/test_s3_event_config_lambda.py -v
           pipenv run python -m pytest tests/test_s3_to_glue_lambda.py -v
+          pipenv run python -m pytest -v tests/test_lambda_raw.py
 
       - name: Test dev synapse folders for STS access with pytest
         run: >
