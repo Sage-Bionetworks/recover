@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  SAM Template for the raw Lambda. The raw Lambda polls the dispatch-to-raw SQS
+  queue and uploads an object to the raw S3 bucket. Its purpose is to decompress
+  a single file from an export, recompress that file, and store it to S3.
+
+Parameters:
+
+  RoleArn:
+    Type: String
+    Description: ARN of the raw Lambda role.
+
+  SQSQueueArn:
+    Type: String
+    Description: ARN of the dispatch-to-raw SQS queue.
+
+  S3RawBucket:
+    Type: String
+    Description: Name of the Raw S3 bucket.
+
+  S3RawKeyPrefix:
+    Type: String
+    Description: S3 key prefix where files are written.
+
+  LambdaPythonVersion:
+    Type: String
+    Description: Python version to use for this lambda function
+    Default: "3.9"
+
+  LambdaBatchSize:
+    Type: Number
+    Default: 1
+    Description: >-
+      The maximum number of messages in an SQS event that Lambda will process in a batch
+
+  LambdaMaximumBatchingWindowInSeconds:
+    Type: Number
+    Default: 300
+    Description: >-
+      The maximum amount of time in seconds Lambda will batch messages before polling
+      the SQS queue and processing them
+
+Resources:
+  RawFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Zip
+      CodeUri: ./
+      Handler: app.lambda_handler
+      Runtime: !Sub "python${LambdaPythonVersion}"
+      Role: !Ref RoleArn
+      MemorySize: 1769
+      EphemeralStorage:
+        Size: 2048
+      Timeout: 900
+      Environment:
+        Variables:
+          RAW_S3_BUCKET: !Ref S3RawBucket
+          RAW_S3_KEY_PREFIX: !Ref S3RawKeyPrefix
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            BatchSize: !Ref LambdaBatchSize
+            Queue: !Ref SQSQueueArn
+
+Outputs:
+  RawFunctionArn:
+    Description: Arn of the raw Lambda.
+    Value: !GetAtt RawFunction.Arn
+    Export:
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-RawFunctionArn"
