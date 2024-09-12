@@ -52,7 +52,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: !Sub "python${LambdaPythonVersion}"
       Role: !Ref RoleArn
-      MemorySize: 1024
+      MemorySize: 1769
       EphemeralStorage:
         Size: 2048
       Timeout: 900
