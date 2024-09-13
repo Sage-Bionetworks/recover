@@ -6,6 +6,7 @@ dependencies:
   - develop/namespaced/glue-job-S3ToJsonS3.yaml
   - develop/namespaced/glue-job-JSONToParquet.yaml
   - develop/namespaced/glue-job-compare-parquet.yaml
+  - develop/namespaced/glue-job-run-great-expectations-on-parquet.yaml
   - develop/glue-job-role.yaml
   - develop/s3-cloudformation-bucket.yaml
 parameters:
@@ -19,7 +20,10 @@ parameters:
   CompareParquetMainNamespace: "main"
   S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
   CloudformationBucketName: {{ stack_group_config.template_bucket_name }}
+  ShareableArtifactsBucketName: {{ stack_group_config.shareable_artifacts_vpn_bucket_name }}
+  ExpectationSuiteKey: "{{ stack_group_config.namespace }}/src/glue/resources/data_values_expectations.json"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
   dataset_schemas: !file src/glue/resources/table_columns.yaml
+  data_values_expectations: !file src/glue/resources/data_values_expectations.json

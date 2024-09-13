@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  An AWS Glue job in the data catalog. An AWS Glue job encapsulates a script
+  that connects to your source data, processes it, and then writes it out
+  to your data target.
+
+Parameters:
+  Namespace:
+    Type: String
+    Description: >-
+      The namespace string used to for the individual glue job names
+
+  JobDescription:
+    Type: String
+    Description: A fuller description of what the job does.
+    Default: ''
+
+  JobRole:
+    Type: String
+    Description: The name or ARN of the IAM role that will run this job.
+
+  TempS3Bucket:
+    Type: String
+    Description: The name of the S3 bucket where temporary files and logs are written.
+
+  S3ScriptBucket:
+    Type: String
+    Description: The name of the S3 bucket where the script file is located.
+
+  S3ScriptKey:
+    Type: String
+    Description: The bucket key where the script file is located.
+
+  GlueVersion:
+    Type: String
+    Description: The version of glue to use for this job
+
+  DefaultWorkerType:
+    Type: String
+    Description: >-
+        Which worker type to use for this job.
+    Default: 'Standard'
+
+  DefaultNumberOfWorkers:
+    Type: Number
+    Description: >-
+        How many DPUs to allot to this job. This parameter is not used for types
+        FitbitIntradayCombined and HealthKitV2Samples.
+    Default: 1
+
+  MaxRetries:
+    Type: Number
+    Description: How many times to retry the job if it fails (integer).
+    Default: 0 # TODO change this to 1 after initial development
+
+  TimeoutInMinutes:
+    Type: Number
+    Description: The job timeout in minutes (integer).
+    Default: 1200
+
+  AdditionalPythonModules:
+    Type: String
+    Description: >-
+      Additional python packages to install as a comma-delimited list.
+      Any format supported by pip3 is supported here.
+
+
+Resources:
+
+  {% set datasets = [] %}
+  {% for v in sceptre_user_data.dataset_schemas.tables.keys() if not "Deleted" in v %}
+    {% set dataset = {} %}
+    {% do dataset.update({"type": v}) %}
+    {% do dataset.update({"table_name": "dataset_" + v.lower()})%}
+    {% do dataset.update({"stackname_prefix": "{}".format(v.replace("_",""))}) %}
+    {% do datasets.append(dataset) %}
+  {% endfor %}
+
+  {% for dataset in datasets %}
+  {{ dataset["stackname_prefix"] }}GreatExpectationsParquetJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub s3://${S3ScriptBucket}/${S3ScriptKey}
+      DefaultArguments:
+        --TempDir: !Sub s3://${TempS3Bucket}/tmp
+        --enable-continuous-cloudwatch-log: true
+        --enable-metrics: true
+        --enable-spark-ui: true
+        --spark-event-logs-path: !Sub s3://${TempS3Bucket}/spark-logs/${AWS::StackName}/
+        --job-bookmark-option: job-bookmark-disable
+        --job-language: python
+        --additional-python-modules: !Ref AdditionalPythonModules
+        # --conf spark.sql.adaptive.enabled
+      Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
+      GlueVersion: !Ref GlueVersion
+      MaxRetries: !Ref MaxRetries
+      Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-GreatExpectationsParquetJob"
+      WorkerType: !Ref DefaultWorkerType
+      NumberOfWorkers: !Ref DefaultNumberOfWorkers
+      Role: !Ref JobRole
+      Timeout: !Ref TimeoutInMinutes
+  {% endfor %}

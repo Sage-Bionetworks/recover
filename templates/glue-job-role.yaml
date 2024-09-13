@@ -20,6 +20,9 @@ Parameters:
     Type: String
     Description: Name of the S3 bucket where cloudformation templates and tests are stored.
 
+  S3ShareableArtifactBucketName:
+    Type: String
+    Description: Name of the S3 bucket where the shareable artifacts (like great expectations reports) are stored.
 
 Resources:
 
@@ -65,6 +68,8 @@ Resources:
             - !Sub arn:aws:s3:::${S3IntermediateBucketName}/*
             - !Sub arn:aws:s3:::${S3ParquetBucketName}
             - !Sub arn:aws:s3:::${S3ParquetBucketName}/*
+            - !Sub arn:aws:s3:::${S3ShareableArtifactBucketName}
+            - !Sub arn:aws:s3:::${S3ShareableArtifactBucketName}/*
       - PolicyName: ReadS3
         PolicyDocument:
           Version: '2012-10-17'

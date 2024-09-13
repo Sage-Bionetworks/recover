@@ -7,6 +7,7 @@ template_key_prefix: "{{ var.namespace | default('main') }}/templates"
 glue_python_shell_python_version: "3.9"
 glue_python_shell_glue_version: "3.0"
 json_to_parquet_glue_version: "4.0"
+great_expectations_job_glue_version: "4.0"
 default_stack_tags:
   Department: DNT
   Project: recover

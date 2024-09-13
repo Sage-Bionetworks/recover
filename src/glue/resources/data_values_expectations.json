@@ -1,0 +1,42 @@
+{
+    "fitbitdailydata": {
+        "expectation_suite_name": "fitbitdailydata_expectations",
+        "expectations": [
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "Calories",
+                    "min_value": 300,
+                    "max_value": 25000
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "Steps",
+                    "min_value": 1,
+                    "max_value": 200000
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "BreathingRate",
+                    "min_value": 4,
+                    "max_value": 40
+                }
+            }
+        ]
+    },
+    "healthkitv2workouts": {
+        "expectation_suite_name": "healthkitv2workouts_expectations",
+        "expectations": [
+            {
+                "expectation_type": "expect_column_to_exist",
+                "kwargs": {
+                  "column": "HealthKitWorkoutKey"
+                }
+            }
+        ]
+    }
+}
