@@ -1,0 +1,18 @@
+template:
+  type: sam
+  path: src/lambda_function/raw_sync/template.yaml
+  artifact_bucket_name: {{ stack_group_config.template_bucket_name }}
+  artifact_prefix: "{{ stack_group_config.namespace }}/src/lambda"
+dependencies:
+  - develop/namespaced/lambda-raw-sync-role.yaml
+  - develop/s3-cloudformation-bucket.yaml
+  - develop/s3-raw-bucket.yaml
+  - develop/s3-input-bucket.yaml
+stack_name: "{{ stack_group_config.namespace }}-lambda-raw-sync"
+parameters:
+  RoleArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-raw-sync-role::RoleArn"
+  S3InputBucket: {{ stack_group_config.input_bucket_name }}
+  S3InputKeyPrefix: "{{ stack_group_config.namespace }}/"
+  S3RawBucket: {{ stack_group_config.raw_bucket_name }}
+  S3RawKeyPrefix: "{{ stack_group_config.namespace }}/json/"
+stack_tags: {{ stack_group_config.default_stack_tags }}

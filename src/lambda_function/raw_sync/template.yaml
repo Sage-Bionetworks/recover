@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  SAM Template for the raw sync Lambda. The raw sync Lambda ensures that
+  the input and raw S3 buckets are synchronized by verifying that all non-zero
+  sized JSON in the exports in the input bucket have a corresponding object in
+  the raw bucket.
+
+Parameters:
+
+  RoleArn:
+    Type: String
+    Description: ARN of the raw sync Lambda role.
+
+  S3InputBucket:
+    Type: String
+    Description: Name of the input S3 bucket.
+
+  S3InputKeyPrefix:
+    Type: String
+    Description: S3 key prefix where exports are written.
+
+  S3RawBucket:
+    Type: String
+    Description: Name of the Raw S3 bucket.
+
+  S3RawKeyPrefix:
+    Type: String
+    Description: S3 key prefix where files are written.
+
+  LambdaPythonVersion:
+    Type: String
+    Description: Python version to use for this lambda function
+    Default: "3.9"
+
+Resources:
+  RawSyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Zip
+      CodeUri: ./
+      Handler: app.lambda_handler
+      Runtime: !Sub "python${LambdaPythonVersion}"
+      Role: !Ref RoleArn
+      MemorySize: 1024
+      Timeout: 900
+      Environment:
+        Variables:
+          INPUT_S3_BUCKET: !Ref S3InputBucket
+          INPUT_S3_KEY_PREFIX: !Ref S3InputKeyPrefix
+          RAW_S3_BUCKET: !Ref S3RawBucket
+          RAW_S3_KEY_PREFIX: !Ref S3RawKeyPrefix
+
+Outputs:
+  RawSyncFunctionArn:
+    Description: Arn of the raw sync Lambda.
+    Value: !GetAtt RawSyncFunction.Arn
+    Export:
+      Name: !Sub "${AWS::Region}-${AWS::StackName}-RawSyncFunctionArn"
