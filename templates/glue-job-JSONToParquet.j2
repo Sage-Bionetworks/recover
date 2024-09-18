@@ -110,7 +110,11 @@ Resources:
       GlueVersion: !Ref GlueVersion
       MaxRetries: !Ref MaxRetries
       Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-Job"
-      {% if dataset["type"] == "HealthKitV2Samples" or dataset["type"] == "FitbitIntradayCombined" -%}
+      {% if (
+        dataset["type"] == "HealthKitV2Samples"
+        or dataset["type"] == "FitbitIntradayCombined"
+        or dataset["type"] == "HealthKitV2Electrocardiogram"
+      ) -%}
       WorkerType: !Ref LargeJobWorkerType
       NumberOfWorkers: !Ref LargeJobNumberOfWorkers
       {% else -%}
