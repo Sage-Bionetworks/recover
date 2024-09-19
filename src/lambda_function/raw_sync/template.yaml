@@ -29,6 +29,10 @@ Parameters:
     Type: String
     Description: S3 key prefix where files are written.
 
+  SNSTopicArn:
+    Type: String
+    Description: The ARN of the dispatch SNS topic.
+
   LambdaPythonVersion:
     Type: String
     Description: Python version to use for this lambda function
@@ -51,6 +55,7 @@ Resources:
           INPUT_S3_KEY_PREFIX: !Ref S3InputKeyPrefix
           RAW_S3_BUCKET: !Ref S3RawBucket
           RAW_S3_KEY_PREFIX: !Ref S3RawKeyPrefix
+          SNS_TOPIC_ARN: !Ref SNSTopicArn
 
 Outputs:
   RawSyncFunctionArn:

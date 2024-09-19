@@ -1,4 +1,5 @@
 import io
+import json
 import struct
 import zipfile
 from collections import defaultdict
@@ -6,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import boto3
 import pytest
-from moto import mock_s3
+from moto import mock_s3, mock_sns, mock_sqs
 
 import src.lambda_function.raw_sync.app as app  # Replace with the actual module name
 
@@ -285,7 +286,7 @@ def test_list_files_in_archive_missing_eocd_recursion(
     ), "Function was not called recursively."
 
 
-def test_list_files_in_archive_no_eocd_returns_none(
+def test_list_files_in_archive_no_eocd_returns_empty_list(
     s3_client, setup_list_files_in_archive_s3
 ):
     """Test if the function returns an empty list when EOCD is not found at all."""
@@ -336,8 +337,43 @@ def test_list_files_in_archive_returns_filenames(
 
     assert isinstance(result, list), "Expected result to be a list."
     assert len(result) > 0, "Expected list to contain filenames."
-    assert "file1.txt" in result, "Expected 'file1.txt' to be in the result."
-    assert "file2.txt" in result, "Expected 'file2.txt' to be in the result."
+    assert "filename" in result[0]
+    assert "file_size" in result[0]
+    filenames = [file_object["filename"] for file_object in result]
+    assert "file1.txt" in filenames, "Expected 'file1.txt' to be in the result."
+    assert "file2.txt" in filenames, "Expected 'file2.txt' to be in the result."
+
+
+def test_append_s3_key_raw():
+    """Test append_s3_key with 'raw' format."""
+    key = "namespace/json/dataset=example_data/cohort=example_cohort/file1.json"
+    key_format = "raw"
+    result = defaultdict(lambda: defaultdict(list))
+
+    # Set up the result dictionary with nested structure
+    app.append_s3_key(key, key_format, result)
+
+    # Expected result structure after processing the key
+    expected_result = {"example_data": {"example_cohort": [key]}}
+
+    # Assert that the key was correctly added to the result dictionary
+    assert result == expected_result
+
+
+def test_append_s3_key_input():
+    """Test append_s3_key with 'input' format."""
+    key = "namespace/example_cohort/file1.json"
+    key_format = "input"
+    result = defaultdict(list)
+
+    # Set up the result dictionary with the flat structure
+    app.append_s3_key(key, key_format, result)
+
+    # Expected result structure after processing the key
+    expected_result = {"example_cohort": [key]}
+
+    # Assert that the key was correctly added to the result dictionary
+    assert result == expected_result
 
 
 def test_list_s3_objects_raw_format(s3_client, setup_s3):
@@ -398,14 +434,22 @@ def test_match_corresponding_raw_object(mocked_raw_keys):
         "namespace/json/dataset=data_type_one/cohort=cohort_one/object_one.ndjson.gz"
     )
     result = app.match_corresponding_raw_object(
-        namespace, data_type, cohort, file_identifier, mocked_raw_keys
+        data_type=data_type,
+        cohort=cohort,
+        expected_key=expected_key,
+        raw_keys=mocked_raw_keys,
     )
     assert result == expected_key
 
     # Test for a non-matching scenario
-    file_identifier = "nonexistent_file"
+    unexpected_key = (
+        "namespace/json/dataset=data_type_one/cohort=cohort_one/nonexistent_file"
+    )
     result = app.match_corresponding_raw_object(
-        namespace, data_type, cohort, file_identifier, mocked_raw_keys
+        data_type=data_type,
+        cohort=cohort,
+        expected_key=unexpected_key,
+        raw_keys=mocked_raw_keys,
     )
     assert result == None, "Expected None for a non-matching file identifier."
 
@@ -417,13 +461,73 @@ def test_match_corresponding_raw_object(mocked_raw_keys):
         "namespace/json/dataset=data_type_two/cohort=cohort_one/object_four.ndjson.gz"
     )
     result = app.match_corresponding_raw_object(
-        namespace, data_type, cohort, file_identifier, mocked_raw_keys
+        data_type=data_type,
+        cohort=cohort,
+        expected_key=expected_key,
+        raw_keys=mocked_raw_keys,
     )
     assert result == expected_key
 
-    # Test with incorrect cohort
-    cohort = "incorrect_cohort"
-    result = app.match_corresponding_raw_object(
-        namespace, data_type, cohort, file_identifier, mocked_raw_keys
+
+@mock_sns
+@mock_sqs
+def test_publish_to_sns_with_sqs_subscription():
+    """
+    Test publish_to_sns by subscribing an SQS queue to an SNS topic and verifying
+    that the message was delivered to the SQS queue.
+    """
+
+    # Step 1: Set up the mock SNS environment
+    sns_client = boto3.client("sns", region_name="us-east-1")
+    response = sns_client.create_topic(Name="test-topic")
+    sns_arn = response["TopicArn"]
+
+    # Step 2: Set up the mock SQS environment
+    sqs_client = boto3.client("sqs", region_name="us-east-1")
+    sqs_response = sqs_client.create_queue(QueueName="test-queue")
+    sqs_url = sqs_response["QueueUrl"]
+
+    # Get the SQS queue ARN
+    sqs_arn_response = sqs_client.get_queue_attributes(
+        QueueUrl=sqs_url, AttributeNames=["QueueArn"]
     )
-    assert result is None, "Expected None for an incorrect cohort."
+    sqs_arn = sqs_arn_response["Attributes"]["QueueArn"]
+
+    # Step 3: Subscribe the SQS queue to the SNS topic
+    sns_client.subscribe(TopicArn=sns_arn, Protocol="sqs", Endpoint=sqs_arn)
+
+    # Step 4: Input parameters for the function
+    bucket = "test-bucket"
+    key = "export/file1.json"
+    path = "file1.json"
+    file_size = 12345
+
+    # Step 5: Call the function to publish to SNS
+    app.publish_to_sns(bucket, key, path, file_size, sns_arn)
+
+    # Step 6: Poll the SQS queue for the message
+    messages = sqs_client.receive_message(QueueUrl=sqs_url, MaxNumberOfMessages=1)
+
+    # Step 7: Assert the message was published to the SQS queue
+    assert "Messages" in messages, "No messages were found in the SQS queue."
+
+    # Step 8: Verify the message content
+    message_body = json.loads(messages["Messages"][0]["Body"])
+    sns_message = json.loads(message_body["Message"])
+
+    # Expected message payload
+    expected_message = {
+        "Bucket": bucket,
+        "Key": key,
+        "Path": path,
+        "FileSize": file_size,
+    }
+
+    assert (
+        sns_message == expected_message
+    ), f"Expected {expected_message}, got {sns_message}"
+
+    # Step 9: Cleanup (delete the message from the queue to avoid polluting future tests)
+    sqs_client.delete_message(
+        QueueUrl=sqs_url, ReceiptHandle=messages["Messages"][0]["ReceiptHandle"]
+    )

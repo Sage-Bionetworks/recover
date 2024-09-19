@@ -13,6 +13,7 @@ If a JSON file from an export is found to not have a corresponding object in the
 the export is submitted to the raw Lambda (via the dispatch SNS topic) for processing.
 """
 
+import json
 import logging
 import os
 import struct
@@ -41,6 +42,7 @@ def lambda_handler(event: dict, context: dict) -> None:
     input_key_prefix = os.environ.get("INPUT_S3_KEY_PREFIX")
     raw_bucket = os.environ.get("RAW_S3_BUCKET")
     raw_key_prefix = os.environ.get("RAW_S3_KEY_PREFIX")
+    dispatch_sns_arn = os.environ.get("SNS_TOPIC_ARN")
     main(
         event=event,
         s3_client=s3_client,
@@ -48,7 +50,47 @@ def lambda_handler(event: dict, context: dict) -> None:
         input_key_prefix=input_key_prefix,
         raw_bucket=raw_bucket,
         raw_key_prefix=raw_key_prefix,
+        dispatch_sns_arn=dispatch_sns_arn,
     )
+
+
+def append_s3_key(key: str, key_format: str, result: dict) -> None:
+    """
+    Organizes an S3 object key by appending it to the appropriate entry in the result dictionary
+
+    This is a helper function for `list_s3_objects`.
+
+    Args:
+        key (str): The S3 object key to process.
+        key_format (str): The format of the key, either "raw" or "input".
+        result (dict): The dictionary where keys are appended. For the "raw" format, it is a
+                       nested dictionary structured as result[data_type][cohort]. For "input",
+                       it is structured as result[cohort].
+
+    Returns:
+        None
+    """
+    if not key.endswith("/"):  # Ignore keys that represent "folders"
+        key_components = key.split("/")
+        if key_format == "raw":
+            try:
+                data_type = next(
+                    part.split("=")[1]
+                    for part in key_components
+                    if part.startswith("dataset=")
+                )
+                cohort = next(
+                    part.split("=")[1]
+                    for part in key_components
+                    if part.startswith("cohort=")
+                )
+                result[data_type][cohort].append(key)
+            except StopIteration:
+                # Skip keys that don't match the expected pattern
+                return
+        elif key_format == "input" and len(key_components) == 3:
+            cohort = key_components[1]
+            result[cohort].append(key)
 
 
 def list_s3_objects(
@@ -115,43 +157,25 @@ def list_s3_objects(
         result = defaultdict(lambda: defaultdict(list))
     elif key_format == "input":
         result = defaultdict(list)
-
     for response in response_iterator:
         for obj in response.get("Contents", []):
             key = obj["Key"]
-            key_components = key.split("/")
-            if key_format == "raw":
-                try:
-                    data_type = next(
-                        part.split("=")[1]
-                        for part in key_components
-                        if part.startswith("dataset=")
-                    )
-                    cohort = next(
-                        part.split("=")[1]
-                        for part in key_components
-                        if part.startswith("cohort=")
-                    )
-                    result[data_type][cohort].append(key)
-                except StopIteration:
-                    # Skip keys that don't match the expected pattern
-                    continue
-            elif key_format == "input" and len(key_components) == 3:
-                cohort = key_components[1]
-                result[cohort].append(key)
-
+            append_s3_key(
+                key=key,
+                key_format=key_format,
+                result=result,
+            )
     return result
 
 
 def match_corresponding_raw_object(
-    namespace: str,
     data_type: str,
     cohort: str,
-    file_identifier: str,
+    expected_key: str,
     raw_keys: list[dict],
 ) -> Optional[str]:
     """
-    Find a matching S3 key for a given export file.
+    Find a matching raw object for a given export file and filename.
 
     Given a `namespace`, `cohort`, `data_type`, and `filename`, the matching
     S3 key conforms to:
@@ -164,11 +188,12 @@ def match_corresponding_raw_object(
         cohort (str): The cohort name
         file_identifier (str): The identifier of the original JSON file. The identifier is
             the basename without any extensions.
+        expected_key (str): The key of the corresponding raw object.
         raw_keys (dict): A dictionary formatted as the dictionary returned by `list_s3_objects`.
 
     Returns (str): The matching S3 key from `raw_keys`, or None if no match is found.
     """
-    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/{file_identifier}.ndjson.gz"
+    logger.debug(f"Expecting to find matching object at {expected_key}")
 
     # Navigate through raw_keys to locate the correct `data_type` and `cohort`
     if data_type in raw_keys:
@@ -176,6 +201,7 @@ def match_corresponding_raw_object(
             # Iterate through the list of keys under the specified `data_type`` and `cohort`
             for key in raw_keys[data_type][cohort]:
                 if key == expected_key:
+                    logger.debug(f"Found matching object {expected_key}")
                     return key
     return None
 
@@ -235,11 +261,11 @@ def unpack_eocd_fields(body: bytes, eocd_offset: int) -> list[int]:
             Both are int type.
     """
     eocd_fields = struct.unpack("<4s4H2LH", body[eocd_offset : eocd_offset + 22])
-    logger.info(f"EOCD Record: {eocd_fields}")
+    logger.debug(f"EOCD Record: {eocd_fields}")
     central_directory_offset = eocd_fields[-2]
     central_directory_size = eocd_fields[-3]
-    logger.info(f"Central Directory Offset: {central_directory_offset}")
-    logger.info(f"Central Directory Size: {central_directory_size}")
+    logger.debug(f"Central Directory Offset: {central_directory_offset}")
+    logger.debug(f"Central Directory Size: {central_directory_size}")
     return central_directory_offset, central_directory_size
 
 
@@ -308,13 +334,17 @@ def list_files_in_archive(
                           Defaults to 64 KB.
 
     Returns:
-        list[str]: A list of file names contained within the ZIP archive, filtered to exclude:
+        list[dict]: A list of dict with information about the files contained within the ZIP archive.
+            The dict has keys `filename` and `file_size`, which contain the respective values from
+            the ZipInfo object.
+
+            Files are filtered to exclude:
 
             - Directories (i.e., paths containing "/").
             - Files named "Manifest".
             - Empty files (file size == 0).
 
-            If no files match the criteria or the EOCD record is not found, it returns an empty list.
+            If no files match the criteria or the EOCD record is not found, an empty list is returned.
 
     Notes:
         - The function may trigger multiple recursive calls if the EOCD record is large or non-existent,
@@ -387,8 +417,43 @@ def list_files_in_archive(
                 and "Manifest" not in zip_info.filename
                 and zip_info.file_size > 0
             ):
-                file_list.append(zip_info.filename)
+                file_object = {
+                    "filename": zip_info.filename,
+                    "file_size": zip_info.file_size,
+                }
+                file_list.append(file_object)
     return file_list
+
+
+def publish_to_sns(
+    bucket: str, key: str, path: str, file_size: int, sns_arn: str
+) -> None:
+    """
+    Publishes file information to an SNS topic.
+
+    We use this function to publish a message to the dispatch SNS topic, allowing
+    the raw Lambda to process this file and write it as an object to the
+    raw S3 bucket.
+
+    Args:
+        bucket (str): The input S3 bucket.
+        key (str): The S3 key of the export.
+        path (str): The file path within the export.
+        file_size (int): The size of the file in bytes.
+        sns_arn (str): The ARN of the dispatch SNS topic.
+
+    Returns:
+        None
+    """
+    sns_client = boto3.client("sns")
+    file_info = {
+        "Bucket": bucket,
+        "Key": key,
+        "Path": path,
+        "FileSize": file_size,
+    }
+    logger.info(f"Publishing {file_info} to {sns_arn}")
+    sns_client.publish(TopicArn=sns_arn, Message=json.dumps(file_info))
 
 
 def main(
@@ -398,6 +463,7 @@ def main(
     input_key_prefix: str,
     raw_bucket: str,
     raw_key_prefix: str,
+    dispatch_sns_arn: str,
 ) -> None:
     export_keys = list_s3_objects(
         s3_client=s3_client,
@@ -411,7 +477,7 @@ def main(
         key_prefix=raw_key_prefix,
         key_format="raw",
     )
-    for export_key in export_keys:
+    for export_key in sum(export_keys.values(), []):
         # input bucket keys are formatted like `{namespace}/{cohort}/{export_basename}`
         namespace, cohort = export_key.split("/")[:2]
         file_list = list_files_in_archive(
@@ -419,18 +485,34 @@ def main(
             bucket=input_bucket,
             key=export_key,
         )
-        for filename in file_list:
+        for file_object in file_list:
+            filename = file_object["filename"]
+            logger.info(
+                f"Checking corresponding raw object for {filename} "
+                f"from s3://{input_bucket}/{export_key}"
+            )
             data_type = filename.split("_")[0]
+            file_identifier = filename.split(".")[0]
+            expected_key = (
+                f"{namespace}/json/dataset={data_type}"
+                f"/cohort={cohort}/{file_identifier}.ndjson.gz"
+            )
             corresponding_raw_object = match_corresponding_raw_object(
-                namespace=namespace,
-                cohort=cohort,
                 data_type=data_type,
-                file_identifier=filename,
+                cohort=cohort,
+                expected_key=expected_key,
                 raw_keys=raw_keys,
             )
             if corresponding_raw_object is None:
                 logger.info(
-                    f"Did not find corresponding file for {filename} from "
-                    f"s3://{raw_bucket}/{export_key} in raw bucket "
-                    f"s3://{raw_bucket}/{namespace}/"
+                    f"Did not find corresponding raw object for {filename} from "
+                    f"s3://{input_bucket}/{export_key} at "
+                    f"s3://{raw_bucket}/{expected_key}"
+                )
+                publish_to_sns(
+                    bucket=input_bucket,
+                    key=export_key,
+                    path=filename,
+                    file_size=file_object["file_size"],
+                    sns_arn=dispatch_sns_arn,
                 )

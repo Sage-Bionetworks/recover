@@ -4,9 +4,9 @@ template:
   artifact_bucket_name: {{ stack_group_config.template_bucket_name }}
   artifact_prefix: "{{ stack_group_config.namespace }}/src/lambda"
 dependencies:
-  - develop/namespaced/lambda-raw-sync-role.yaml
-  - develop/namespaced/sns-dispatch.yaml
-  - develop/s3-cloudformation-bucket.yaml
+  - prod/namespaced/lambda-raw-sync-role.yaml
+  - prod/namespaced/sns-dispatch.yaml
+  - prod/s3-cloudformation-bucket.yaml
 stack_name: "{{ stack_group_config.namespace }}-lambda-raw-sync"
 parameters:
   RoleArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-raw-sync-role::RoleArn"

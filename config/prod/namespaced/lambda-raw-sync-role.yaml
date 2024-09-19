@@ -2,7 +2,7 @@ template:
   path: lambda-raw-sync-role.yaml
 stack_name: "{{ stack_group_config.namespace }}-lambda-raw-sync-role"
 dependencies:
-  - develop/namespaced/sns-dispatch.yaml
+  - prod/namespaced/sns-dispatch.yaml
 parameters:
   S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
   S3TargetBucketName: {{ stack_group_config.raw_bucket_name }}
