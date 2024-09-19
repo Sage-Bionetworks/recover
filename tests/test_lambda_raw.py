@@ -22,6 +22,18 @@ def test_construct_raw_key():
     assert result == expected_raw_key
 
 
+def test_construct_raw_key_HealthKitV2_Deleted():
+    path = "HealthKitV2Heartbeat_Deleted_20230701-20230702.json"
+    key = "some_namespace/some_cohort/export.zip"
+    raw_key_prefix = "main/json"
+    expected_raw_key = (
+        "main/json/dataset=HealthKitV2Heartbeat_Deleted/cohort=some_cohort/"
+        "HealthKitV2Heartbeat_Deleted_20230701-20230702.ndjson.gz"
+    )
+    result = app.construct_raw_key(path=path, key=key, raw_key_prefix=raw_key_prefix)
+    assert result == expected_raw_key
+
+
 @pytest.fixture
 def s3_setup():
     # Fixture to set up a mock S3 client and a test bucket.

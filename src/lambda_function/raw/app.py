@@ -69,10 +69,14 @@ def construct_raw_key(path: str, key: str, raw_key_prefix: str):
     key_components = key.split("/")
     # input bucket keys are formatted like `{namespace}/{cohort}/{export_basename}`
     cohort = key_components[1]
+    # This matches the logic used in S3 to JSON
     file_basename = os.path.basename(path)
-    # The first underscore-delimited component of the JSON basename is the datatype
-    data_type = file_basename.split("_")[0]
-    raw_basename = f"{ os.path.splitext(file_basename)[0] }.ndjson.gz"
+    file_identifier = os.path.splitext(file_basename)[0]
+    basename_components = file_identifier.split("_")
+    data_type = basename_components[0]
+    if "HealthKitV2" in data_type and basename_components[-2] == "Deleted":
+        data_type = "{}_Deleted".format(data_type)
+    raw_basename = f"{file_identifier}.ndjson.gz"
     raw_key = os.path.join(
         raw_key_prefix,
         f"dataset={data_type}",
