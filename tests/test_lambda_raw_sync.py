@@ -140,7 +140,7 @@ def setup_list_files_in_archive_s3(
     # Object without EOCD signature at all
     s3_client.put_object(
         Bucket=list_files_in_archive_bucket_name,
-        Key="no_eocd.zip",
+        Key="no_eocd.notazip",
         Body=b"Random data with no EOCD signature",
     )
     # Object with central directory not fully contained
@@ -160,6 +160,18 @@ def setup_list_files_in_archive_s3(
         Key="valid.zip",
         Body=zip_file_data.read(),
     )
+    # Object with an empty ZIP archive
+    empty_zip_data = io.BytesIO()
+    with zipfile.ZipFile(empty_zip_data, "w") as empty_zip:
+        pass  # Create an empty ZIP archive (no files)
+    empty_zip_data.seek(0)
+    s3_client.put_object(
+        Bucket=list_files_in_archive_bucket_name,
+        Key="empty.zip",
+        Body=empty_zip_data.read(),
+    )
+
+    return list_files_in_archive_bucket_name
 
 
 @pytest.fixture
@@ -287,13 +299,15 @@ def test_list_files_in_archive_missing_eocd_recursion(
 
 
 def test_list_files_in_archive_no_eocd_returns_empty_list(
-    s3_client, setup_list_files_in_archive_s3
+    s3_client, setup_list_files_in_archive_s3, caplog
 ):
     """Test if the function returns an empty list when EOCD is not found at all."""
     bucket_name = "list-files-in-archive-bucket"
-    key = "no_eocd.zip"
-    result = app.list_files_in_archive(s3_client, bucket_name, key, range_size=16)
+    key = "no_eocd.notazip"
+    with caplog.at_level("ERROR"):
+        result = app.list_files_in_archive(s3_client, bucket_name, key, range_size=16)
     assert result == []
+    assert len(caplog.text)
 
 
 @patch("src.lambda_function.raw_sync.app.list_files_in_archive")
@@ -344,6 +358,23 @@ def test_list_files_in_archive_returns_filenames(
     assert "file2.txt" in filenames, "Expected 'file2.txt' to be in the result."
 
 
+def test_list_files_in_archive_empty_zip(
+    s3_client, setup_list_files_in_archive_s3, caplog
+):
+    """
+    Test that an empty ZIP archive returns an empty file list.
+    """
+    # Retrieve the bucket name from the fixture
+    bucket_name = setup_list_files_in_archive_s3
+    key = "empty.zip"
+
+    with caplog.at_level("WARNING"):
+        result = app.list_files_in_archive(s3_client, bucket=bucket_name, key=key)
+
+    assert result == []
+    assert len(caplog.text)
+
+
 def test_append_s3_key_raw():
     """Test append_s3_key with 'raw' format."""
     key = "namespace/json/dataset=example_data/cohort=example_cohort/file1.json"
@@ -354,7 +385,7 @@ def test_append_s3_key_raw():
     app.append_s3_key(key, key_format, result)
 
     # Expected result structure after processing the key
-    expected_result = {"example_data": {"example_cohort": [key]}}
+    result = expected_result = {"example_data": {"example_cohort": [key]}}
 
     # Assert that the key was correctly added to the result dictionary
     assert result == expected_result
@@ -370,10 +401,33 @@ def test_append_s3_key_input():
     app.append_s3_key(key, key_format, result)
 
     # Expected result structure after processing the key
-    expected_result = {"example_cohort": [key]}
+    result = expected_result = {"example_cohort": [key]}
 
     # Assert that the key was correctly added to the result dictionary
     assert result == expected_result
+
+
+def test_append_s3_key_stop_iteration():
+    """Test that result is unmodified when StopIteration is encountered."""
+    key = "namespace/json/invalid_key_structure"
+    key_format = "raw"
+
+    # Initial result dictionary (should remain unchanged)
+    result = {
+        "data_type_one": {
+            "cohort_one": [
+                "namespace/json/dataset=data_type_one/cohort=cohort_one/file1.json"
+            ]
+        }
+    }
+    # Copy the result to check for modifications later
+    original_result = result.copy()
+
+    result = app.append_s3_key(key, key_format, result)
+
+    assert (
+        result == original_result
+    ), "Expected result to remain unmodified on StopIteration."
 
 
 def test_list_s3_objects_raw_format(s3_client, setup_s3):
@@ -420,19 +474,16 @@ def test_list_s3_objects_input_format(s3_client, setup_s3):
     assert result == expected_output, f"Expected {expected_output}, but got {result}"
 
 
-def test_match_corresponding_raw_object(mocked_raw_keys):
-    """Test the match_corresponding_raw_object function."""
-
-    # Test parameters for a match
+def test_match_corresponding_raw_object_found(mocked_raw_keys):
+    """Test when a matching key is found."""
     namespace = "namespace"
     data_type = "data_type_one"
     cohort = "cohort_one"
     file_identifier = "object_one"
 
     # Expected matching key
-    expected_key = (
-        "namespace/json/dataset=data_type_one/cohort=cohort_one/object_one.ndjson.gz"
-    )
+    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/{file_identifier}.ndjson.gz"
+
     result = app.match_corresponding_raw_object(
         data_type=data_type,
         cohort=cohort,
@@ -441,32 +492,62 @@ def test_match_corresponding_raw_object(mocked_raw_keys):
     )
     assert result == expected_key
 
-    # Test for a non-matching scenario
-    unexpected_key = (
-        "namespace/json/dataset=data_type_one/cohort=cohort_one/nonexistent_file"
-    )
-    result = app.match_corresponding_raw_object(
-        data_type=data_type,
-        cohort=cohort,
-        expected_key=unexpected_key,
-        raw_keys=mocked_raw_keys,
-    )
-    assert result == None, "Expected None for a non-matching file identifier."
 
-    # Test with different data_type and cohort
-    data_type = "data_type_two"
+def test_match_corresponding_raw_object_non_matching_data_type(mocked_raw_keys):
+    """Test when there is no match due to a non-matching data type."""
+    namespace = "namespace"
+    data_type = "fake_data_type"
     cohort = "cohort_one"
-    file_identifier = "object_four"
-    expected_key = (
-        "namespace/json/dataset=data_type_two/cohort=cohort_one/object_four.ndjson.gz"
-    )
+    file_identifier = "object_one"
+
+    # Expected matching key
+    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/{file_identifier}.ndjson.gz"
+
     result = app.match_corresponding_raw_object(
         data_type=data_type,
         cohort=cohort,
         expected_key=expected_key,
         raw_keys=mocked_raw_keys,
     )
-    assert result == expected_key
+    assert result is None
+
+
+def test_match_corresponding_raw_object_non_matching_cohort(mocked_raw_keys):
+    """Test when there is no match due to a non-matching cohort."""
+    namespace = "namespace"
+    data_type = "data_type_one"
+    cohort = "fake_cohort"
+    file_identifier = "object_four"
+
+    # Expected matching key
+    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/{file_identifier}.ndjson.gz"
+
+    result = app.match_corresponding_raw_object(
+        data_type=data_type,
+        cohort=cohort,
+        expected_key=expected_key,
+        raw_keys=mocked_raw_keys,
+    )
+    assert result is None
+
+
+def test_match_corresponding_raw_object_non_matching_file_identifier(mocked_raw_keys):
+    """Test when there is no match due to a non-matching file identifier."""
+    namespace = "namespace"
+    data_type = "data_type_one"
+    cohort = "cohort_one"
+    file_identifier = "nonexistent_file"
+
+    # Expected matching key
+    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/{file_identifier}.ndjson.gz"
+
+    result = app.match_corresponding_raw_object(
+        data_type=data_type,
+        cohort=cohort,
+        expected_key=expected_key,
+        raw_keys=mocked_raw_keys,
+    )
+    assert result is None
 
 
 @mock_sns

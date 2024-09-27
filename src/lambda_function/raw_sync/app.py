@@ -70,6 +70,7 @@ def append_s3_key(key: str, key_format: str, result: dict) -> None:
     Returns:
         None
     """
+    result = result.copy()  # shallow copy safe for append
     if not key.endswith("/"):  # Ignore keys that represent "folders"
         key_components = key.split("/")
         if key_format == "raw":
@@ -87,10 +88,11 @@ def append_s3_key(key: str, key_format: str, result: dict) -> None:
                 result[data_type][cohort].append(key)
             except StopIteration:
                 # Skip keys that don't match the expected pattern
-                return
+                return result
         elif key_format == "input" and len(key_components) == 3:
             cohort = key_components[1]
             result[cohort].append(key)
+    return result
 
 
 def list_s3_objects(
@@ -160,7 +162,7 @@ def list_s3_objects(
     for response in response_iterator:
         for obj in response.get("Contents", []):
             key = obj["Key"]
-            append_s3_key(
+            result = append_s3_key(
                 key=key,
                 key_format=key_format,
                 result=result,
@@ -422,6 +424,12 @@ def list_files_in_archive(
                     "file_size": zip_info.file_size,
                 }
                 file_list.append(file_object)
+    if len(file_list) == 0:
+        logger.warning(
+            f"Did not find any files in s3://{bucket}/{key} which "
+            "satisfy the conditions needed to be processed by the "
+            "raw Lambda."
+        )
     return file_list
 
 
