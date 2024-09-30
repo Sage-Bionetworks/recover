@@ -1,0 +1,11 @@
+template:
+  path: lambda-raw-sync-role.yaml
+stack_name: "{{ stack_group_config.namespace }}-lambda-raw-sync-role"
+dependencies:
+  - prod/namespaced/sns-dispatch.yaml
+parameters:
+  S3SourceBucketName: {{ stack_group_config.input_bucket_name }}
+  S3TargetBucketName: {{ stack_group_config.raw_bucket_name }}
+  SNSTopicArn: !stack_output_external "{{ stack_group_config.namespace }}-sns-dispatch::SnsTopicArn"
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}

@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cloudwatch Events rule to trigger a Lambda on a cron schedule.
+
+Parameters:
+
+  RuleName:
+    Type: String
+    Description: Name of this rule.
+
+  RuleState:
+    Type: String
+    Description: >
+      Whether to enable this rule upon deployment. Suggested values
+      are "DISABLED" or "ENABLED".
+
+  LambdaArn:
+    Type: String
+    Description: ARN of the Lambda to trigger.
+
+  CronSchedule:
+    Type: String
+    Description: When to trigger the Lambda
+    Default: "cron(0 0 * * ? *)"  # At midnight UTC every day
+
+Resources:
+  MyCloudWatchRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Ref RuleName
+      State: !Ref RuleState
+      ScheduleExpression: !Ref CronSchedule
+      Targets:
+        - Arn: !Ref LambdaArn
+          Id: LambdaTarget
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaArn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MyCloudWatchRule.Arn
+
+Outputs:
+  RuleArn:
+    Description: "ARN of the Cloudwatch events rule"
+    Value: !GetAtt MyCloudWatchRule.Arn

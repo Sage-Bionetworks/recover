@@ -1,0 +1,12 @@
+template:
+  path: events-rule.yaml
+stack_name: "{{ stack_group_config.namespace }}-events-rule-raw-sync"
+dependencies:
+  - develop/namespaced/lambda-raw-sync.yaml
+parameters:
+  RuleName: "{{ stack_group_config.namespace }}-lambda-raw-sync-trigger"
+  RuleState: DISABLED
+  LambdaArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-raw-sync::RawSyncFunctionArn"
+  CronSchedule: cron(0 0 * * ? *)
+stack_tags:
+  {{ stack_group_config.default_stack_tags }}

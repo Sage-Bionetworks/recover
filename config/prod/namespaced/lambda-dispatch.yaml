@@ -6,6 +6,7 @@ template:
 dependencies:
   - prod/namespaced/lambda-dispatch-role.yaml
   - prod/namespaced/sqs-input-to-dispatch.yaml
+  - prod/namespaced/sns-dispatch.yaml
   - prod/s3-cloudformation-bucket.yaml
 stack_name: "{{ stack_group_config.namespace }}-lambda-dispatch"
 parameters:

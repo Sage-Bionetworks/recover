@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  An IAM Role for the raw sync Lambda
+
+Parameters:
+  S3SourceBucketName:
+    Type: String
+    Description: Name of the S3 bucket where exports are deposited.
+
+  S3TargetBucketName:
+    Type: String
+    Description: Name of the S3 bucket where raw JSON is written to.
+
+  SNSTopicArn:
+    Type: String
+    Description: >
+      ARN of the SNS topic where files found not to have a corresponding
+      object in the target bucket will be published to for processing.
+
+Resources:
+  RawRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+        - PolicyName: ReadS3
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - s3:Get*
+              - s3:List*
+              Resource:
+              - !Sub arn:aws:s3:::${S3SourceBucketName}
+              - !Sub arn:aws:s3:::${S3SourceBucketName}/*
+              - !Sub arn:aws:s3:::${S3TargetBucketName}
+              - !Sub arn:aws:s3:::${S3TargetBucketName}/*
+        - PolicyName: PublishToSNS
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref SNSTopicArn
+
+Outputs:
+  RoleName:
+    Value: !Ref RawRole
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleName'
+
+  RoleArn:
+    Value: !GetAtt RawRole.Arn
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-RoleArn'
