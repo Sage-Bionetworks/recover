@@ -633,3 +633,33 @@ def test_get_data_type_from_path_deleted():
     path = "path/to/HealthKitV2Samples_AppleStandTime_Deleted_20241111-20241112.json"
     data_type = app.get_data_type_from_path(path=path)
     assert data_type == "HealthKitV2Samples_Deleted"
+
+
+import os
+
+
+def test_get_expected_raw_key_case1():
+    namespace = "test-namespace"
+    data_type = "test-data-type"
+    cohort = "test-cohort"
+    path = "path/to/FitbitIntradayCombined_20241111-20241112.json"
+    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/FitbitIntradayCombined_20241111-20241112.ndjson.gz"
+    assert app.get_expected_raw_key(namespace, data_type, cohort, path) == expected_key
+
+
+def test_get_expected_raw_key_case2():
+    namespace = "test-namespace"
+    data_type = "test-data-type"
+    cohort = "test-cohort"
+    path = "path/to/HealthKitV2Samples_AppleStandTime_20241111-20241112.json"
+    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/HealthKitV2Samples_AppleStandTime_20241111-20241112.ndjson.gz"
+    assert app.get_expected_raw_key(namespace, data_type, cohort, path) == expected_key
+
+
+def test_get_expected_raw_key_case3():
+    namespace = "test-namespace"
+    data_type = "test-data-type"
+    cohort = "test-cohort"
+    path = "path/to/HealthKitV2Samples_AppleStandTime_Deleted_20241111-20241112.json"
+    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/HealthKitV2Samples_AppleStandTime_Deleted_20241111-20241112.ndjson.gz"
+    assert app.get_expected_raw_key(namespace, data_type, cohort, path) == expected_key

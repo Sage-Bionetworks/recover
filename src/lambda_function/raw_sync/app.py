@@ -176,7 +176,7 @@ def match_corresponding_raw_object(
     data_type: str,
     cohort: str,
     expected_key: str,
-    raw_keys: list[dict],
+    raw_keys: defaultdict,
 ) -> Optional[str]:
     """
     Find a matching raw object for a given export file and filename.
@@ -483,6 +483,29 @@ def get_data_type_from_path(path: str) -> str:
     return data_type
 
 
+def get_expected_raw_key(namespace: str, data_type: str, cohort: str, path: str) -> str:
+    """Get the expected raw S3 key
+
+    Get the expected raw S3 key of a raw bucket object corresponding to the given
+    input bucket object.
+
+    Args:
+        namespace (str): The namespace of the corresponding input object.
+        data_type (str): The data type of the corresponding input object.
+        cohort (str): The cohort of the corresponding input object.
+        path (str): The path of the file relative to the zip archive (export).
+
+    Returns:
+        str: The expected S3 key of the corresponding raw object.
+    """
+    file_identifier = os.path.basename(path).split(".")[0]
+    expected_key = (
+        f"{namespace}/json/dataset={data_type}"
+        f"/cohort={cohort}/{file_identifier}.ndjson.gz"
+    )
+    return expected_key
+
+
 def main(
     event: dict,
     s3_client: boto3.client,
@@ -519,22 +542,23 @@ def main(
                 f"from s3://{input_bucket}/{export_key}"
             )
             data_type = get_data_type_from_path(path=filename)
-            file_identifier = filename.split(".")[0]
-            expected_key = (
-                f"{namespace}/json/dataset={data_type}"
-                f"/cohort={cohort}/{file_identifier}.ndjson.gz"
+            expected_raw_key = get_expected_raw_key(
+                namespace=namespace,
+                data_type=data_type,
+                cohort=cohort,
+                path=filename,
             )
             corresponding_raw_object = match_corresponding_raw_object(
                 data_type=data_type,
                 cohort=cohort,
-                expected_key=expected_key,
+                expected_key=expected_raw_key,
                 raw_keys=raw_keys,
             )
             if corresponding_raw_object is None:
                 logger.info(
                     f"Did not find corresponding raw object for {filename} from "
                     f"s3://{input_bucket}/{export_key} at "
-                    f"s3://{raw_bucket}/{expected_key}"
+                    f"s3://{raw_bucket}/{expected_raw_key}"
                 )
                 publish_to_sns(
                     bucket=input_bucket,
