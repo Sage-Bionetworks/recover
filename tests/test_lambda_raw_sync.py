@@ -612,3 +612,24 @@ def test_publish_to_sns_with_sqs_subscription():
     sqs_client.delete_message(
         QueueUrl=sqs_url, ReceiptHandle=messages["Messages"][0]["ReceiptHandle"]
     )
+
+
+def test_get_data_type_from_path_simple():
+    """Test a path with no subtype or 'Deleted' component"""
+    path = "path/to/FitbitIntradayCombined_20241111-20241112.json"
+    data_type = app.get_data_type_from_path(path=path)
+    assert data_type == "FitbitIntradayCombined"
+
+
+def test_get_data_type_from_path_subtype():
+    """Test a path with a subtype"""
+    path = "path/to/HealthKitV2Samples_AppleStandTime_20241111-20241112.json"
+    data_type = app.get_data_type_from_path(path=path)
+    assert data_type == "HealthKitV2Samples"
+
+
+def test_get_data_type_from_path_deleted():
+    """Test a path with a subtype and a 'Deleted' component"""
+    path = "path/to/HealthKitV2Samples_AppleStandTime_Deleted_20241111-20241112.json"
+    data_type = app.get_data_type_from_path(path=path)
+    assert data_type == "HealthKitV2Samples_Deleted"
