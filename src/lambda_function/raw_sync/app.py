@@ -483,14 +483,16 @@ def get_data_type_from_path(path: str) -> str:
     return data_type
 
 
-def get_expected_raw_key(namespace: str, data_type: str, cohort: str, path: str) -> str:
+def get_expected_raw_key(
+    raw_key_prefix: str, data_type: str, cohort: str, path: str
+) -> str:
     """Get the expected raw S3 key
 
     Get the expected raw S3 key of a raw bucket object corresponding to the given
     input bucket object.
 
     Args:
-        namespace (str): The namespace of the corresponding input object.
+        raw_key_prefix (str): The namespaced S3 prefix where raw objects are written.
         data_type (str): The data type of the corresponding input object.
         cohort (str): The cohort of the corresponding input object.
         path (str): The path of the file relative to the zip archive (export).
@@ -500,7 +502,7 @@ def get_expected_raw_key(namespace: str, data_type: str, cohort: str, path: str)
     """
     file_identifier = os.path.basename(path).split(".")[0]
     expected_key = (
-        f"{namespace}/json/dataset={data_type}"
+        f"{raw_key_prefix}/dataset={data_type}"
         f"/cohort={cohort}/{file_identifier}.ndjson.gz"
     )
     return expected_key
@@ -543,7 +545,7 @@ def main(
             )
             data_type = get_data_type_from_path(path=filename)
             expected_raw_key = get_expected_raw_key(
-                namespace=namespace,
+                raw_key_prefix=raw_key_prefix,
                 data_type=data_type,
                 cohort=cohort,
                 path=filename,

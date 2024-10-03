@@ -639,27 +639,36 @@ import os
 
 
 def test_get_expected_raw_key_case1():
-    namespace = "test-namespace"
+    raw_key_prefix = "test-raw_key_prefix/json"
     data_type = "test-data-type"
     cohort = "test-cohort"
     path = "path/to/FitbitIntradayCombined_20241111-20241112.json"
-    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/FitbitIntradayCombined_20241111-20241112.ndjson.gz"
-    assert app.get_expected_raw_key(namespace, data_type, cohort, path) == expected_key
+    expected_key = f"{raw_key_prefix}/dataset={data_type}/cohort={cohort}/FitbitIntradayCombined_20241111-20241112.ndjson.gz"
+    assert (
+        app.get_expected_raw_key(raw_key_prefix, data_type, cohort, path)
+        == expected_key
+    )
 
 
 def test_get_expected_raw_key_case2():
-    namespace = "test-namespace"
+    raw_key_prefix = "test-raw_key_prefix/json"
     data_type = "test-data-type"
     cohort = "test-cohort"
     path = "path/to/HealthKitV2Samples_AppleStandTime_20241111-20241112.json"
-    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/HealthKitV2Samples_AppleStandTime_20241111-20241112.ndjson.gz"
-    assert app.get_expected_raw_key(namespace, data_type, cohort, path) == expected_key
+    expected_key = f"{raw_key_prefix}/dataset={data_type}/cohort={cohort}/HealthKitV2Samples_AppleStandTime_20241111-20241112.ndjson.gz"
+    assert (
+        app.get_expected_raw_key(raw_key_prefix, data_type, cohort, path)
+        == expected_key
+    )
 
 
 def test_get_expected_raw_key_case3():
-    namespace = "test-namespace"
+    raw_key_prefix = "test-raw_key_prefix/json"
     data_type = "test-data-type"
     cohort = "test-cohort"
     path = "path/to/HealthKitV2Samples_AppleStandTime_Deleted_20241111-20241112.json"
-    expected_key = f"{namespace}/json/dataset={data_type}/cohort={cohort}/HealthKitV2Samples_AppleStandTime_Deleted_20241111-20241112.ndjson.gz"
-    assert app.get_expected_raw_key(namespace, data_type, cohort, path) == expected_key
+    expected_key = f"{raw_key_prefix}/dataset={data_type}/cohort={cohort}/HealthKitV2Samples_AppleStandTime_Deleted_20241111-20241112.ndjson.gz"
+    assert (
+        app.get_expected_raw_key(raw_key_prefix, data_type, cohort, path)
+        == expected_key
+    )
