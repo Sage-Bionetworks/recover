@@ -9,9 +9,11 @@ env:
   NAMESPACE: main
   PYTHON_VERSION: 3.9
   DEV_INPUT_BUCKET: recover-dev-input-data
+  DEV_RAW_BUCKET: recover-dev-raw-data
   DEV_INTERMEDIATE_BUCKET: recover-dev-intermediate-data
   DEV_PROCESSED_BUCKET: recover-dev-processed-data
   PROD_INPUT_BUCKET: recover-input-data
+  PROD_RAW_BUCKET: recover-raw-data
   PROD_INTERMEDIATE_BUCKET: recover-intermediate-data
   INTEGRATION_TEST_NUM_EXPORTS: 28
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -349,6 +351,12 @@ jobs:
           --bucket $DEV_INPUT_BUCKET
           --bucket_prefix "${{ env.NAMESPACE }}/"
 
+      - name: Clean raw data bucket
+        run: >
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
+          --bucket $DEV_RAW_BUCKET
+          --bucket_prefix "${{ env.NAMESPACE }}/json/"
+
       - name: Clean intermediate data bucket
         run: >
           pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
@@ -457,6 +465,12 @@ jobs:
           pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
           --bucket $PROD_INPUT_BUCKET
           --bucket_prefix "staging/"
+
+      - name: Clean raw data bucket
+        run: >
+          pipenv run python src/scripts/manage_artifacts/clean_for_integration_test.py
+          --bucket $PROD_RAW_BUCKET
+          --bucket_prefix "staging/json/"
 
       - name: Clean intermediate data bucket
         run: >
