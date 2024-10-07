@@ -375,7 +375,7 @@ def list_files_in_archive(
         if adjusted_range_size > total_size * 2:
             logger.error(
                 "Did not find an end of central directory record in "
-                f"s3://{bucket}/{key}"
+                f"s3://{os.path.join(bucket, key)}"
             )
             return []
         logger.warning(
@@ -428,7 +428,7 @@ def list_files_in_archive(
                 file_list.append(file_object)
     if len(file_list) == 0:
         logger.warning(
-            f"Did not find any files in s3://{bucket}/{key} which "
+            f"Did not find any files in s3://{os.path.join(bucket, key)} which "
             "satisfy the conditions needed to be processed by the "
             "raw Lambda."
         )
@@ -501,9 +501,11 @@ def get_expected_raw_key(
         str: The expected S3 key of the corresponding raw object.
     """
     file_identifier = os.path.basename(path).split(".")[0]
-    expected_key = (
-        f"{raw_key_prefix}/dataset={data_type}"
-        f"/cohort={cohort}/{file_identifier}.ndjson.gz"
+    expected_key = os.path.join(
+        raw_key_prefix,
+        f"dataset={data_type}",
+        f"cohort={cohort}",
+        f"{file_identifier}.ndjson.gz",
     )
     return expected_key
 
@@ -541,7 +543,7 @@ def main(
             filename = file_object["filename"]
             logger.info(
                 f"Checking corresponding raw object for {filename} "
-                f"from s3://{input_bucket}/{export_key}"
+                f"from s3://{os.path.join(input_bucket, export_key)}"
             )
             data_type = get_data_type_from_path(path=filename)
             expected_raw_key = get_expected_raw_key(
@@ -559,8 +561,8 @@ def main(
             if corresponding_raw_object is None:
                 logger.info(
                     f"Did not find corresponding raw object for {filename} from "
-                    f"s3://{input_bucket}/{export_key} at "
-                    f"s3://{raw_bucket}/{expected_raw_key}"
+                    f"s3://{os.path.join(input_bucket, export_key)} at "
+                    f"s3://{os.path.join(raw_bucket, expected_raw_key)}"
                 )
                 publish_to_sns(
                     bucket=input_bucket,
