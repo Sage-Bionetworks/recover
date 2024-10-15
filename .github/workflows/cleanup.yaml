@@ -40,7 +40,7 @@ jobs:
           cat $SNOWFLAKE_CONFIG_PATH
 
       - name: Install Snowflake CLI
-        uses: Snowflake-Labs/snowflake-cli-action@v1
+        uses: Snowflake-Labs/snowflake-cli-action@v1.5
         with:
           default-config-file-path: ${{ env.SNOWFLAKE_CONFIG_PATH }}
 
