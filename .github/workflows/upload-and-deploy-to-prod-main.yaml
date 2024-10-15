@@ -16,7 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
       - uses: pre-commit/action@v3.0.0
 
 
@@ -125,7 +127,7 @@ jobs:
           cat $SNOWFLAKE_CONFIG_PATH
 
       - name: Install Snowflake CLI
-        uses: Snowflake-Labs/snowflake-cli-action@v1
+        uses: Snowflake-Labs/snowflake-cli-action@v1.5
         with:
           default-config-file-path: ${{ env.SNOWFLAKE_CONFIG_PATH }}
 
