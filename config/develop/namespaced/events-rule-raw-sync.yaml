@@ -5,7 +5,7 @@ dependencies:
   - develop/namespaced/lambda-raw-sync.yaml
 parameters:
   RuleName: "{{ stack_group_config.namespace }}-lambda-raw-sync-trigger"
-  RuleState: DISABLED
+  RuleState: ENABLED
   LambdaArn: !stack_output_external "{{ stack_group_config.namespace }}-lambda-raw-sync::RawSyncFunctionArn"
   CronSchedule: cron(0 0 * * ? *)
 stack_tags:
