@@ -7,12 +7,15 @@ parameters:
   Namespace: {{ stack_group_config.namespace }}
   JobDescription: Runs great expectations on a set of data
   JobRole: !stack_output_external glue-job-role::RoleArn
-  TempS3Bucket: {{ stack_group_config.processed_data_bucket_name }}
+  ParquetBucket: {{ stack_group_config.processed_data_bucket_name }}
+  ShareableArtifactsBucket: {{ stack_group_config.shareable_artifacts_vpn_bucket_name }}
   S3ScriptBucket: {{ stack_group_config.template_bucket_name }}
   S3ScriptKey: '{{ stack_group_config.namespace }}/src/glue/jobs/run_great_expectations_on_parquet.py'
+  ExpectationSuiteKey: "{{ stack_group_config.namespace }}/src/glue/resources/data_values_expectations.json"
   GlueVersion: "{{ stack_group_config.great_expectations_job_glue_version }}"
   AdditionalPythonModules: "great_expectations~=0.18,urllib3<2"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
 sceptre_user_data:
   dataset_schemas: !file src/glue/resources/table_columns.yaml
+  data_values_expectations: !file src/glue/resources/data_values_expectations.json

@@ -19,9 +19,14 @@ Parameters:
     Type: String
     Description: The name or ARN of the IAM role that will run this job.
 
-  TempS3Bucket:
+  ParquetBucket:
     Type: String
-    Description: The name of the S3 bucket where temporary files and logs are written.
+    Description: The name of the S3 bucket where Parquet data is written. This is
+        also where we will write temporary files and logs.
+
+  ShareableArtifactsBucket:
+    Type: String
+    Description: The name of the bucket where shareable artifacts are stored.
 
   S3ScriptBucket:
     Type: String
@@ -48,6 +53,10 @@ Parameters:
         FitbitIntradayCombined and HealthKitV2Samples.
     Default: 1
 
+  ExpectationSuiteKey:
+    Type: String
+    Description: The s3 key prefix of the expectation suite.
+
   MaxRetries:
     Type: Number
     Description: How many times to retry the job if it fails (integer).
@@ -71,12 +80,11 @@ Resources:
   {% for v in sceptre_user_data.dataset_schemas.tables.keys() if not "Deleted" in v %}
     {% set dataset = {} %}
     {% do dataset.update({"type": v}) %}
-    {% do dataset.update({"table_name": "dataset_" + v.lower()})%}
     {% do dataset.update({"stackname_prefix": "{}".format(v.replace("_",""))}) %}
     {% do datasets.append(dataset) %}
   {% endfor %}
 
-  {% for dataset in datasets %}
+  {% for dataset in datasets if dataset["type"].lower() in sceptre_user_data.data_values_expectations %}
   {{ dataset["stackname_prefix"] }}GreatExpectationsParquetJob:
     Type: AWS::Glue::Job
     Properties:
@@ -84,15 +92,21 @@ Resources:
         Name: glueetl
         ScriptLocation: !Sub s3://${S3ScriptBucket}/${S3ScriptKey}
       DefaultArguments:
-        --TempDir: !Sub s3://${TempS3Bucket}/tmp
+        --TempDir: !Sub s3://${ParquetBucket}/tmp
         --enable-continuous-cloudwatch-log: true
         --enable-metrics: true
         --enable-spark-ui: true
-        --spark-event-logs-path: !Sub s3://${TempS3Bucket}/spark-logs/${AWS::StackName}/
+        --spark-event-logs-path: !Sub s3://${ParquetBucket}/spark-logs/${AWS::StackName}/
         --job-bookmark-option: job-bookmark-disable
         --job-language: python
         --additional-python-modules: !Ref AdditionalPythonModules
-        # --conf spark.sql.adaptive.enabled
+        --data-type: {{ dataset["type"].lower() }}
+        --namespace: !Ref Namespace
+        --cfn-bucket: !Ref S3ScriptBucket
+        --parquet-bucket: !Ref ParquetBucket
+        --shareable-artifacts-bucket: !Ref ShareableArtifactsBucket
+        --expectation-suite-key: !Ref ExpectationSuiteKey
+        --gx-resources-key-prefix: !Sub "${Namespace}/great_expectation_resources/parquet/"
       Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
       GlueVersion: !Ref GlueVersion
       MaxRetries: !Ref MaxRetries

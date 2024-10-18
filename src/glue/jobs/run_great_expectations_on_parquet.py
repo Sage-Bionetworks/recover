@@ -1,5 +1,7 @@
 import json
 import logging
+import os
+import subprocess
 import sys
 from datetime import datetime
 from typing import Dict
@@ -39,6 +41,7 @@ def read_args() -> dict:
             "namespace",
             "data-type",
             "expectation-suite-key",
+            "gx-resources-key-prefix",
         ],
     )
     for arg in args:
@@ -61,145 +64,51 @@ def validate_args(value: str) -> None:
         return None
 
 
-def create_context(
-    s3_bucket: str, namespace: str, key_prefix: str
-) -> "EphemeralDataContext":
-    """Creates the data context and adds stores,
-        datasource and data docs configurations
-
-    Args:
-        s3_bucket (str): name of s3 bucket to store to
-        namespace (str): namespace
-        key_prefix (str): s3 key prefix
-
-    Returns:
-        EphemeralDataContext: context object with all
-            configurations
-    """
-    context = gx.get_context()
-    add_datasource(context)
-    add_validation_stores(context, s3_bucket, namespace, key_prefix)
-    add_data_docs_sites(context, s3_bucket, namespace, key_prefix)
-    return context
-
-
-def add_datasource(context: "EphemeralDataContext") -> "EphemeralDataContext":
-    """Adds the spark datasource
-
-    Args:
-        context (EphemeralDataContext): data context to add to
-
-    Returns:
-        EphemeralDataContext: data context object with datasource configuration
-            added
-    """
-    yaml = YAMLHandler()
-    context.add_datasource(
-        **yaml.load(
-            """
-        name: spark_datasource
-        class_name: Datasource
-        execution_engine:
-            class_name: SparkDFExecutionEngine
-            force_reuse_spark_context: true
-        data_connectors:
-            runtime_data_connector:
-                class_name: RuntimeDataConnector
-                batch_identifiers:
-                    - batch_identifier
-        """
-        )
-    )
-    return context
-
-
-def add_validation_stores(
-    context: "EphemeralDataContext",
+def update_data_docs_sites(
+    context: gx.data_context.AbstractDataContext,
     s3_bucket: str,
     namespace: str,
-    key_prefix: str,
-) -> "EphemeralDataContext":
-    """Adds the validation store configurations to the context object
+) -> gx.data_context.AbstractDataContext:
+    """
+    Updates the `data_docs_sites` configuration to reflect the appropriate environment and namespace
 
     Args:
-        context (EphemeralDataContext): data context to add to
-        s3_bucket (str): name of the s3 bucket to save validation results to
-        namespace (str): name of the namespace
-        key_prefix (str): s3 key prefix to save the
-            validation results to
+        context (gx.data_context.AbstractDataContext): The GX data context to update
+        s3_bucket (str): The S3 bucket where data docs are written
+        namespace (str): The current namespace
 
     Returns:
-        EphemeralDataContext: data context object with validation stores'
-            configuration added
+        gx.data_context.AbstractDataContext: The updated GX data context object
     """
-    # Programmatically configure the validation result store and
-    # DataDocs to use S3
-    context.add_store(
-        "validation_result_store",
-        {
-            "class_name": "ValidationsStore",
-            "store_backend": {
-                "class_name": "TupleS3StoreBackend",
-                "bucket": s3_bucket,
-                "prefix": f"{namespace}/{key_prefix}",
-            },
-        },
-    )
-    return context
-
-
-def add_data_docs_sites(
-    context: "EphemeralDataContext",
-    s3_bucket: str,
-    namespace: str,
-    key_prefix: str,
-) -> "EphemeralDataContext":
-    """Adds the data docs sites configuration to the context object
-        so data docs can be saved to a s3 location. This is a special
-        workaround to add the data docs because we're using EphemeralDataContext
-        context objects and they don't store to memory.
-
-    Args:
-        context (EphemeralDataContext): data context to add to
-        s3_bucket (str): name of the s3 bucket to save gx docs to
-        namespace (str): name of the namespace
-        key_prefix (str): s3 key prefix to save the
-            gx docs to
-
-    Returns:
-        EphemeralDataContext: data context object with data docs sites'
-            configuration added
-    """
-    data_context_config = DataContextConfig()
-    data_context_config["data_docs_sites"] = {
-        "s3_site": {
+    context.update_data_docs_site(
+        site_name="s3_site",
+        site_config={
             "class_name": "SiteBuilder",
             "store_backend": {
                 "class_name": "TupleS3StoreBackend",
                 "bucket": s3_bucket,
-                "prefix": f"{namespace}/{key_prefix}",
+                "prefix": f"{namespace}/great_expectation_reports/parquet/",
             },
             "site_index_builder": {"class_name": "DefaultSiteIndexBuilder"},
-        }
-    }
-    context._project_config["data_docs_sites"] = data_context_config["data_docs_sites"]
+        },
+    )
     return context
 
 
 def get_spark_df(
     glue_context: GlueContext, parquet_bucket: str, namespace: str, data_type: str
 ) -> "pyspark.sql.dataframe.DataFrame":
-    """Reads in the parquet dataset as a Dynamic Frame and converts it
-        to a spark dataframe
+    """
+    Read a data-type-specific Parquet dataset
 
     Args:
-        glue_context (GlueContext): the aws glue context object
-        parquet_bucket (str): the name of the bucket holding parquet files
-        namespace (str): the namespace
-        data_type (str): the data type name
+        glue_context (GlueContext): The AWS Glue context object
+        parquet_bucket (str): The S3 bucket containing the data-type-specific Parquet dataset
+        namespace (str): The associated namespace
+        data_type (str): The associated data type
 
     Returns:
-        pyspark.sql.dataframe.DataFrame: spark dataframe of the read in parquet dataset
+        pyspark.sql.dataframe.DataFrame: A Spark dataframe over our data-type-specific Parquet dataset
     """
     s3_parquet_path = f"s3://{parquet_bucket}/{namespace}/parquet/dataset_{data_type}/"
     dynamic_frame = glue_context.create_dynamic_frame_from_options(
@@ -212,29 +121,24 @@ def get_spark_df(
 
 
 def get_batch_request(
+    gx_context: gx.data_context.AbstractDataContext,
     spark_dataset: "pyspark.sql.dataframe.DataFrame",
     data_type: str,
-    run_id: RunIdentifier,
-) -> RuntimeBatchRequest:
-    """Retrieves the unique metadata for this batch request
+) -> gx.datasource.fluent.batch_request.BatchRequest:
+    """
+    Get a GX batch request over a Spark dataframe
 
     Args:
-        spark_dataset (pyspark.sql.dataframe.DataFrame): parquet dataset as spark df
-        data_type (str): data type name
-        run_id (RunIdentifier): contains the run name and
-            run time metadata of this batch run
+        spark_dataset (pyspark.sql.dataframe.DataFrame): A Spark dataframe
+        data_type (str): The data type
 
     Returns:
-        RuntimeBatchRequest: contains metadata for the batch run request
-            to identify this great expectations run
+        BatchRequest: A batch request which can be used in conjunction
+            with an expectation suite to validate our data.
     """
-    batch_request = RuntimeBatchRequest(
-        datasource_name="spark_datasource",
-        data_connector_name="runtime_data_connector",
-        data_asset_name=f"{data_type}-parquet-data-asset",
-        runtime_parameters={"batch_data": spark_dataset},
-        batch_identifiers={"batch_identifier": f"{data_type}_{run_id.run_name}_batch"},
-    )
+    data_source = gx_context.sources.add_or_update_spark(name="parquet")
+    data_asset = data_source.add_dataframe_asset(name=f"{data_type}_spark_dataframe")
+    batch_request = data_asset.build_batch_request(dataframe=spark_dataset)
     return batch_request
 
 
@@ -243,13 +147,13 @@ def read_json(
     s3_bucket: str,
     key: str,
 ) -> Dict[str, str]:
-    """Reads in a json object
+    """
+    Read a JSON file from an S3 bucket
 
     Args:
-        s3 (boto3.client): s3 client connection
-        s3_bucket (str): name of the s3 bucket to read from
-        key (str): s3 key prefix of the
-            location of the json to read from
+        s3 (boto3.client): An S3 client
+        s3_bucket (str): The S3 bucket containing the JSON file
+        key (str): The S3 key of the JSON file
 
     Returns:
         Dict[str, str]: the data read in from json
@@ -263,99 +167,86 @@ def read_json(
 
 def add_expectations_from_json(
     expectations_data: Dict[str, str],
-    context: "EphemeralDataContext",
-    data_type: str,
-) -> "EphemeralDataContext":
-    """Adds in the read in expectations to the context object
+    context: gx.data_context.AbstractDataContext,
+) -> gx.data_context.AbstractDataContext:
+    """
+    Add an expectation suite with expectations to our GX data context for each data type.
 
     Args:
-        expectations_data (Dict[str, str]): expectations
-        context (EphemeralDataContext): context object
-        data_type (str): name of the data type
+        expectations_data (Dict[str, str]): A mapping of data types to their expectations.
+            The expectations should be formatted like so:
 
-    Raises:
-        ValueError: thrown when no expectations exist for this data type
+                {
+                    "expectation_suite_name": "string",
+                    "expectations": {
+                        "expectation_type": "str",
+                        "kwargs": "readable by `ExpectationConfiguration`"
+                    }
+                }
+        context (gx.data_context.AbstractDataContext): context object
 
     Returns:
-        EphemeralDataContext: context object with expectations added
+        gx.data_context.AbstractDataContext: A GX data context object with expectation suites added
     """
-    # Ensure the data type exists in the JSON file
-    if data_type not in expectations_data:
-        raise ValueError(f"No expectations found for data type '{data_type}'")
+    for data_type in expectations_data:
+        suite_data = expectations_data[data_type]
+        expectation_suite_name = suite_data["expectation_suite_name"]
+        new_expectations = suite_data["expectations"]
 
-    # Extract the expectation suite and expectations for the dataset
-    suite_data = expectations_data[data_type]
-    expectation_suite_name = suite_data["expectation_suite_name"]
-    new_expectations = suite_data["expectations"]
+        # Convert new expectations from dict to ExpectationConfiguration objects
+        new_expectations_configs = [
+            ExpectationConfiguration(
+                expectation_type=exp["expectation_type"], kwargs=exp["kwargs"]
+            )
+            for exp in new_expectations
+        ]
 
-    # Convert new expectations from JSON format to ExpectationConfiguration objects
-    new_expectations_configs = [
-        ExpectationConfiguration(
-            expectation_type=exp["expectation_type"], kwargs=exp["kwargs"]
+        # Update the expectation suite in the data context
+        context.add_or_update_expectation_suite(
+            expectation_suite_name=expectation_suite_name,
+            expectations=new_expectations_configs,
         )
-        for exp in new_expectations
-    ]
-
-    # Update the expectation suite in the data context
-    context.add_or_update_expectation_suite(
-        expectation_suite_name=expectation_suite_name,
-        expectations=new_expectations_configs,
-    )
-    return context
-
-
-def add_validation_results_to_store(
-    context: "EphemeralDataContext",
-    expectation_suite_name: str,
-    validation_result: Dict[str, str],
-    batch_identifier: RuntimeBatchRequest,
-    run_identifier: RunIdentifier,
-) -> "EphemeralDataContext":
-    """Adds the validation results manually to the validation store.
-        This is a workaround for a EphemeralDataContext context object,
-        and for us to avoid complicating our folder structure to include
-        checkpoints/other more persistent data context object types
-        until we need that feature
-
-    Args:
-        context (EphemeralDataContext): context object to add results to
-        expectation_suite_name (str): name of expectation suite
-        validation_result (Dict[str, str]): results outputted by gx
-            validator to be stored
-        batch_identifier (RuntimeBatchRequest): metadata containing details of
-            the batch request
-        run_identifier (RunIdentifier): metadata containing details of the gx run
-
-    Returns:
-        EphemeralDataContext: context object with validation results added to
-    """
-    expectation_suite = context.get_expectation_suite(expectation_suite_name)
-    # Create an ExpectationSuiteIdentifier
-    expectation_suite_identifier = ExpectationSuiteIdentifier(
-        expectation_suite_name=expectation_suite.expectation_suite_name
-    )
-
-    # Create a ValidationResultIdentifier using the run_id, expectation suite, and batch identifier
-    validation_result_identifier = ValidationResultIdentifier(
-        expectation_suite_identifier=expectation_suite_identifier,
-        batch_identifier=batch_identifier,
-        run_id=run_identifier,
-    )
-
-    context.validations_store.set(validation_result_identifier, validation_result)
     return context
 
 
 def main():
     args = read_args()
+    s3 = boto3.client("s3")
+    # Download GX stores and configuration
+    subprocess.run(
+        args=[
+            "aws",
+            "s3",
+            "sync",
+            f"s3://{os.path.join(args['shareable_artifacts_bucket'], args['gx_resources_key_prefix'])}",
+            ".",
+        ],
+        check=True,
+    )
     run_id = RunIdentifier(run_name=f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
     expectation_suite_name = f"{args['data_type']}_expectations"
-    s3 = boto3.client("s3")
-    context = create_context(
+
+    # Set up Great Expectations
+    gx_context = gx.get_context()
+    logger.info("update_data_docs_site")
+    gx_context = update_data_docs_sites(
+        context=gx_context,
         s3_bucket=args["shareable_artifacts_bucket"],
         namespace=args["namespace"],
-        key_prefix=f"great_expectation_reports/{args['data_type']}/parquet/",
     )
+    logger.info("reads_expectations_from_json")
+    expectations_data = read_json(
+        s3=s3,
+        s3_bucket=args["cfn_bucket"],
+        key=args["expectation_suite_key"],
+    )
+    logger.info("adds_expectations_from_json")
+    gx_context = add_expectations_from_json(
+        expectations_data=expectations_data,
+        context=gx_context,
+    )
+
+    # Set up Spark
     glue_context = GlueContext(SparkContext.getOrCreate())
     logger.info("get_spark_df")
     spark_df = get_spark_df(
@@ -364,44 +255,23 @@ def main():
         namespace=args["namespace"],
         data_type=args["data_type"],
     )
+
+    # Put the two together and validate the GX expectations
     logger.info("get_batch_request")
-    batch_request = get_batch_request(spark_df, args["data_type"], run_id)
-    logger.info("add_expectations")
-
-    # Load the JSON file with the expectations
-    logger.info("reads_expectations_from_json")
-    expectations_data = read_json(
-        s3=s3,
-        s3_bucket=args["cfn_bucket"],
-        key=args["expectation_suite_key"],
+    batch_request = get_batch_request(
+        gx_context=gx_context, spark_dataset=spark_df, data_type=args["data_type"]
     )
-    logger.info("adds_expectations_from_json")
-    add_expectations_from_json(
-        expectations_data=expectations_data,
-        context=context,
-        data_type=args["data_type"],
-    )
-    logger.info("get_validator")
-    validator = context.get_validator(
-        batch_request=batch_request,
+    logger.info("add_or_update_checkpoint")
+    # The default checkpoint action list is:
+    # StoreValidationResultAction, StoreEvaluationParametersAction, UpdateDataDocsAction
+    checkpoint = gx_context.add_or_update_checkpoint(
+        name=f"{args['data_type']}-checkpoint",
         expectation_suite_name=expectation_suite_name,
+        batch_request=batch_request,
     )
-    logger.info("validator.validate")
-    validation_result = validator.validate()
-
-    logger.info("validation_result: %s", validation_result)
-
-    add_validation_results_to_store(
-        context,
-        expectation_suite_name,
-        validation_result,
-        batch_identifier=batch_request["batch_identifiers"]["batch_identifier"],
-        run_identifier=run_id,
-    )
-    context.build_data_docs(
-        site_names=["s3_site"],
-    )
-    logger.info("data docs saved!")
+    logger.info("run checkpoint")
+    checkpoint_result = checkpoint.run(run_id=run_id)
+    logger.info("data docs updated!")
 
 
 if __name__ == "__main__":
