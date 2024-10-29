@@ -1,8 +1,13 @@
+import os
+import shutil
 import unittest
 
+import boto3
 import great_expectations as gx
 import pyspark
 import pytest
+import yaml
+from moto import mock_s3
 
 from src.glue.jobs import run_great_expectations_on_parquet as run_gx_on_pq
 
@@ -16,6 +21,140 @@ def gx_context(scope="function"):
 @pytest.fixture(scope="function")
 def spark_session():
     yield pyspark.sql.SparkSession.builder.appName("BatchRequestTest").getOrCreate()
+
+
+@pytest.fixture()
+def cloudformation_bucket():
+    with mock_s3():
+        # Create a mock S3 client
+        s3 = boto3.client("s3")
+
+        # Define the bucket name
+        bucket_name = "test-great-expectations-bucket"
+
+        # Create the mock bucket
+        s3.create_bucket(Bucket=bucket_name)
+
+        # Create a sample great_expectations.yml with just the components we modify
+        great_expectations_content = """
+        config_version: 3.0
+        stores:
+            validations_store:
+                class_name: ValidationsStore
+                store_backend:
+                    class_name: TupleS3StoreBackend
+                    suppress_store_backend_id: true
+                    bucket: "{shareable_artifacts_bucket}"
+                    prefix: "{namespace}/great_expectation_reports/parquet/validations/"
+        data_docs_sites:
+            s3_site:
+                class_name: SiteBuilder
+                store_backend:
+                    class_name: TupleS3StoreBackend
+                    bucket: "{shareable_artifacts_bucket}"
+                    prefix: "{namespace}/great_expectation_reports/parquet/"
+                site_index_builder:
+                    class_name: DefaultSiteIndexBuilder
+        """
+
+        # Upload the great_expectations.yml file to the mocked bucket
+        s3.put_object(
+            Bucket=bucket_name,
+            Key="great_expectations.yml",
+            Body=great_expectations_content,
+        )
+
+        # Yield the bucket name for use in tests
+        yield {
+            "bucket": bucket_name,
+            "great_expectations_configuration_key": "great_expectations.yml",
+            "great_expectations_content": great_expectations_content,
+        }
+
+
+@pytest.fixture()
+def clean_up_after_configure_gx_config():
+    """Remove artifacts of `configure_gx_config` function"""
+    yield
+    if os.path.isdir("gx"):
+        shutil.rmtree("gx")
+
+
+def test_configure_gx_config_validations_store_bucket(
+    cloudformation_bucket, clean_up_after_configure_gx_config
+):
+    gx_config = run_gx_on_pq.configure_gx_config(
+        gx_config_bucket=cloudformation_bucket["bucket"],
+        gx_config_key=cloudformation_bucket["great_expectations_configuration_key"],
+        shareable_artifacts_bucket="shareable_artifacts_bucket",
+        namespace="namespace",
+    )
+    assert (
+        gx_config["stores"]["validations_store"]["store_backend"]["bucket"]
+        == "shareable_artifacts_bucket"
+    )
+
+
+def test_configure_gx_config_validations_store_prefix(
+    cloudformation_bucket, clean_up_after_configure_gx_config
+):
+    gx_config = run_gx_on_pq.configure_gx_config(
+        gx_config_bucket=cloudformation_bucket["bucket"],
+        gx_config_key=cloudformation_bucket["great_expectations_configuration_key"],
+        shareable_artifacts_bucket="shareable_artifacts_bucket",
+        namespace="namespace",
+    )
+    original_gx_config = yaml.safe_load(
+        cloudformation_bucket["great_expectations_content"]
+    )
+    # fmt: off
+    assert (
+        gx_config["stores"]["validations_store"]["store_backend"]["prefix"]
+        == original_gx_config["stores"]["validations_store"]["store_backend"]["prefix"].format(
+            namespace="namespace"
+        )
+    )
+    # fmt: on
+
+
+def test_configure_gx_config_data_docs_sites_bucket(
+    cloudformation_bucket, clean_up_after_configure_gx_config
+):
+    gx_config = run_gx_on_pq.configure_gx_config(
+        gx_config_bucket=cloudformation_bucket["bucket"],
+        gx_config_key=cloudformation_bucket["great_expectations_configuration_key"],
+        shareable_artifacts_bucket="shareable_artifacts_bucket",
+        namespace="namespace",
+    )
+    original_gx_config = yaml.safe_load(
+        cloudformation_bucket["great_expectations_content"]
+    )
+    assert (
+        gx_config["data_docs_sites"]["s3_site"]["store_backend"]["bucket"]
+        == "shareable_artifacts_bucket"
+    )
+
+
+def test_configure_gx_config_data_docs_sites_prefix(
+    cloudformation_bucket, clean_up_after_configure_gx_config
+):
+    gx_config = run_gx_on_pq.configure_gx_config(
+        gx_config_bucket=cloudformation_bucket["bucket"],
+        gx_config_key=cloudformation_bucket["great_expectations_configuration_key"],
+        shareable_artifacts_bucket="shareable_artifacts_bucket",
+        namespace="namespace",
+    )
+    original_gx_config = yaml.safe_load(
+        cloudformation_bucket["great_expectations_content"]
+    )
+    # fmt: off
+    assert (
+        gx_config["data_docs_sites"]["s3_site"]["store_backend"]["prefix"]
+        == original_gx_config["data_docs_sites"]["s3_site"]["store_backend"]["prefix"].format(
+            namespace="namespace"
+        )
+    )
+    # fmt: on
 
 
 def test_get_spark_df_has_expected_calls():

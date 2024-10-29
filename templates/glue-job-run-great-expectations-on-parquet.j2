@@ -55,7 +55,11 @@ Parameters:
 
   ExpectationSuiteKey:
     Type: String
-    Description: The s3 key prefix of the expectation suite.
+    Description: The S3 key of the GX expectation file.
+
+  GXConfigKey:
+    Type: String
+    Description: The S3 key of the GX configuration file/template.
 
   MaxRetries:
     Type: Number
@@ -106,7 +110,7 @@ Resources:
         --parquet-bucket: !Ref ParquetBucket
         --shareable-artifacts-bucket: !Ref ShareableArtifactsBucket
         --expectation-suite-key: !Ref ExpectationSuiteKey
-        --gx-resources-key-prefix: !Sub "${Namespace}/great_expectation_resources/parquet/"
+        --gx-config-key: !Ref GXConfigKey
       Description: !Sub "${JobDescription} for data type {{ dataset['type'] }}"
       GlueVersion: !Ref GlueVersion
       MaxRetries: !Ref MaxRetries

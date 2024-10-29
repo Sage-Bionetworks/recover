@@ -47,35 +47,6 @@ def upload(namespace: str, cfn_bucket: str):
     execute_command(cmd)
 
 
-def sync(namespace: str, shareable_artifacts_bucket: str):
-    """Sync resources which are not version controlled to this namespace.
-
-    In some cases, we do not want to version control some data (like Great Expectations artifacts)
-    but we need to duplicate this data from the main namespace to a development namespace.
-
-    Args:
-        namespace (str): The development namespace
-        shareable_artifacts_bucket (str): The S3 bucket containing shareable artifacts
-    """
-    # Copy Great Expectations artifacts to this namespace
-    source_gx_artifacts = os.path.join(
-        "s3://", shareable_artifacts_bucket, "main/great_expectation_resources/"
-    )
-    target_gx_artifacts = os.path.join(
-        "s3://", shareable_artifacts_bucket, namespace, "great_expectation_resources/"
-    )
-    gx_artifacts_clean_up_cmd = ["aws", "s3", "rm", "--recursive", target_gx_artifacts]
-    execute_command(gx_artifacts_clean_up_cmd)
-    gx_artifacts_sync_cmd = [
-        "aws",
-        "s3",
-        "sync",
-        source_gx_artifacts,
-        target_gx_artifacts,
-    ]
-    execute_command(gx_artifacts_sync_cmd)
-
-
 def delete(namespace: str, cfn_bucket: str):
     """Removes all files recursively for namespace"""
     s3_path = os.path.join("s3://", cfn_bucket, namespace)
@@ -93,13 +64,9 @@ def list_namespaces(cfn_bucket: str):
 def main(args):
     if args.upload:
         upload(args.namespace, args.cfn_bucket)
-        if args.namespace != "main":
-            sync(
-                namespace=args.namespace,
-                shareable_artifacts_bucket=args.shareable_artifacts_bucket,
-            )
     elif args.remove:
         delete(args.namespace, args.cfn_bucket)
+        delete(args.namespace, args.shareable_artifacts_bucket)
     else:
         list_namespaces(args.cfn_bucket)
 

@@ -8,51 +8,43 @@ stores:
   validations_store:
     class_name: ValidationsStore
     store_backend:
-      class_name: TupleFilesystemStoreBackend
-      base_directory: uncommitted/validations/
+      class_name: TupleS3StoreBackend
+      suppress_store_backend_id: true
+      bucket: "{shareable_artifacts_bucket}"
+      prefix: "{namespace}/great_expectation_reports/parquet/validations/"
   evaluation_parameter_store:
     class_name: EvaluationParameterStore
   checkpoint_store:
     class_name: CheckpointStore
     store_backend:
       class_name: TupleFilesystemStoreBackend
-      suppress_store_backend_id: true
       base_directory: checkpoints/
   profiler_store:
     class_name: ProfilerStore
     store_backend:
       class_name: TupleFilesystemStoreBackend
-      suppress_store_backend_id: true
       base_directory: profilers/
 expectations_store_name: expectations_store
 validations_store_name: validations_store
 evaluation_parameter_store_name: evaluation_parameter_store
 checkpoint_store_name: checkpoint_store
-datasources:
-  spark_datasource:
-    class_name: Datasource
-    execution_engine:
-        class_name: SparkDFExecutionEngine
-        force_reuse_spark_context: true
-    data_connectors:
-        runtime_data_connector:
-            class_name: RuntimeDataConnector
-            batch_identifiers:
-                - batch_identifier
-fluent_datasources:
-  parquet:
-    type: spark
-    assets: {}
 data_docs_sites:
   s3_site:
     class_name: SiteBuilder
     store_backend:
       class_name: TupleS3StoreBackend
-      bucket: recover-shareable-artifacts-vpn
-      prefix: main/great_expectation_reports/parquet
+      bucket: "{shareable_artifacts_bucket}"
+      prefix: "{namespace}/great_expectation_reports/parquet/"
     site_index_builder:
       class_name: DefaultSiteIndexBuilder
 include_rendered_content:
   globally: false
   expectation_suite: false
   expectation_validation_result: false
+fluent_datasources:
+  my_parquet_datasource:
+    type: spark
+    assets:
+      my_dataframe_asset:
+        type: dataframe
+        batch_metadata: {}
