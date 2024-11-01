@@ -195,6 +195,7 @@ def test_get_batch_request(gx_context):
         gx_context=gx_context, spark_dataset=spark_dataset, data_type=data_type
     )
     assert isinstance(batch_request, gx.datasource.fluent.batch_request.BatchRequest)
+    assert batch_request.data_asset_name == "test-data_spark_dataframe"
 
 
 def test_read_json_correctly_returns_expected_values():
@@ -224,39 +225,12 @@ def test_read_json_correctly_returns_expected_values():
         assert result == {"test_key": "test_value"}
 
 
-def test_that_add_expectations_from_json_has_expected_call():
-    mock_context = unittest.mock.MagicMock()
-
-    # Sample expectations data
-    expectations_data = {
-        "test-data": {
-            "expectation_suite_name": "test_suite",
-            "expectations": [
-                {
-                    "expectation_type": "expect_column_to_exist",
-                    "kwargs": {"column": "test_column"},
-                },
-            ],
-        }
-    }
-
-    data_type = "test-data"
-
-    # Call the function
-    run_gx_on_pq.add_expectations_from_json(
-        expectations_data=expectations_data, context=mock_context
-    )
-
-    # Verify expectations were added to the context
-    mock_context.add_or_update_expectation_suite.assert_called_once()
-
-
 @pytest.mark.integration
 def test_add_expectations_from_json_adds_details_correctly(gx_context):
     # Mock expectations data
     expectations_data = {
-        "user_data": {
-            "expectation_suite_name": "user_data_suite",
+        "user_data_one": {
+            "expectation_suite_name": "user_data_one_suite",
             "expectations": [
                 {
                     "expectation_type": "expect_column_to_exist",
@@ -267,7 +241,20 @@ def test_add_expectations_from_json_adds_details_correctly(gx_context):
                     "kwargs": {"column": "age", "min_value": 18, "max_value": 65},
                 },
             ],
-        }
+        },
+        "user_data_two": {
+            "expectation_suite_name": "user_data_two_suite",
+            "expectations": [
+                {
+                    "expectation_type": "expect_column_to_exist",
+                    "kwargs": {"column": "user_id"},
+                },
+                {
+                    "expectation_type": "expect_column_values_to_be_between",
+                    "kwargs": {"column": "age", "min_value": 18, "max_value": 65},
+                },
+            ],
+        },
     }
 
     # Call the function to add expectations
@@ -275,10 +262,17 @@ def test_add_expectations_from_json_adds_details_correctly(gx_context):
         expectations_data=expectations_data, context=gx_context
     )
 
-    # Retrieve the expectation suite to verify that expectations were added
-    expectation_suite = gx_context.get_expectation_suite("user_data_suite")
+    expectation_suites_in_store = [
+        suite.expectation_suite_name
+        for suite in gx_context.expectations_store.list_keys()
+    ]
+    assert "user_data_one_suite" in expectation_suites_in_store
+    assert "user_data_two_suite" in expectation_suites_in_store
 
-    assert expectation_suite.expectation_suite_name == "user_data_suite"
+    # Retrieve the expectation suite to verify that expectations were added
+    expectation_suite = gx_context.get_expectation_suite("user_data_one_suite")
+
+    assert expectation_suite.expectation_suite_name == "user_data_one_suite"
     assert len(expectation_suite.expectations) == 2
 
     # Verify the details of the first expectation
