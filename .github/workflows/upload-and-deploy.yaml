@@ -115,6 +115,7 @@ jobs:
           --upload
           --namespace $NAMESPACE
           --cfn_bucket ${{ vars.CFN_BUCKET }}
+          --shareable-artifacts-bucket ${{ vars.SHAREABLE_ARTIFACTS_BUCKET }}
 
   nonglue-unit-tests:
     name: Runs unit tests that are not dependent on aws-glue package resources
@@ -437,6 +438,7 @@ jobs:
           --upload
           --namespace staging
           --cfn_bucket ${{ vars.CFN_BUCKET }}
+          --shareable-artifacts-bucket ${{ vars.SHAREABLE_ARTIFACTS_BUCKET }}
 
       - name: Create directory for remote sceptre templates
         run: mkdir -p templates/remote/

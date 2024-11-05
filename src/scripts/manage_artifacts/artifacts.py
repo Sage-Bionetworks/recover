@@ -10,6 +10,7 @@ def read_args():
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("--namespace")
     parser.add_argument("--cfn_bucket", required=True)
+    parser.add_argument("--shareable-artifacts-bucket", required=True)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--upload", action="store_true")
     group.add_argument("--remove", action="store_true")
@@ -18,9 +19,9 @@ def read_args():
     return args
 
 
-def execute_command(cmd: str):
+def execute_command(cmd: list[str]):
     print(f'Invoking command: {" ".join(cmd)}')
-    subprocess.run(cmd)
+    subprocess.run(cmd, check=True)
 
 
 def upload(namespace: str, cfn_bucket: str):
@@ -65,6 +66,7 @@ def main(args):
         upload(args.namespace, args.cfn_bucket)
     elif args.remove:
         delete(args.namespace, args.cfn_bucket)
+        delete(args.namespace, args.shareable_artifacts_bucket)
     else:
         list_namespaces(args.cfn_bucket)
 

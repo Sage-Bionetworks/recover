@@ -1,152 +1,169 @@
-from unittest.mock import MagicMock, patch
+import os
+import shutil
+import unittest
 
+import boto3
 import great_expectations as gx
+import pyspark
 import pytest
-from great_expectations.core.batch import RuntimeBatchRequest
-from great_expectations.core.run_identifier import RunIdentifier
-from great_expectations.core.yaml_handler import YAMLHandler
-from great_expectations.data_context.types.resource_identifiers import (
-    ExpectationSuiteIdentifier,
-    ValidationResultIdentifier,
-)
-from pyspark.sql import SparkSession
+import yaml
+from moto import mock_s3
 
 from src.glue.jobs import run_great_expectations_on_parquet as run_gx_on_pq
 
 
 @pytest.fixture
-def test_context(scope="function"):
+def gx_context(scope="function"):
     context = gx.get_context()
     yield context
 
 
 @pytest.fixture(scope="function")
-def test_spark():
-    yield SparkSession.builder.appName("BatchRequestTest").getOrCreate()
+def spark_session():
+    yield pyspark.sql.SparkSession.builder.appName("BatchRequestTest").getOrCreate()
 
 
-def test_create_context():
-    with (
-        patch.object(gx, "get_context") as mock_get_context,
-        patch.object(run_gx_on_pq, "add_datasource") as mock_add_datasource,
-        patch.object(
-            run_gx_on_pq, "add_validation_stores"
-        ) as mock_add_validation_stores,
-        patch.object(run_gx_on_pq, "add_data_docs_sites") as mock_add_data_docs_sites,
-    ):
-        mock_context = MagicMock()
-        mock_get_context.return_value = mock_context
+@pytest.fixture()
+def cloudformation_bucket():
+    with mock_s3():
+        # Create a mock S3 client
+        s3 = boto3.client("s3")
 
-        s3_bucket = "test-bucket"
-        namespace = "test-namespace"
-        key_prefix = "test-prefix"
+        # Define the bucket name
+        bucket_name = "test-great-expectations-bucket"
 
-        # Call the function
-        result_context = run_gx_on_pq.create_context(s3_bucket, namespace, key_prefix)
+        # Create the mock bucket
+        s3.create_bucket(Bucket=bucket_name)
 
-        # Assert that the context returned is the mock context
-        assert result_context == mock_context
+        # Create a sample great_expectations.yml with just the components we modify
+        great_expectations_content = """
+        config_version: 3.0
+        stores:
+            validations_store:
+                class_name: ValidationsStore
+                store_backend:
+                    class_name: TupleS3StoreBackend
+                    suppress_store_backend_id: true
+                    bucket: "{shareable_artifacts_bucket}"
+                    prefix: "{namespace}/great_expectation_reports/parquet/validations/"
+        data_docs_sites:
+            s3_site:
+                class_name: SiteBuilder
+                store_backend:
+                    class_name: TupleS3StoreBackend
+                    bucket: "{shareable_artifacts_bucket}"
+                    prefix: "{namespace}/great_expectation_reports/parquet/"
+                site_index_builder:
+                    class_name: DefaultSiteIndexBuilder
+        """
 
-        # Assert that the other functions were called
-        mock_add_datasource.assert_called_once_with(mock_context)
-        mock_add_validation_stores.assert_called_once_with(
-            mock_context, s3_bucket, namespace, key_prefix
+        # Upload the great_expectations.yml file to the mocked bucket
+        s3.put_object(
+            Bucket=bucket_name,
+            Key="great_expectations.yml",
+            Body=great_expectations_content,
         )
-        mock_add_data_docs_sites.assert_called_once_with(
-            mock_context, s3_bucket, namespace, key_prefix
-        )
+
+        # Yield the bucket name for use in tests
+        yield {
+            "bucket": bucket_name,
+            "great_expectations_configuration_key": "great_expectations.yml",
+            "great_expectations_content": great_expectations_content,
+        }
 
 
-def test_that_add_datasource_calls_correctly():
-    mock_context = MagicMock()
-    result_context = run_gx_on_pq.add_datasource(mock_context)
+@pytest.fixture()
+def clean_up_after_configure_gx_config():
+    """Remove artifacts of `configure_gx_config` function"""
+    yield
+    if os.path.isdir("gx"):
+        shutil.rmtree("gx")
 
-    # Verify that the datasource was added
-    mock_context.add_datasource.assert_called_once()
-    assert result_context == mock_context
 
-
-@pytest.mark.integration
-def test_that_add_datasource_adds_correctly(test_context):
-    # Assuming you've already added a datasource, you can list it
-    run_gx_on_pq.add_datasource(test_context)
-    datasources = test_context.list_datasources()
-
-    # Define the expected datasource name
-    expected_datasource_name = "spark_datasource"
-
-    # Check that the expected datasource is present and other details are correct
-    assert any(
-        ds["name"] == expected_datasource_name for ds in datasources
-    ), f"Datasource '{expected_datasource_name}' was not added correctly."
-    datasource = next(
-        ds for ds in datasources if ds["name"] == expected_datasource_name
+def test_configure_gx_config_validations_store_bucket(
+    cloudformation_bucket, clean_up_after_configure_gx_config
+):
+    gx_config = run_gx_on_pq.configure_gx_config(
+        gx_config_bucket=cloudformation_bucket["bucket"],
+        gx_config_key=cloudformation_bucket["great_expectations_configuration_key"],
+        shareable_artifacts_bucket="shareable_artifacts_bucket",
+        namespace="namespace",
     )
-    assert datasource["class_name"] == "Datasource"
-    assert "SparkDFExecutionEngine" in datasource["execution_engine"]["class_name"]
-
-
-def test_add_validation_stores_has_expected_calls():
-    mock_context = MagicMock()
-    s3_bucket = "test-bucket"
-    namespace = "test-namespace"
-    key_prefix = "test-prefix"
-
-    with patch.object(mock_context, "add_store") as mock_add_store:
-        # Call the function
-        result_context = run_gx_on_pq.add_validation_stores(
-            mock_context, s3_bucket, namespace, key_prefix
-        )
-
-        # Verify that the validation store is added
-        mock_add_store.assert_called_once_with(
-            "validation_result_store",
-            {
-                "class_name": "ValidationsStore",
-                "store_backend": {
-                    "class_name": "TupleS3StoreBackend",
-                    "bucket": s3_bucket,
-                    "prefix": f"{namespace}/{key_prefix}",
-                },
-            },
-        )
-
-        assert result_context == mock_context
-
-
-@pytest.mark.integration
-def test_validation_store_details(test_context):
-    # Mock context and stores
-    run_gx_on_pq.add_validation_stores(
-        test_context,
-        s3_bucket="test-bucket",
-        namespace="test",
-        key_prefix="test_folder/",
+    assert (
+        gx_config["stores"]["validations_store"]["store_backend"]["bucket"]
+        == "shareable_artifacts_bucket"
     )
 
-    # Run the test logic
-    stores = test_context.list_stores()
-    expected_store_name = "validation_result_store"
 
-    assert any(store["name"] == expected_store_name for store in stores)
-    # pulls the store we want
-    store_config = [store for store in stores if store["name"] == expected_store_name][
-        0
-    ]
+def test_configure_gx_config_validations_store_prefix(
+    cloudformation_bucket, clean_up_after_configure_gx_config
+):
+    gx_config = run_gx_on_pq.configure_gx_config(
+        gx_config_bucket=cloudformation_bucket["bucket"],
+        gx_config_key=cloudformation_bucket["great_expectations_configuration_key"],
+        shareable_artifacts_bucket="shareable_artifacts_bucket",
+        namespace="namespace",
+    )
+    original_gx_config = yaml.safe_load(
+        cloudformation_bucket["great_expectations_content"]
+    )
+    # fmt: off
+    assert (
+        gx_config["stores"]["validations_store"]["store_backend"]["prefix"]
+        == original_gx_config["stores"]["validations_store"]["store_backend"]["prefix"].format(
+            namespace="namespace"
+        )
+    )
+    # fmt: on
 
-    assert store_config["class_name"] == "ValidationsStore"
-    assert store_config["store_backend"]["class_name"] == "TupleS3StoreBackend"
-    assert store_config["store_backend"]["bucket"] == "test-bucket"
-    assert store_config["store_backend"]["prefix"] == "test/test_folder/"
+
+def test_configure_gx_config_data_docs_sites_bucket(
+    cloudformation_bucket, clean_up_after_configure_gx_config
+):
+    gx_config = run_gx_on_pq.configure_gx_config(
+        gx_config_bucket=cloudformation_bucket["bucket"],
+        gx_config_key=cloudformation_bucket["great_expectations_configuration_key"],
+        shareable_artifacts_bucket="shareable_artifacts_bucket",
+        namespace="namespace",
+    )
+    original_gx_config = yaml.safe_load(
+        cloudformation_bucket["great_expectations_content"]
+    )
+    assert (
+        gx_config["data_docs_sites"]["s3_site"]["store_backend"]["bucket"]
+        == "shareable_artifacts_bucket"
+    )
+
+
+def test_configure_gx_config_data_docs_sites_prefix(
+    cloudformation_bucket, clean_up_after_configure_gx_config
+):
+    gx_config = run_gx_on_pq.configure_gx_config(
+        gx_config_bucket=cloudformation_bucket["bucket"],
+        gx_config_key=cloudformation_bucket["great_expectations_configuration_key"],
+        shareable_artifacts_bucket="shareable_artifacts_bucket",
+        namespace="namespace",
+    )
+    original_gx_config = yaml.safe_load(
+        cloudformation_bucket["great_expectations_content"]
+    )
+    # fmt: off
+    assert (
+        gx_config["data_docs_sites"]["s3_site"]["store_backend"]["prefix"]
+        == original_gx_config["data_docs_sites"]["s3_site"]["store_backend"]["prefix"].format(
+            namespace="namespace"
+        )
+    )
+    # fmt: on
 
 
 def test_get_spark_df_has_expected_calls():
-    glue_context = MagicMock()
-    mock_dynamic_frame = MagicMock()
-    mock_spark_df = MagicMock()
+    glue_context = unittest.mock.MagicMock()
+    mock_dynamic_frame = unittest.mock.MagicMock()
+    mock_spark_df = unittest.mock.MagicMock()
     mock_dynamic_frame.toDF.return_value = mock_spark_df
 
-    with patch.object(
+    with unittest.mock.patch.object(
         glue_context, "create_dynamic_frame_from_options"
     ) as mock_create_dynamic_frame:
         mock_create_dynamic_frame.return_value = mock_dynamic_frame
@@ -171,46 +188,14 @@ def test_get_spark_df_has_expected_calls():
         assert result_df == mock_spark_df
 
 
-def test_get_batch_request():
-    spark_dataset = MagicMock()
+def test_get_batch_request(gx_context):
+    spark_dataset = unittest.mock.MagicMock()
     data_type = "test-data"
-    run_id = RunIdentifier(run_name="2023_09_04")
-
-    batch_request = run_gx_on_pq.get_batch_request(spark_dataset, data_type, run_id)
-
-    # Verify the RuntimeBatchRequest is correctly set up
-    assert isinstance(batch_request, RuntimeBatchRequest)
-    assert batch_request.data_asset_name == f"{data_type}-parquet-data-asset"
-    assert batch_request.batch_identifiers == {
-        "batch_identifier": f"{data_type}_{run_id.run_name}_batch"
-    }
-    assert batch_request.runtime_parameters == {"batch_data": spark_dataset}
-
-
-@pytest.mark.integration
-def test_that_get_batch_request_details_are_correct(test_spark):
-    # Create a simple PySpark DataFrame to simulate the dataset
-    data = [("Alice", 34), ("Bob", 45), ("Charlie", 29)]
-    columns = ["name", "age"]
-    spark_dataset = test_spark.createDataFrame(data, columns)
-
-    # Create a RunIdentifier
-    run_id = RunIdentifier(run_name="test_run_2023")
-
-    # Call the function and get the RuntimeBatchRequest
-    data_type = "user_data"
-    batch_request = run_gx_on_pq.get_batch_request(spark_dataset, data_type, run_id)
-
-    # Assertions to check that the batch request is properly populated
-    assert isinstance(batch_request, RuntimeBatchRequest)
-    assert batch_request.datasource_name == "spark_datasource"
-    assert batch_request.data_connector_name == "runtime_data_connector"
-    assert batch_request.data_asset_name == "user_data-parquet-data-asset"
-    assert (
-        batch_request.batch_identifiers["batch_identifier"]
-        == "user_data_test_run_2023_batch"
+    batch_request = run_gx_on_pq.get_batch_request(
+        gx_context=gx_context, spark_dataset=spark_dataset, data_type=data_type
     )
-    assert batch_request.runtime_parameters["batch_data"] == spark_dataset
+    assert isinstance(batch_request, gx.datasource.fluent.batch_request.BatchRequest)
+    assert batch_request.data_asset_name == "test-data_spark_dataframe"
 
 
 def test_read_json_correctly_returns_expected_values():
@@ -218,13 +203,13 @@ def test_read_json_correctly_returns_expected_values():
     key = "test-key"
 
     # Mock the S3 response
-    mock_s3_response = MagicMock()
+    mock_s3_response = unittest.mock.MagicMock()
     mock_s3_response["Body"].read.return_value = '{"test_key": "test_value"}'.encode(
         "utf-8"
     )
 
     # Use patch to mock the boto3 s3 client
-    with patch("boto3.client") as mock_s3_client:
+    with unittest.mock.patch("boto3.client") as mock_s3_client:
         # Mock get_object method
         mock_s3_client.return_value.get_object.return_value = mock_s3_response
 
@@ -240,62 +225,12 @@ def test_read_json_correctly_returns_expected_values():
         assert result == {"test_key": "test_value"}
 
 
-def test_that_add_expectations_from_json_has_expected_call():
-    mock_context = MagicMock()
-
-    # Sample expectations data
-    expectations_data = {
-        "test-data": {
-            "expectation_suite_name": "test_suite",
-            "expectations": [
-                {
-                    "expectation_type": "expect_column_to_exist",
-                    "kwargs": {"column": "test_column"},
-                },
-            ],
-        }
-    }
-
-    data_type = "test-data"
-
-    # Call the function
-    run_gx_on_pq.add_expectations_from_json(expectations_data, mock_context, data_type)
-
-    # Verify expectations were added to the context
-    mock_context.add_or_update_expectation_suite.assert_called_once()
-
-
-def test_that_add_expectations_from_json_throws_value_error():
-    mock_context = MagicMock()
-
-    # Sample expectations data
-    expectations_data = {
-        "not-test-data": {
-            "expectation_suite_name": "test_suite",
-            "expectations": [
-                {
-                    "expectation_type": "expect_column_to_exist",
-                    "kwargs": {"column": "test_column"},
-                },
-            ],
-        }
-    }
-
-    data_type = "test-data"
-    with pytest.raises(
-        ValueError, match="No expectations found for data type 'test-data'"
-    ):
-        run_gx_on_pq.add_expectations_from_json(
-            expectations_data, mock_context, data_type
-        )
-
-
 @pytest.mark.integration
-def test_add_expectations_from_json_adds_details_correctly(test_context):
+def test_add_expectations_from_json_adds_details_correctly(gx_context):
     # Mock expectations data
     expectations_data = {
-        "user_data": {
-            "expectation_suite_name": "user_data_suite",
+        "user_data_one": {
+            "expectation_suite_name": "user_data_one_suite",
             "expectations": [
                 {
                     "expectation_type": "expect_column_to_exist",
@@ -306,20 +241,38 @@ def test_add_expectations_from_json_adds_details_correctly(test_context):
                     "kwargs": {"column": "age", "min_value": 18, "max_value": 65},
                 },
             ],
-        }
+        },
+        "user_data_two": {
+            "expectation_suite_name": "user_data_two_suite",
+            "expectations": [
+                {
+                    "expectation_type": "expect_column_to_exist",
+                    "kwargs": {"column": "user_id"},
+                },
+                {
+                    "expectation_type": "expect_column_values_to_be_between",
+                    "kwargs": {"column": "age", "min_value": 18, "max_value": 65},
+                },
+            ],
+        },
     }
 
-    data_type = "user_data"
-
     # Call the function to add expectations
-    test_context = run_gx_on_pq.add_expectations_from_json(
-        expectations_data, test_context, data_type
+    run_gx_on_pq.add_expectations_from_json(
+        expectations_data=expectations_data, context=gx_context
     )
 
-    # Retrieve the expectation suite to verify that expectations were added
-    expectation_suite = test_context.get_expectation_suite("user_data_suite")
+    expectation_suites_in_store = [
+        suite.expectation_suite_name
+        for suite in gx_context.expectations_store.list_keys()
+    ]
+    assert "user_data_one_suite" in expectation_suites_in_store
+    assert "user_data_two_suite" in expectation_suites_in_store
 
-    assert expectation_suite.expectation_suite_name == "user_data_suite"
+    # Retrieve the expectation suite to verify that expectations were added
+    expectation_suite = gx_context.get_expectation_suite("user_data_one_suite")
+
+    assert expectation_suite.expectation_suite_name == "user_data_one_suite"
     assert len(expectation_suite.expectations) == 2
 
     # Verify the details of the first expectation
@@ -335,47 +288,3 @@ def test_add_expectations_from_json_adds_details_correctly(test_context):
         "min_value": 18,
         "max_value": 65,
     }
-
-
-def test_that_add_validation_results_to_store_has_expected_calls():
-    # Mock the EphemeralDataContext and the necessary components
-    mock_context = MagicMock()
-    mock_expectation_suite = MagicMock()
-    mock_context.get_expectation_suite.return_value = mock_expectation_suite
-    mock_expectation_suite.expectation_suite_name = "test_suite"
-
-    # Mock the validation result data
-    validation_result = {"result": "test_result"}
-
-    # Create a mock batch identifier and run identifier
-    mock_batch_identifier = MagicMock(spec=RuntimeBatchRequest)
-    mock_run_identifier = MagicMock(spec=RunIdentifier)
-
-    # Call the function with mocked inputs
-    result_context = run_gx_on_pq.add_validation_results_to_store(
-        context=mock_context,
-        expectation_suite_name="test_suite",
-        validation_result=validation_result,
-        batch_identifier=mock_batch_identifier,
-        run_identifier=mock_run_identifier,
-    )
-
-    # Assert that the expectation suite was retrieved correctly
-    mock_context.get_expectation_suite.assert_called_once_with("test_suite")
-
-    expected_expectation_suite_identifier = ExpectationSuiteIdentifier(
-        expectation_suite_name="test_suite"
-    )
-    expected_validation_result_identifier = ValidationResultIdentifier(
-        expectation_suite_identifier=expected_expectation_suite_identifier,
-        batch_identifier=mock_batch_identifier,
-        run_id=mock_run_identifier,
-    )
-
-    # Verify that the validation result was added to the validations store
-    mock_context.validations_store.set.assert_called_once_with(
-        expected_validation_result_identifier, validation_result
-    )
-
-    # Check that the context is returned
-    assert result_context == mock_context

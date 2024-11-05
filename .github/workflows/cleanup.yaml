@@ -89,4 +89,9 @@ jobs:
         run: pipenv run sceptre --debug --var namespace=${{ github.event.ref }} delete develop/namespaced --yes
 
       - name: Remove artifacts
-        run: pipenv run python src/scripts/manage_artifacts/artifacts.py --remove --namespace ${{ github.event.ref }} --cfn_bucket ${{ vars.CFN_BUCKET }}
+        run: |
+          pipenv run python src/scripts/manage_artifacts/artifacts.py
+            --remove
+            --namespace ${{ github.event.ref }}
+            --cfn_bucket ${{ vars.CFN_BUCKET }}
+            --shareable-artifacts-bucket ${{ vars.SHAREABLE_ARTIFACTS_BUCKET }}

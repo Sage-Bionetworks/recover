@@ -40,7 +40,7 @@ Parameters:
 
   ParquetKeyPrefix:
     Type: String
-    Description: S3 key prefix where JSON datasets are stored.
+    Description: S3 key prefix where Parquet datasets are stored.
     Default: parquet
 
   GlueDatabase:
@@ -82,13 +82,6 @@ Parameters:
     Description: >-
         The name of the bucket where the cloudformation and artifacts are stored.
 
-  ShareableArtifactsBucketName:
-    Type: String
-    Description: The name of the bucket where shareable artifacts are stored.
-
-  ExpectationSuiteKey:
-    Type: String
-    Description: The s3 key prefix of the expectation suite.
 
 Conditions:
   IsMainNamespace: !Equals [!Ref Namespace, "main"]
@@ -316,14 +309,6 @@ Resources:
       Name: !Sub "${Namespace}-{{ dataset['stackname_prefix'] }}GreatExpectationsParquetTrigger"
       Actions:
         - JobName: !Sub ${Namespace}-{{ dataset["stackname_prefix"] }}-GreatExpectationsParquetJob
-          Arguments:
-            "--data-type": {{ dataset["data_type"].lower() }}
-            "--namespace": !Ref Namespace
-            "--cfn-bucket": !Ref CloudformationBucketName
-            "--parquet-bucket": !Ref ParquetBucketName
-            "--shareable-artifacts-bucket": !Ref ShareableArtifactsBucketName
-            "--expectation-suite-key": !Ref ExpectationSuiteKey
-            "--additional-python-modules": "great_expectations~=0.18,urllib3<2"
       Description:  This trigger runs the great expectation parquet job for this data type after completion of the JSON to Parquet job for this data type
       Type: CONDITIONAL
       Predicate:

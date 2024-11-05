@@ -41,7 +41,12 @@ jobs:
           python_version: ${{ env.PYTHON_VERSION }}
 
       - name: Copy files to templates bucket
-        run: python src/scripts/manage_artifacts/artifacts.py --upload --namespace $NAMESPACE --cfn_bucket ${{ vars.CFN_BUCKET }}
+        run: >
+          python src/scripts/manage_artifacts/artifacts.py
+          --upload
+          --namespace $NAMESPACE
+          --cfn_bucket ${{ vars.CFN_BUCKET }}
+          --shareable-artifacts-bucket ${{ vars.SHAREABLE_ARTIFACTS_BUCKET }}
 
 
   sceptre-deploy-main:
