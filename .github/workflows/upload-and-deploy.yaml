@@ -193,14 +193,9 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
+        with:
+          mask-password: 'false'
 
-      - name: Get ECR secret names
-        id: ecr
-        run: |
-          usernameKey=docker_username_$(echo ${{ steps.login-ecr.outputs.registry }} | tr '.-' _)
-          echo "username-key=$usernameKey" >> $GITHUB_OUTPUT
-          passwordKey=docker_password_$(echo ${{ steps.login-ecr.outputs.registry }} | tr '.-' _)
-          echo "password-key=$passwordKey" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v3
 
       - name: Set up Docker Buildx
@@ -215,10 +210,11 @@ jobs:
           file: ${{ matrix.dockerfile }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
+
     outputs:
       ecr-registry: ${{ steps.login-ecr.outputs.registry }}
-      ecr-username: ${{ steps.login-ecr.outputs[steps.ecr.outputs.username-key] }}
-      ecr-password: ${{ steps.login-ecr.outputs[steps.ecr.outputs.password-key] }}
+      ecr-username: ${{ steps.login-ecr.outputs['docker_username_914833433684_dkr_ecr_us_east_1_amazonaws_com'] }}
+      ecr-password: ${{ steps.login-ecr.outputs['docker_password_914833433684_dkr_ecr_us_east_1_amazonaws_com'] }}
 
   glue-unit-tests:
     name: Run Pytest unit tests for AWS glue
