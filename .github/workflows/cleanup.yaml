@@ -89,7 +89,7 @@ jobs:
         run: pipenv run sceptre --debug --var namespace=${{ github.event.ref }} delete develop/namespaced --yes
 
       - name: Remove artifacts
-        run: |
+        run: >
           pipenv run python src/scripts/manage_artifacts/artifacts.py
             --remove
             --namespace ${{ github.event.ref }}
