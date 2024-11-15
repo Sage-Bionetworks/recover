@@ -1,6 +1,18 @@
 {
+    "fitbitactivitylogs": {
+        "expectations": [
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "AverageHeartRate",
+                    "min_value": 25,
+                    "max_value": 300
+                }
+            }
+        ],
+        "expectation_suite_name": "fitbitactivitylogs_expectations"
+    },
     "fitbitdailydata": {
-        "expectation_suite_name": "fitbitdailydata_expectations",
         "expectations": [
             {
                 "expectation_type": "expect_column_values_to_be_between",
@@ -25,8 +37,227 @@
                     "min_value": 4,
                     "max_value": 40
                 }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "MinutesFairlyActive",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "MinutesLightlyActive",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "MinutesSedentary",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "MinutesVeryActive",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "RestingHeartRate",
+                    "min_value": 25,
+                    "max_value": 300
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "Hrv_DailyRmssd",
+                    "min_value": 3,
+                    "max_value": 210
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SpO2_Avg",
+                    "min_value": 50,
+                    "max_value": 100
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SpO2_Min",
+                    "min_value": 50,
+                    "max_value": 100
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SpO2_Max",
+                    "min_value": 50,
+                    "max_value": 100
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "TempSkin",
+                    "min_value": -15,
+                    "max_value": 15
+                }
             }
-        ]
+        ],
+        "expectation_suite_name": "fitbitdailydata_expectations"
+    },
+    "fitbitintradaycombined": {
+        "expectations": [
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "DeepSleepSummaryBreathRate",
+                    "min_value": 4,
+                    "max_value": 40
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "RemSleepSummaryBreathRate",
+                    "min_value": 4,
+                    "max_value": 40
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "FullSleepSummaryBreathRate",
+                    "min_value": 4,
+                    "max_value": 40
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "LightSleepSummaryBreathRate",
+                    "min_value": 4,
+                    "max_value": 40
+                }
+            }
+        ],
+        "expectation_suite_name": "fitbitintradaycombined_expectations"
+    },
+    "fitbitsleeplogs": {
+        "expectations": [
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "MinutesAfterWakeup",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "MinutesAsleep",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "MinutesAwake",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "MinutesToFallAsleep",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "TimeInBed",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SleepLevelAwake",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SleepLevelAsleep",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SleepLevelDeep",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SleepLevelLight",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SleepLevelRem",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SleepLevelRestless",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "kwargs": {
+                    "column": "SleepLevelWake",
+                    "min_value": 0,
+                    "max_value": 1440
+                }
+            }
+        ],
+        "expectation_suite_name": "fitbitsleeplogs_expectations"
     },
     "healthkitv2workouts": {
         "expectation_suite_name": "healthkitv2workouts_expectations",
