@@ -43,15 +43,44 @@ Parameters:
   DefaultWorkerType:
     Type: String
     Description: >-
-        Which worker type to use for this job.
+        Which worker type to use for most data types
     Default: 'Standard'
+
+  MediumJobWorkerType:
+    Type: String
+    Description: >-
+        Which worker type to use for this job.
+        Medium data types include: HealthKitV2Samples, HealthKitV2Electrocardiogram,
+        FitbitDailyData, FitbitSleepLogs
+    Default: 'G.4X'
+
+  LargeJobWorkerType:
+    Type: String
+    Description: >-
+        Which worker type to use for this job.
+        Large data types include: FitbitIntradayCombined
+    Default: 'G.8X'
 
   DefaultNumberOfWorkers:
     Type: Number
     Description: >-
-        How many DPUs to allot to this job. This parameter is not used for types
-        FitbitIntradayCombined and HealthKitV2Samples.
+        How many DPUs to allot for most data types.
     Default: 1
+
+  MediumJobNumberOfWorkers:
+    Type: Number
+    Description: >-
+        How many DPUs to allot to this job.
+        Medium data types include: HealthKitV2Samples, HealthKitV2Electrocardiogram,
+        FitbitDailyData, FitbitSleepLogs
+    Default: 4
+
+  LargeJobNumberOfWorkers:
+    Type: Number
+    Description: >-
+        How many DPUs to allot to this job.
+        Large data types include: FitbitIntradayCombined
+    Default: 8
 
   ExpectationSuiteKey:
     Type: String
@@ -115,8 +144,21 @@ Resources:
       GlueVersion: !Ref GlueVersion
       MaxRetries: !Ref MaxRetries
       Name: !Sub "${Namespace}-{{ dataset["stackname_prefix"] }}-GreatExpectationsParquetJob"
+      {% if dataset["type"] == "FitbitIntradayCombined" -%}
+      WorkerType: !Ref LargeJobWorkerType
+      NumberOfWorkers: !Ref LargeJobNumberOfWorkers
+      {% elif (
+        dataset["type"] == "HealthKitV2Samples"
+        or dataset["type"] == "HealthKitV2Electrocardiogram"
+        or dataset["type"] == "FitbitDailyData"
+        or dataset["type"] == "FitbitSleepLogs"
+      ) -%}
+      WorkerType: !Ref MediumJobWorkerType
+      NumberOfWorkers: !Ref MediumJobNumberOfWorkers
+      {% else -%}
       WorkerType: !Ref DefaultWorkerType
       NumberOfWorkers: !Ref DefaultNumberOfWorkers
+      {%- endif %}
       Role: !Ref JobRole
       Timeout: !Ref TimeoutInMinutes
   {% endfor %}
