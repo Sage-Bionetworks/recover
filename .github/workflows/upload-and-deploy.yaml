@@ -244,7 +244,7 @@ jobs:
       options: "--user root"
     steps:
       - name: Assume AWS role
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           aws-region: "us-east-1"
