@@ -183,7 +183,7 @@ jobs:
     environment: develop
     steps:
       - name: Assume AWS role
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           aws-region: "us-east-1"
@@ -240,10 +240,11 @@ jobs:
         password: ${{ needs.pytest-docker.outputs.ecr-password }}
       env:
         DISABLE_SSL: true
+        ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
       options: "--user root"
     steps:
       - name: Assume AWS role
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           aws-region: "us-east-1"
