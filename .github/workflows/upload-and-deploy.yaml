@@ -183,7 +183,7 @@ jobs:
     environment: develop
     steps:
       - name: Assume AWS role
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_CREDENTIALS_IAM_ROLE }}
           aws-region: "us-east-1"

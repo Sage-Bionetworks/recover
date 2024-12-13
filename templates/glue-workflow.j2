@@ -63,7 +63,7 @@ Parameters:
         When `IsMainNamespace`, the respective trigger is active from the moment
         of deployment. Otherwise, the trigger is disabled so that we don't waste
         resources running our development pipelines every day.
-    Default: cron(0 2 * * ? *)
+    Default: cron(0 2 ? * 1 *)
 
   CompareParquetStagingNamespace:
     Type: String
