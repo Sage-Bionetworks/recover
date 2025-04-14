@@ -38,7 +38,7 @@ Parameters:
     Description: >-
         Which worker type to use for this job.
         Medium data types include: HealthKitV2Samples, HealthKitV2Electrocardiogram,
-        FitbitDailyData, FitbitSleepLogs
+        FitbitDailyData, FitbitSleepLogs, HealthKitV2Statistics
     Default: 'G.4X'
 
   LargeJobWorkerType:
@@ -59,7 +59,7 @@ Parameters:
     Description: >-
         How many DPUs to allot to this job.
         Medium data types include: HealthKitV2Samples, HealthKitV2Electrocardiogram,
-        FitbitDailyData, FitbitSleepLogs
+        FitbitDailyData, FitbitSleepLogs, HealthKitV2Statistics
     Default: 4
 
   LargeJobNumberOfWorkers:
@@ -134,6 +134,8 @@ Resources:
         or dataset["type"] == "HealthKitV2Electrocardiogram"
         or dataset["type"] == "FitbitDailyData"
         or dataset["type"] == "FitbitSleepLogs"
+        or dataset["type"] == "HealthKitV2Statistics"
+        or dataset["type"] == "HealthKitV2Statistics"
       ) -%}
       WorkerType: !Ref MediumJobWorkerType
       NumberOfWorkers: !Ref MediumJobNumberOfWorkers
