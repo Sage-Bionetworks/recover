@@ -5,5 +5,8 @@ stack_name: recover-processed-data-bucket
 parameters:
   BucketName: {{ stack_group_config.processed_data_bucket_name }}
   ConnectToSynapse: "true"
+  EnableExternalTransfer: "true"
+  ExternalTransferRoleArn: "arn:aws:iam::714862078411:user/rixing.xu@sagebase.org"
+  ExternalTransferPrefix: "main/parquet/archive/"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}
