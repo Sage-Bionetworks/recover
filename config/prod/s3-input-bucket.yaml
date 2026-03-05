@@ -6,5 +6,8 @@ stack_name: recover-input-bucket
 parameters:
   BucketName: {{ stack_group_config.input_bucket_name }}
   ConnectToSynapse: "true"
+  EnableExternalTransfer: "true"
+  ExternalTransferRoleArn: "arn:aws:iam::714862078411:user/rixing.xu@sagebase.org"
+  ExternalTransferPrefix: "main/"
 stack_tags:
   {{ stack_group_config.default_stack_tags }}

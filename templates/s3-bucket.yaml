@@ -19,15 +19,36 @@ Parameters:
       - "false"
     Default: "false"
 
+  EnableExternalTransfer:
+    Type: String
+    Description: Whether to grant an external IAM role read permissions for cross-account aws s3 sync (source bucket).
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+
+  ExternalTransferRoleArn:
+    Type: String
+    Description: IAM Role ARN (preferred) or IAM User ARN of the external principal that will read from this bucket.
+    Default: ""
+
+  ExternalTransferPrefix:
+    Type: String
+    Description: Optional prefix (folder) to restrict external reads (e.g., "exports/"). Leave blank to allow entire bucket.
+    Default: ""
+
 Conditions:
   HasBucketName: !Not [!Equals [!Ref BucketName, ""]]
   ConnectToSynapse:
     !Equals [!Ref ConnectToSynapse, "true"]
+  EnableExternalTransfer:
+    !Equals [!Ref EnableExternalTransfer, "true"]
 
 Resources:
   Bucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Delete
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BucketName: !If [HasBucketName, !Ref BucketName, !Ref 'AWS::NoValue']
       AccessControl: Private
@@ -64,6 +85,36 @@ Resources:
             Resource:
               - !Sub 'arn:aws:s3:::${Bucket}'
               - !Sub 'arn:aws:s3:::${Bucket}/*'
+          # Deny HTTP requests
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub 'arn:aws:s3:::${Bucket}'
+              - !Sub 'arn:aws:s3:::${Bucket}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+          # Optional external transfer read access (for aws s3 sync as SOURCE)
+          - !If
+            - EnableExternalTransfer
+            - Sid: ExternalTransferRead
+              Effect: Allow
+              Principal:
+                AWS: !Ref ExternalTransferRoleArn
+              Action:
+                - "s3:ListBucket"
+                - "s3:GetObject"
+              Resource:
+                - !Sub 'arn:aws:s3:::${Bucket}'
+                - !Sub "arn:aws:s3:::${Bucket}/${ExternalTransferPrefix}*"
+              Condition:
+                StringLike:
+                  s3:prefix:
+                    - !Sub "${ExternalTransferPrefix}*"
+                    - !Ref ExternalTransferPrefix
+            - !Ref AWS::NoValue
           - !If
             - ConnectToSynapse
             - Sid: SynapseBucketAccess
